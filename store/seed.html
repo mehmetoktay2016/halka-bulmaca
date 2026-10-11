@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Mağaza ekran görüntüleri için: örnek bir oyuncu ilerlemesi yükler ve oyuna geçer.
+     Kullanım: store/seed.html?to=screen=levels  (oyuna verilecek adres parametreleri) -->
+<html><head><meta charset="utf-8"><title>Örnek ilerleme</title></head><body>
+<script>
+  const stars = {}, best = {};
+  const got = [3, 3, 2, 3, 3, 3, 2, 3, 3, 1, 3, 2, 3, 3, 2, 3, 3];
+  got.forEach((s, i) => { stars[i + 1] = s; best[i + 1] = s * 100 + (i % 3) * 25; });
+  try {
+    localStorage.setItem('halka.progress.v2', JSON.stringify({
+      unlocked: 18, stars, best, sound: true, coins: 42, coinTip: true, tutorialDone: true,
+    }));
+  } catch (e) { /* yok say */ }
+  const to = new URLSearchParams(location.search).get('to') || '';
+  location.replace('../index.html' + (to ? '?' + to : ''));
+</script>
+</body></html>

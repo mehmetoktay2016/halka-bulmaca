@@ -53,30 +53,31 @@ svg { display: block; }
 .device { position: relative; height: 100%; overflow: hidden; }
 .island, .statusbar, .homebar { display: none; }
 
+/* Telefon çerçevesi: yalnızca tarayıcıda, geniş ekranda (Android uygulamasında hiç görünmez) */
 @media (min-width: 600px) and (min-height: 600px) {
-  body {
+  html:not(.app) body {
     display: flex;
     align-items: center;
     justify-content: center;
     padding-block: 24px;
     background: radial-gradient(circle at 50% 30%, #262b40 0%, #0a0b11 75%);
   }
-  .phone { width: 390px; height: min(844px, 100%); aspect-ratio: 390 / 844; max-width: 100%; }
-  .phone::before, .phone::after {
+  html:not(.app) .phone { width: 390px; height: min(844px, 100%); aspect-ratio: 390 / 844; max-width: 100%; }
+  html:not(.app) .phone::before, html:not(.app) .phone::after {
     content: "";
     position: absolute;
     width: 4px;
     border-radius: 2px;
     background: var(--frame-edge);
   }
-  .phone::before { right: -17px; top: 22%; height: 90px; }
-  .phone::after { left: -17px; top: 17%; height: 60px; box-shadow: 0 80px 0 var(--frame-edge), 0 150px 0 var(--frame-edge); }
-  .device {
+  html:not(.app) .phone::before { right: -17px; top: 22%; height: 90px; }
+  html:not(.app) .phone::after { left: -17px; top: 17%; height: 60px; box-shadow: 0 80px 0 var(--frame-edge), 0 150px 0 var(--frame-edge); }
+  html:not(.app) .device {
     border-radius: 56px;
     background: var(--scene);
     box-shadow: 0 0 0 11px var(--frame), 0 0 0 13px var(--frame-edge), 0 30px 80px rgba(0, 0, 0, .6);
   }
-  .island {
+  html:not(.app) .island {
     display: block;
     position: absolute;
     top: 11px;
@@ -88,7 +89,7 @@ svg { display: block; }
     background: #000;
     z-index: 10;
   }
-  .statusbar {
+  html:not(.app) .statusbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -100,9 +101,9 @@ svg { display: block; }
     position: relative;
     z-index: 9;
   }
-  .sys { display: flex; align-items: center; gap: 6px; }
-  .sys svg { fill: var(--text); }
-  .battery {
+  html:not(.app) .sys { display: flex; align-items: center; gap: 6px; }
+  html:not(.app) .sys svg { fill: var(--text); }
+  html:not(.app) .battery {
     position: relative;
     width: 25px;
     height: 12px;
@@ -110,7 +111,7 @@ svg { display: block; }
     border-radius: 4px;
     padding: 1.5px;
   }
-  .battery::after {
+  html:not(.app) .battery::after {
     content: "";
     position: absolute;
     right: -4px;
@@ -120,10 +121,10 @@ svg { display: block; }
     border-radius: 0 1px 1px 0;
     background: rgba(242, 243, 252, .45);
   }
-  .battery span { display: block; width: 80%; height: 100%; border-radius: 2px; background: var(--text); }
-  .device #app { height: calc(100% - 54px); }
-  .device .screen { padding-bottom: 30px; }
-  .homebar {
+  html:not(.app) .battery span { display: block; width: 80%; height: 100%; border-radius: 2px; background: var(--text); }
+  html:not(.app) .device #app { height: calc(100% - 54px); }
+  html:not(.app) .device .screen { padding-bottom: 30px; }
+  html:not(.app) .homebar {
     display: block;
     position: absolute;
     bottom: 9px;
@@ -150,7 +151,7 @@ svg { display: block; }
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px calc(14px + env(safe-area-inset-bottom, 0px));
   animation: screen-in .35s ease both;
 }
 @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } }
@@ -282,7 +283,7 @@ svg { display: block; }
 @keyframes load { from { transform: scaleX(0); } }
 
 /* ---------- Ana menü ---------- */
-.home { align-items: center; justify-content: center; text-align: center; }
+.home { align-items: center; justify-content: center; text-align: center; padding-top: calc(66px + env(safe-area-inset-top, 0px)); }
 .logo-mark { width: 190px; margin-bottom: 4px; }
 .logo-mark .lr { fill: none; stroke-width: 11; stroke-linecap: round; transform-box: fill-box; transform-origin: center; }
 .lr1 { stroke: #ff6b6b; stroke-dasharray: 200 52; animation: spin 14s linear infinite; }
@@ -428,7 +429,19 @@ svg { display: block; }
 }
 .score-pill b, .home-score b { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: 1.1; }
 .score-pill.bump { animation: bump .35s ease; }
-.home-score { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); }
+.home-score { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); }
+
+/* Kısa ekranlı telefonlar (ör. 360×640): ana menü sığsın, skor logoya binmesin */
+@media (max-height: 720px) {
+  .logo-mark { width: 128px; }
+  .logo { font-size: 44px; }
+  .logo span { font-size: 21px; margin-top: 6px; }
+  .tagline { margin: 8px 0 18px; }
+  .btn-primary.big { min-height: 62px; font-size: 25px; }
+  .home-actions { gap: 10px; }
+  .promises { margin-top: 16px; }
+  .home-stars { margin-top: 12px; }
+}
 
 #movesNum.warn { color: #ff7a7a; animation: bump .6s ease infinite; }
 

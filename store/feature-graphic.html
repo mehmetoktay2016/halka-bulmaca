@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Google Play "öne çıkan görsel" (1024×500). PNG için 1024×500 pencerede ekran görüntüsü alınır. -->
+<html lang="tr"><head><meta charset="utf-8"><title>Öne çıkan görsel</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    color: #f2f3fc;
+    font-family: "Nunito", system-ui, sans-serif;
+    background:
+      radial-gradient(60% 80% at 10% 0%, rgba(98, 92, 255, .4), transparent 70%),
+      radial-gradient(50% 70% at 100% 100%, rgba(45, 212, 191, .2), transparent 70%),
+      linear-gradient(180deg, #181d3a, #0b0e1c);
+    display: grid;
+    grid-template-columns: 1fr 440px;
+    align-items: center;
+  }
+  .text { padding-left: 72px; }
+  h1 { margin: 0; font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 104px; line-height: .9; }
+  h1 span { display: block; font-size: 46px; letter-spacing: .24em; color: #ffc94a; margin-top: 14px; }
+  p { margin: 22px 0 0; font-size: 26px; font-weight: 700; color: #d2d6f2; }
+  .tags { display: flex; gap: 10px; margin-top: 26px; }
+  .tags b {
+    font-family: "Baloo 2", sans-serif; font-size: 20px; padding: 6px 16px; border-radius: 999px;
+    background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12);
+  }
+  svg { width: 440px; height: 440px; }
+  .lr { fill: none; stroke-width: 26; stroke-linecap: round; }
+</style></head>
+<body>
+  <div class="text">
+    <h1>Halka<span>Bulmaca</span></h1>
+    <p>Döndür · Hizala · Serbest bırak</p>
+    <div class="tags"><b>Reklamsız</b><b>60 bölüm</b><b>Sınırsız ipucu</b></div>
+  </div>
+  <svg viewBox="0 0 440 440" aria-hidden="true">
+    <circle cx="170" cy="180" r="92" class="lr" stroke="#ff6b6b" stroke-dasharray="470 108" transform="rotate(-40 170 180)"/>
+    <circle cx="276" cy="180" r="92" class="lr" stroke="#ffc94a" stroke-dasharray="470 108" transform="rotate(150 276 180)"/>
+    <circle cx="223" cy="268" r="80" class="lr" stroke="#2dd4bf" stroke-dasharray="400 103" transform="rotate(60 223 268)"/>
+    <line x1="40" y1="330" x2="400" y2="330" stroke="#c3cada" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="40" cy="330" r="13" fill="#8d95ad"/><circle cx="400" cy="330" r="13" fill="#8d95ad"/>
+  </svg>
+</body></html>

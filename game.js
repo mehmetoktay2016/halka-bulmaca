@@ -1037,6 +1037,20 @@
     }
     runSplash();
   }
+  // Android geri tuşu (Capacitor uygulaması): önce açık kartı kapatır, sonra bir önceki
+  // ekrana döner; ana menüdeyken uygulamadan çıkar.
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (AppPlugin) {
+    AppPlugin.addListener('backButton', () => {
+      if (!$('splash').hidden) return;
+      if (!$('fail').classList.contains('hidden')) { $('failRetry').click(); return; }
+      if (!$('win').classList.contains('hidden')) { $('win').classList.add('hidden'); showScreen('levels'); return; }
+      if (!$('game').hidden) { showScreen(S.tut != null ? 'home' : 'levels'); return; }
+      if (!$('levels').hidden) { showScreen('home'); return; }
+      AppPlugin.exitApp();
+    });
+  }
+
   if (params.has('debug')) window.__halka = { S, scale: () => scale };
   requestAnimationFrame(frame);
 })();

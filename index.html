@@ -12,10 +12,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Android uygulamasının (Capacitor) içinde açıldıysa: telefon çerçevesi yok, tam ekran
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      document.documentElement.classList.add('app');
+    }
+  </script>
 </head>
 <body>
   <div class="phone">

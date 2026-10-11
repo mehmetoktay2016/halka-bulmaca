@@ -1,0 +1,10 @@
+{
+  "appId": "com.mehmetoktay.halkabulmaca",
+  "appName": "Halka Bulmaca",
+  "webDir": "www",
+  "backgroundColor": "#0b0e1c",
+  "android": {
+    "backgroundColor": "#0b0e1c",
+    "adjustMarginsForEdgeToEdge": "force"
+  }
+}

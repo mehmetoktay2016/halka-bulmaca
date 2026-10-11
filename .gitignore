@@ -1,2 +1,6 @@
 .impeccable/
 node_modules/
+www/
+dist/
+*.jks
+*.keystore

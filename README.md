@@ -25,6 +25,14 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
 
 Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam ekran açılır.
 
+## Android (Google Play) ve Expo
+
+- **Android uygulaması:** Capacitor ile `android/` klasöründe. Oyun değişince `npm run android:sync`.
+- **Expo Go ile test:** `cd expo_app && npx expo start`, QR kodu telefondaki Expo Go ile okut.
+  Oyun değişince ana klasörde `node tools/build_single.js`.
+- **Yayın adımları:** [PLAY_STORE.md](PLAY_STORE.md). Mağaza metinleri ve görselleri: `store/`.
+- Gizlilik politikası: `privacy.html`.
+
 ## Dosyalar
 
 | Dosya | Görevi |
