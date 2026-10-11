@@ -5,6 +5,6 @@
   "backgroundColor": "#0b0e1c",
   "android": {
     "backgroundColor": "#0b0e1c",
-    "adjustMarginsForEdgeToEdge": "force"
+    "adjustMarginsForEdgeToEdge": "disable"
   }
 }

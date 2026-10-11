@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Oyunun koyu zemini: çubuklar görününce ya da kamera çentiği bölgesinde beyaz yerine bu renk -->
+    <color name="game_background">#0B0E1C</color>
+</resources>

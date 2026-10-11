@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Tam ekran oyun: sistem çubukları görünürse koyu zemin ve açık renkli simgeler -->
+        <item name="android:windowBackground">@color/game_background</item>
+        <item name="android:statusBarColor">@color/game_background</item>
+        <item name="android:navigationBarColor">@color/game_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 
