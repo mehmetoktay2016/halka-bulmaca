@@ -78,5 +78,32 @@ test("tıklı halka eşli olamaz, adım 360'ı bölmeli", () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 50 }] }), /360/);
 });
 
+test('anahtarlı kilit: anahtar halkası tahtadan çıkınca döner', () => {
+  const L = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, lockedBy: 1 }, { x: 170, y: 100, r: 50 }] });
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.strictEqual(Logic.canRotate(L, 0, 1 << 1), true);
+  assert.strictEqual(Logic.canRotate(L, 1, 0), true);
+});
+
+test('anahtarlı kilit: çözücü kilitli halkayı anahtar çıkmadan döndürmez', () => {
+  const Levels = require('../levels.js');
+  const L = Logic.buildLevel(Levels.MECH_LEVELS[1004]);
+  let a = L.startAngles.slice(), m = 0, n = 0;
+  while (m !== L.full && n < 10) {
+    const s = Logic.solve(L, a, m, 200000);
+    if (s.first.ring === 0) assert.ok(m & (1 << 1), 'kilitli halka anahtar çıkmadan döndü');
+    a = Logic.rotate(L, a, s.first.ring, s.first.delta);
+    m = Logic.cascade(L, a, m).mask;
+    n++;
+  }
+  assert.strictEqual(m, L.full);
+});
+
+test('anahtarlı kilit: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, lockedBy: 0 }] }), /anahtar/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, lockedBy: 1, fixed: true }, { x: 170, y: 100, r: 50 }] }), /sabit/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, lockedBy: 2 }, { x: 170, y: 100, r: 50 }, { x: 240, y: 100, r: 50 }], couples: [[0, 1]] }), /eşli/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm } = window.RingLogic;
+          pointOpen, cascade, rotate, solveFast, norm, canRotate } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
 
   // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (levels.js gateOrder).
@@ -20,6 +20,9 @@
   const FLY_MS = 520;
   const WAVE_MS = 170;
   const COIN_MS = 650;
+  const KEY_MS = 560;   // anahtarın kilide uçuşu
+  const OPEN_MS = 420;  // kilidin açılışı
+  const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
   const BULB_PRICE = 20;      // altın
   const EXTRA_PRICE = 20;     // "+3 hamle": altın
@@ -112,6 +115,8 @@
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
       // Tıklı halka her adımda: saat tıkırtısı
       clack: () => { tone(2200, 0.025, 'square', 0.035); tone(900, 0.05, 'triangle', 0.05, 600); },
+      // Anahtar kilide girdi: metalik çıt ve küçük bir çan
+      keyOpen: () => { tone(1800, 0.04, 'square', 0.05); tone(620, 0.08, 'triangle', 0.08, 420, 0.03); [1319, 1760].forEach((f, k) => tone(f, 0.3, 'sine', 0.06, null, 0.1 + k * 0.08)); },
       context: audio,
     };
   })();
@@ -722,6 +727,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
+      keyFly: [], keyPulse: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -851,6 +857,16 @@
         }
         S.fly[i] = { t0: now + w * WAVE_MS, dx, dy };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, w * WAVE_MS);
+      }
+    });
+    // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
+    waves.forEach((wave, w) => {
+      for (const k of wave) {
+        S.L.rings.forEach((r, l) => {
+          if (r.lockedBy !== k || (mask & (1 << l))) return;
+          S.keyFly.push({ key: k, lock: l, t0: now + w * WAVE_MS });
+          setTimeout(() => Sound.keyOpen(), w * WAVE_MS + KEY_MS);
+        });
       }
     });
     const freed = waves.flat();
@@ -1228,10 +1244,15 @@
     const p = toBoard(e);
     const i = hitRing(p);
     if (i < 0) return;
-    if (!S.L.rotatable[i]) {
+    if (!canRotate(S.L, i, S.mask)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
       if (isBar(i)) showTip('Çubuk dönmez: halkaların boşluğunu çubuğa getir');
+      else if (S.L.rings[i].lockedBy >= 0) {
+        // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
+        S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
+        showTip('Kilitli: önce anahtarlı halkayı kurtar');
+      }
       return;
     }
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* sentetik olay */ }
@@ -1339,6 +1360,7 @@
     S.coinsTaken = S.coins.filter(c => c.taken).length;
     coinFly = [];
     S.fly = {};
+    S.keyFly = [];
     S.hint = null;
     renderMeter(false);
     updateHud();
@@ -1715,6 +1737,11 @@
     strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
     strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
     if (ring.fixed) drawLock(cx, cy);
+    if (ring.lockedBy >= 0) {
+      const open = lockOpening(i, now);
+      if (open < 1) drawPadlock(cx, cy, open);
+    }
+    if (present(i) && S.L.rings.some(r => r.lockedBy === i)) drawKeyIcon(cx, cy, 0, KEY_ICON);
     ctx.restore();
   }
 
@@ -1742,6 +1769,82 @@
       }
     }
     ctx.restore();
+  }
+
+  // Kilit durumu: 0 kapalı, 0-1 açılıyor, 1 açık (anahtar gelip kilit açıldı)
+  function lockOpening(l, now) {
+    const key = S.L.rings[l].lockedBy;
+    if (!(S.mask & (1 << key))) return 0;
+    const f = S.keyFly.find(k => k.lock === l);
+    if (!f) return 1;
+    const t = (now - f.t0 - KEY_MS) / OPEN_MS;
+    return Math.max(0, Math.min(1, t));
+  }
+
+  // Asma kilit: altın gövde, anahtar deliği; açılırken halkası kalkar ve kilit söner
+  function drawPadlock(x, y, open) {
+    ctx.save();
+    ctx.globalAlpha *= 1 - open;
+    ctx.translate(x, y); ctx.scale(KEY_ICON, KEY_ICON); ctx.translate(-x, -y);
+    const lift = 7 * open;
+    ctx.strokeStyle = '#e8b13a';
+    ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.arc(x, y - 6 - lift, 6.5, Math.PI, 0); ctx.lineTo(x + 6.5, y - 2 - lift); ctx.moveTo(x - 6.5, y - 6 - lift); ctx.lineTo(x - 6.5, y - 2); ctx.stroke();
+    ctx.fillStyle = '#ffc94a';
+    ctx.strokeStyle = 'rgba(40, 24, 0, .55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - 10, y - 4, 20, 15, 4); else ctx.rect(x - 10, y - 4, 20, 15);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5a3a06';
+    ctx.beginPath(); ctx.arc(x, y + 2, 2.4, 0, TAU); ctx.fill();
+    ctx.fillRect(x - 1.1, y + 2, 2.2, 5);
+    ctx.restore();
+  }
+
+  // Anahtar: altın baş (delikli halka) ve dişli sap
+  function drawKeyIcon(x, y, rot, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    ctx.shadowColor = 'rgba(255, 201, 74, .7)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#ffc94a';
+    ctx.beginPath(); ctx.arc(-7, 0, 7, 0, TAU); ctx.fill();
+    ctx.fillRect(-1, -2.2, 15, 4.4);
+    ctx.fillRect(9, 2, 2.6, 4.5);
+    ctx.fillRect(13, 2, 2.6, 3.2);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(40, 24, 0, .75)';
+    ctx.beginPath(); ctx.arc(-7, 0, 2.6, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // Uçan anahtarlar (kurtulan halkadan kilide) ve kilidi gösterilen anahtar halkanın parıltısı
+  function drawKeys(now) {
+    S.keyFly = S.keyFly.filter(f => now < f.t0 + KEY_MS + OPEN_MS + 50);
+    for (const f of S.keyFly) {
+      const t = (now - f.t0) / KEY_MS;
+      if (t < 0 || t > 1) continue;
+      const a = S.L.rings[f.key], b = S.L.rings[f.lock];
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e - Math.sin(Math.PI * e) * 50;
+      drawKeyIcon(x, y, e * TAU, KEY_ICON * (1 + 0.3 * Math.sin(Math.PI * e)));
+    }
+    const kp = S.keyPulse;
+    if (kp && present(kp.ring)) {
+      const t = (now - kp.t0) / 1200;
+      if (t >= 1) S.keyPulse = null;
+      else {
+        const r = S.L.rings[kp.ring];
+        ctx.save();
+        ctx.strokeStyle = `rgba(255, 201, 74, ${0.6 * Math.sin(Math.PI * t)})`;
+        ctx.lineWidth = STROKE + 10;
+        ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
   function drawLock(x, y) {
@@ -2104,6 +2207,7 @@
         drawWeave();
         drawOpenPoints(now);
         drawCoins(now);
+        drawKeys(now);
         drawHint(now);
         drawFinger(now);
         drawParticles();

@@ -61,7 +61,15 @@
       gaps: (r.gaps || [0]).map(g => g * DEG),
       // Tıklı halka: yalnızca başlangıç açısından step'in katları kadar döner (derece; 360'ı tam bölmeli)
       step: r.step ? r.step * DEG : 0,
+      // Anahtarlı kilit: lockedBy numaralı halka tahtadan çıkana kadar bu halka dönmez
+      lockedBy: r.lockedBy == null ? -1 : r.lockedBy,
     }));
+    for (const [i, r] of def.rings.entries()) {
+      if (r.lockedBy == null) continue;
+      const k = def.rings[r.lockedBy];
+      if (!k || r.lockedBy === i || k.type === 'bar') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
+      if (r.fixed) throw new Error(`Halka ${i}: hem sabit hem anahtarlı olamaz`);
+    }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
     }
@@ -111,6 +119,8 @@
     const group = rings.map((_, i) => rings.filter((_, k) => groupId[k] === groupId[i]).map(r => r.id));
     // Tıklı halka eşli olamaz: eşi farklı oranla dönünce halka tık yerlerinin dışına düşerdi
     for (const r of rings) if (r.step && group[r.id].length > 1) throw new Error(`Halka ${r.id}: tıklı halka eşli olamaz`);
+    // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
+    for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
 
     return {
@@ -118,6 +128,13 @@
       full: (1 << n) - 1,
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
     };
+  }
+
+  // Halka i şu an döndürülebilir mi? Sabit değil ve (anahtarlıysa) anahtarı tahtadan çıkmış olmalı.
+  function canRotate(L, i, mask) {
+    if (!L.rotatable[i]) return false;
+    const key = L.rings[i].lockedBy;
+    return key < 0 || !!(mask & (1 << key));
   }
 
   function gapCovers(ring, angle, target) {
@@ -220,7 +237,7 @@
       for (const node of frontier) {
         if (++expanded > maxNodes) return null;
         for (let i = 0; i < L.rings.length; i++) {
-          if ((node.mask & (1 << i)) || !L.rotatable[i]) continue;
+          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
           for (const target of candidates(L, node.angles, node.mask, i)) {
             const delta = signedDelta(node.angles[i], target);
             const na = rotate(L, node.angles, i, delta);
@@ -291,7 +308,7 @@
       const node = pop();
       if (++expanded > maxNodes) return null;
       for (let i = 0; i < L.rings.length; i++) {
-        if ((node.mask & (1 << i)) || !L.rotatable[i]) continue;
+        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
         for (const target of candidates(L, node.angles, node.mask, i)) {
           const delta = signedDelta(node.angles[i], target);
           const na = rotate(L, node.angles, i, delta);
@@ -312,7 +329,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;
