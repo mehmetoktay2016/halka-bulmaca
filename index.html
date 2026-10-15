@@ -61,19 +61,21 @@
       <h1 class="logo">Halka<span>Bulmaca</span></h1>
       <p class="tagline">Döndür · Hizala · Serbest bırak</p>
 
+      <p class="rank" aria-label="Unvan"><span>Unvan</span><b id="homeTitle">Çırak</b></p>
+
       <div class="home-actions">
         <button id="playBtn" class="btn-primary big">
           <span>Oyna</span>
           <small id="playLevel">Seviye 1</small>
         </button>
-        <button id="levelsBtn" class="btn-ghost">Seviye haritası</button>
+        <button id="levelsBtn" class="btn-ghost">Harita</button>
         <button id="howBtn" class="btn-link">Nasıl oynanır?</button>
       </div>
 
       <ul class="promises">
         <li><b>0</b> reklam</li>
         <li><b>∞</b> ipucu</li>
-        <li><b>60</b> seviye</li>
+        <li><b id="promiseLevels">60</b> seviye</li>
       </ul>
       <p class="home-stars">
         <span><span class="star-ico"></span> <span id="homeStars">0</span> yıldız</span>
@@ -81,16 +83,20 @@
       </p>
     </section>
 
-    <!-- Seviye haritası -->
-    <section id="levels" class="screen" hidden>
+    <!-- Yolculuk haritası: aşağıdan yukarı kıvrılan yol, kapılar kemer -->
+    <section id="levels" class="screen map-screen" hidden>
       <header class="bar">
         <button id="levelsBack" class="round" aria-label="Ana menü">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <h2>Seviyeler</h2>
+        <h2>Harita</h2>
         <div class="star-total"><span class="star-ico"></span><span id="starTotal">0</span></div>
       </header>
-      <div id="levelGrid" class="grid"></div>
+      <div class="map-wrap">
+        <canvas id="mapFx" aria-hidden="true"></canvas>
+        <div id="map" class="map"><div id="mapInner" class="map-inner"></div></div>
+        <nav id="gateStrip" class="gate-strip" aria-label="Kapılar"></nav>
+      </div>
     </section>
 
     <!-- Oyun -->
@@ -175,6 +181,31 @@
       </div>
     </div>
 
+    <!-- Kapı açılışı: önce kemer haritada açılır, sonra bu kart gelir -->
+    <div id="ceremony" class="ceremony" hidden></div>
+    <div id="gateCard" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+      <div class="card gate-card">
+        <div id="gateEyebrow" class="eyebrow">Kapı açıldı</div>
+        <h2 id="gateTitle">Kıvrımlar</h2>
+        <p id="gateWorld" class="win-note"></p>
+        <div id="gateRewards" class="gate-rewards"></div>
+        <div class="row"><button id="gateGo" class="btn-primary">Yola devam</button></div>
+      </div>
+    </div>
+
+    <!-- Yeni dünyaya ilk giriş -->
+    <div id="worldCard" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="worldTitle">
+      <div class="card world-card">
+        <div class="world-emblem" aria-hidden="true">
+          <svg viewBox="0 0 120 90"><circle cx="44" cy="42" r="26"/><circle cx="76" cy="42" r="26"/><circle cx="60" cy="64" r="22"/></svg>
+        </div>
+        <div class="eyebrow">Yeni dünya</div>
+        <h2 id="worldTitle">Atölye</h2>
+        <p id="worldIntro" class="win-note"></p>
+        <div class="row"><button id="worldGo" class="btn-primary">Başla</button></div>
+      </div>
+    </div>
+
     <canvas id="fx" aria-hidden="true"></canvas>
   </div>
 
@@ -185,6 +216,7 @@
   <script src="logic.js"></script>
   <script src="levels_data.js"></script>
   <script src="levels.js"></script>
+  <script src="worlds.js"></script>
   <script src="save.js"></script>
   <script src="deco.js"></script>
   <script src="game.js"></script>

@@ -6,15 +6,16 @@
           pointOpen, cascade, rotate, solveFast, norm } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
 
-  // Oyuncunun gördüğü sıra: her 5 normal seviyeden sonra bir hayvan seviyesi gelir.
-  // ORDER[n-1] = levels.js'teki kaynak seviye (1-50 normal, 51-60 hayvanlar).
-  const ORDER = window.RingLevels.levelOrder(getLevel);
+  // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (levels.js gateOrder).
+  // ORDER[n-1] = levels.js'teki kaynak seviye (1-50 normal, 51-60 şekiller).
+  const W = window.RingWorlds;
+  const ORDER = window.RingLevels.gateOrder(getLevel);
   const TOTAL = ORDER.length;
+  const GATE_COUNT = TOTAL / W.GATE_SIZE; // bölümleri hazır olan kapı sayısı
   const srcOf = n => ORDER[n - 1];
-  const BAR_COLOR = '#c3cada';
-  const COLORS = ['#ff6b6b', '#ffc94a', '#2dd4bf', '#4cc9f0', '#b388ff',
-                  '#ff9f1c', '#f72585', '#90be6d', '#4895ef', '#f4a261'];
-  const FIXED_COLOR = '#5d6488';
+  const BAR_COLOR = W.PIECE_COLORS.bar;
+  const COLORS = W.PIECE_COLORS.rings;
+  const FIXED_COLOR = W.PIECE_COLORS.fixed;
   const STROKE = 13;
   const FLY_MS = 520;
   const WAVE_MS = 170;
@@ -81,6 +82,12 @@
       fail: () => [392, 330, 262].forEach((f, k) => tone(f, 0.28, 'triangle', 0.12, null, k * 0.16)),
       star: k => tone(880 + k * 220, 0.18, 'sine', 0.12),
       coin: () => { tone(1318, 0.08, 'triangle', 0.09); tone(1976, 0.22, 'triangle', 0.09, null, 0.07); },
+      // Kapı açılışı: kilit halkaları dağılırken yükselen akor, ardından parıltı
+      gate: () => {
+        [392, 494, 587, 784, 988, 1175].forEach((f, k) => tone(f, 0.5, 'triangle', 0.1, null, k * 0.09));
+        [2349, 2637, 3136].forEach((f, k) => tone(f, 0.3, 'sine', 0.04, null, 0.6 + k * 0.07));
+      },
+      unlock: k => tone(740 + k * 60, 0.12, 'sine', 0.08, 1100 + k * 60),
     };
   })();
 
@@ -101,47 +108,385 @@
   function showScreen(name) {
     for (const id of ['home', 'levels', 'game']) $(id).hidden = id !== name;
     if (name === 'home') renderHome();
-    if (name === 'levels') renderLevels();
+    if (name === 'levels') renderMap();
     if (name === 'game') requestAnimationFrame(resize);
+  }
+
+  // ---- Dünya teması: zemin ve vurgu rengi dünyaya göre değişir, halka renkleri değişmez ----
+  let themeWorld = null;
+  function applyWorld(world) {
+    if (themeWorld === world.id) return;
+    themeWorld = world.id;
+    const root = document.documentElement;
+    root.style.setProperty('--scene', W.sceneCss(world.theme));
+    root.style.setProperty('--accent', world.theme.accent);
+    root.dataset.world = world.id;
+  }
+
+  // ---- Yolculuk: kapılar, unvan ----
+  const gateEnd = g => W.gateStart(g) + W.GATE_SIZE - 1;
+  const gateDone = g => !!starsOf(gateEnd(g));
+  const gatesDone = () => { let c = 0; for (let g = 1; g <= GATE_COUNT; g++) if (gateDone(g)) c++; return c; };
+  const gateStars = g => { let s = 0; for (let n = W.gateStart(g); n <= gateEnd(g); n++) s += starsOf(n); return s; };
+  const gateGold = g => gateStars(g) === W.GATE_SIZE * 3;
+  const currentTitle = () => W.titleFor(gatesDone());
+
+  // Eski kayıtla gelen ya da önceden geçilmiş kapıların ödülü sessizce verilir; tören yalnızca
+  // oyuncunun şu an içinde bulunduğu kapı için (henüz kutlanmadıysa) yapılır.
+  function settleRewards() {
+    const fg = W.gateOf(frontier());
+    for (let g = 2; g < fg; g++) {
+      if (progress.rewards['gate:' + g]) continue;
+      progress.rewards['gate:' + g] = true;
+      progress.hints++;
+    }
+    if (progress.title == null) progress.title = currentTitle();
+    if (progress.seenFrontier == null) progress.seenFrontier = frontier();
+    saveProgress();
   }
 
   function renderHome() {
     const next = frontier();
+    applyWorld(W.worldOfGate(W.gateOf(next)));
     $('playLevel').textContent = 'Seviye ' + next;
     $('homeStars').textContent = totalStars();
     $('homeCoins').textContent = progress.coins;
     $('homeScore').textContent = fmt(totalScore());
+    $('homeTitle').textContent = progress.title || currentTitle();
+    $('promiseLevels').textContent = TOTAL;
   }
 
+  // ---- Harita ----
   const LOCK_SVG = '<svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 0h6V8a3 3 0 0 0-6 0z"/></svg>';
-  const CHAPTERS = [[1, 'İlk adımlar'], [11, 'Çubuklar ve eşler'], [21, 'Zincirler'], [31, 'Düğümler'], [46, 'Usta']];
+  const MAP = { gap: 84, arch: 160, bottom: 56, teaser: 260, strip: 34 };
+  MAP.block = MAP.arch + W.GATE_SIZE * MAP.gap;
+  let mapGeo = null;      // son çizimin ölçüleri: düğüm ve kemer konumları
+  let lastWon = null;     // haritaya dönünce yıldızları parlayacak bölüm
+  let mapBusy = false;    // tören sürerken harita dokunmaya kapalı
 
-  function renderLevels() {
-    $('starTotal').textContent = `${totalStars()} / ${TOTAL * 3}`;
-    const grid = $('levelGrid');
-    grid.innerHTML = '';
-    for (let n = 1; n <= TOTAL; n++) {
-      const ch = CHAPTERS.find(c => c[0] === n);
-      if (ch) {
-        const h = document.createElement('div');
-        h.className = 'chapter';
-        h.textContent = ch[1];
-        grid.appendChild(h);
-      }
-      const b = document.createElement('button');
-      const locked = !isUnlocked(n);
-      const got = starsOf(n);
-      b.className = 'tile' + (locked ? ' locked' : '') + (srcOf(n) > 50 ? ' animal' : '') +
-        (n === frontier() ? ' current' : '');
-      b.disabled = locked;
-      b.setAttribute('aria-label', locked ? `Seviye ${n}, kilitli` : `Seviye ${n}, ${got} yıldız`);
-      b.innerHTML = locked ? LOCK_SVG
-        : `<span>${n}</span><span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
-      if (!locked) b.onclick = () => { Sound.tap(); loadLevel(n); showScreen('game'); };
-      grid.appendChild(b);
+  // Şekil bölümünün küçük resmi: halkalar ve çubuklar, renkli ya da gri siluet
+  function shapeSvg(def, colored) {
+    const ext = def.rings.map(r => (r.type === 'bar'
+      ? [Math.min(r.x1, r.x2), Math.min(r.y1, r.y2), Math.max(r.x1, r.x2), Math.max(r.y1, r.y2)]
+      : [r.x - r.r, r.y - r.r, r.x + r.r, r.y + r.r]));
+    const x0 = Math.min(...ext.map(e => e[0])), y0 = Math.min(...ext.map(e => e[1]));
+    const x1 = Math.max(...ext.map(e => e[2])), y1 = Math.max(...ext.map(e => e[3]));
+    const k = 44 / Math.max(x1 - x0, y1 - y0);
+    const ox = (48 - (x1 - x0) * k) / 2 - x0 * k, oy = (48 - (y1 - y0) * k) / 2 - y0 * k;
+    const sw = Math.max(1.6, 13 * k);
+    const parts = def.rings.map((r, i) => {
+      const c = colored ? (r.type === 'bar' ? BAR_COLOR : r.fixed ? FIXED_COLOR : r.color || COLORS[i % COLORS.length]) : 'rgba(255,255,255,.26)';
+      return r.type === 'bar'
+        ? `<line x1="${r.x1 * k + ox}" y1="${r.y1 * k + oy}" x2="${r.x2 * k + ox}" y2="${r.y2 * k + oy}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round"/>`
+        : `<circle cx="${r.x * k + ox}" cy="${r.y * k + oy}" r="${r.r * k}" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
+    });
+    return `<svg viewBox="0 0 48 48" aria-hidden="true">${parts.join('')}</svg>`;
+  }
+
+  // Noktalardan geçen yumuşak eğri (Catmull-Rom → Bezier)
+  function smoothPath(pts) {
+    if (!pts.length) return '';
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+      const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+      d += ` C${c1.x},${c1.y} ${c2.x},${c2.y} ${p2.x},${p2.y}`;
     }
-    const cur = grid.querySelector('.current');
-    if (cur) cur.scrollIntoView({ block: 'center' });
+    return d;
+  }
+
+  // Harita ölçüleri: aşağıdan yukarı; her kapı bir kemer + 10 durak
+  function mapLayout(width) {
+    const teaser = GATE_COUNT < W.GATES.length;
+    const height = MAP.bottom + GATE_COUNT * MAP.block + (teaser ? MAP.teaser : 40);
+    const cx = width / 2;
+    const amp = Math.min(width * 0.27, 108);
+    const top = yb => height - yb;
+    const arches = [], nodes = [];
+    for (let g = 1; g <= GATE_COUNT + (teaser ? 1 : 0); g++) {
+      const base = MAP.bottom + (g - 1) * MAP.block;
+      arches[g] = { x: cx, y: top(base + MAP.arch * 0.42) };
+      if (g > GATE_COUNT) break;
+      for (let k = 1; k <= W.GATE_SIZE; k++) {
+        const n = W.gateStart(g) + k - 1;
+        const x = k === W.GATE_SIZE ? cx : cx + amp * Math.sin(n * 0.95 + 0.6);
+        nodes[n] = { x, y: top(base + MAP.arch + (k - 1) * MAP.gap + 20) };
+      }
+    }
+    // Yolun geçtiği noktalar: kemer, kapının durakları, sonraki kemer...
+    const pts = [], index = [];
+    for (let g = 1; g < arches.length; g++) {
+      pts.push(arches[g]);
+      if (g > GATE_COUNT) break;
+      for (let n = W.gateStart(g); n <= gateEnd(g); n++) { index[n] = pts.length; pts.push(nodes[n]); }
+    }
+    if (teaser) pts.push({ x: cx, y: 30 });
+    return { width, height, cx, arches, nodes, pts, index, teaser };
+  }
+
+  function nodeHtml(n, state, def) {
+    const got = starsOf(n);
+    const stars = `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
+    if (def.name) return shapeSvg(def, state === 'done') + (state === 'done' ? stars : '');
+    if (state === 'locked') return LOCK_SVG;
+    return `<span class="num">${n}</span>` + (state === 'done' ? stars : '');
+  }
+
+  function archHtml(g, geo) {
+    const gate = W.GATES[g - 1];
+    const world = W.worldById(gate.world);
+    const teaser = g > GATE_COUNT;
+    const open = !teaser && isUnlocked(W.gateStart(g)) && (g === 1 || progress.rewards['gate:' + g]);
+    const cls = ['arch', open ? 'open' : 'locked', !teaser && gateGold(g) ? 'gold' : '', teaser ? 'teaser' : ''].join(' ');
+    const label = teaser
+      ? `<span class="arch-sub">Yakında</span>`
+      : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
+    return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
+      ${W.isWorldStart(g) ? `<span class="arch-world">${world.name}</span>` : ''}
+      <svg viewBox="0 0 230 100" aria-hidden="true">
+        <path class="arch-shadow" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
+        <path class="arch-line" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
+        <path class="arch-shine" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
+        <g class="arch-lock" transform="translate(115 30)">
+          <circle class="l1" cx="-9" cy="-3" r="10"/><circle class="l2" cx="9" cy="-3" r="10"/><circle class="l3" cx="0" cy="9" r="10"/>
+        </g>
+      </svg>
+      <span class="arch-name">Kapı ${g} · ${gate.name}</span>
+      ${label}
+    </div>`;
+  }
+
+  function renderMap() {
+    const wrap = $('map');
+    const inner = $('mapInner');
+    const width = wrap.clientWidth - MAP.strip;
+    if (width <= 0) return;
+    const geo = mapGeo = mapLayout(width);
+    const front = frontier();
+    applyWorld(W.worldOfGate(W.gateOf(front)));
+    $('starTotal').textContent = `${totalStars()} / ${TOTAL * 3}`;
+    inner.style.height = geo.height + 'px';
+
+    // Yol: bütünü soluk; geçilen kısmı altın noktalı; yeni açılan parça ayrıca çizilip canlandırılır
+    const seen = Math.min(progress.seenFrontier || front, front);
+    const upTo = n => geo.pts.slice(0, geo.index[n] + 1);
+    let html = `<svg class="map-path" width="${width}" height="${geo.height}" aria-hidden="true">
+      <path class="road" d="${smoothPath(geo.pts)}"/>
+      <path class="road-done" d="${smoothPath(upTo(seen))}"/>
+      ${seen < front ? `<path class="road-new" d="${smoothPath(geo.pts.slice(geo.index[seen], geo.index[front] + 1))}"/>` : ''}
+    </svg>`;
+
+    // Kapı bantları (dünyanın rengiyle hafif ışık) ve kemerler
+    for (let g = 1; g < geo.arches.length; g++) {
+      const world = W.worldOfGate(g);
+      const yTop = geo.height - (MAP.bottom + g * MAP.block);
+      html += `<div class="gate-band" style="top:${Math.max(0, yTop)}px;height:${MAP.block}px;--wa:${world.theme.accent}"></div>`;
+    }
+    for (let g = 1; g < geo.arches.length; g++) html += archHtml(g, geo);
+
+    for (let n = 1; n <= TOTAL; n++) {
+      const def = getLevel(srcOf(n));
+      const state = starsOf(n) ? 'done' : isUnlocked(n) ? 'open' : 'locked';
+      const fresh = n > seen && n <= front;
+      const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
+        n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
+        state !== 'locked' && def.name ? 'colored' : ''].join(' ');
+      const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ` +
+        (state === 'locked' ? 'kilitli' : state === 'done' ? `${starsOf(n)} yıldız` : 'oynanmadı');
+      html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
+        aria-label="${label}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}</button>`;
+    }
+    const cur = geo.nodes[front];
+    html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
+      <svg viewBox="0 0 40 30"><circle cx="14" cy="15" r="9"/><circle cx="26" cy="15" r="9"/></svg></div>`;
+    if (geo.teaser) html += `<div class="map-fog" aria-hidden="true"></div>`;
+    inner.innerHTML = html;
+    inner.querySelectorAll('.node:not([disabled])').forEach(b => {
+      b.onclick = () => {
+        if (mapBusy) return;
+        Sound.tap();
+        loadLevel(Number(b.dataset.n));
+        showScreen('game');
+      };
+    });
+    renderGateStrip(geo);
+
+    // Açılışta şimdiki durağa kay; sonra (varsa) tören ve yolda ilerleme
+    const pending = pendingCelebration();
+    const focusY = pending && pending.gate ? geo.arches[pending.gate].y : cur.y;
+    wrap.scrollTop = focusY - wrap.clientHeight * 0.55;
+    lastWon = null;
+    if (pending) celebrate(pending, () => advancePath(seen, front));
+    else advancePath(seen, front);
+  }
+
+  // Yeni açılan yol parçası çizilir, yeni duraklar sırayla belirir
+  function advancePath(seen, front) {
+    const inner = $('mapInner');
+    const path = inner.querySelector('.road-new');
+    const fresh = [...inner.querySelectorAll('.node.fresh')];
+    progress.seenFrontier = front;
+    saveProgress();
+    if (!path) return;
+    // Yeni parça uçtan uca çizilir; bitince yolun geri kalanı gibi noktalı olur
+    const settle = () => path.classList.replace('road-new', 'road-done');
+    if (REDUCED || !path.animate) settle();
+    else {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = `${len} ${len}`;
+      const anim = path.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+        { duration: 1100, easing: 'ease-in-out', fill: 'forwards' });
+      anim.onfinish = () => { anim.cancel(); path.style.strokeDasharray = ''; settle(); };
+    }
+    const marker = inner.querySelector('.marker');
+    fresh.forEach((el, k) => setTimeout(() => {
+      el.classList.add('pop');
+      Sound.unlock(k);
+      if (el.classList.contains('current') && marker) marker.classList.add('pop');
+    }, REDUCED ? 0 : 700 + k * 140));
+  }
+
+  function renderGateStrip(geo) {
+    const strip = $('gateStrip');
+    let html = '';
+    for (let g = 1; g < geo.arches.length; g++) {
+      const teaser = g > GATE_COUNT;
+      const locked = teaser || !isUnlocked(W.gateStart(g));
+      html += `<button data-g="${g}" class="${locked ? 'locked' : ''}${!teaser && gateGold(g) ? ' gold' : ''}"
+        aria-label="Kapı ${g}${teaser ? ', yakında' : locked ? ', kilitli' : ''}" style="--wa:${W.worldOfGate(g).theme.accent}">${g}</button>`;
+    }
+    strip.innerHTML = html;
+    strip.querySelectorAll('button').forEach(b => {
+      b.onclick = () => {
+        Sound.tap();
+        const g = Number(b.dataset.g);
+        const wrap = $('map');
+        wrap.scrollTo({ top: geo.arches[g].y - wrap.clientHeight * 0.75, behavior: REDUCED ? 'auto' : 'smooth' });
+      };
+    });
+    updateGateStrip();
+  }
+
+  // Ekranın ortasındaki kapıyı şeritte işaretler
+  function mapGateAt(y) {
+    if (!mapGeo) return 1;
+    const yb = mapGeo.height - y;
+    return Math.max(1, Math.min(mapGeo.arches.length - 1, Math.floor((yb - MAP.bottom) / MAP.block) + 1));
+  }
+  function updateGateStrip() {
+    const wrap = $('map');
+    const g = mapGateAt(wrap.scrollTop + wrap.clientHeight / 2);
+    $('gateStrip').querySelectorAll('button').forEach(b => b.classList.toggle('here', Number(b.dataset.g) === g));
+  }
+  $('map').addEventListener('scroll', updateGateStrip, { passive: true });
+
+  // ---- Kutlamalar: kapı açılışı ve yeni unvan ----
+  function pendingCelebration() {
+    const g = W.gateOf(frontier());
+    const gate = g > 1 && !progress.rewards['gate:' + g] && isUnlocked(W.gateStart(g)) ? g : null;
+    const title = currentTitle();
+    const newTitle = title !== progress.title ? title : null;
+    // Son kapı da bittiyse açılacak kapı yok ama unvan değişmiş olabilir (örneğin dünya bitti)
+    if (!gate && !newTitle) return null;
+    return { gate, newTitle };
+  }
+
+  function celebrate(p, done) {
+    mapBusy = true;
+    const veil = $('ceremony');
+    veil.hidden = false;
+    const arch = p.gate ? $('mapInner').querySelector(`.arch[data-gate="${p.gate}"]`) : null;
+    let shown = false;
+    const showCard = () => {
+      if (shown) return;
+      shown = true;
+      if (arch) { arch.classList.add('opening', 'open'); arch.classList.remove('locked'); }
+      const rewards = [];
+      if (p.gate) {
+        progress.rewards['gate:' + p.gate] = true;
+        progress.hints++;
+        rewards.push('<span class="chip bulb">+1 ampul</span>');
+      }
+      if (p.newTitle) {
+        progress.title = p.newTitle;
+        rewards.push(`<span class="chip rank-chip">Yeni unvan: <b>${p.newTitle}</b></span>`);
+      }
+      saveProgress();
+      const gate = p.gate ? W.GATES[p.gate - 1] : null;
+      const world = p.gate ? W.worldOfGate(p.gate) : null;
+      $('gateEyebrow').textContent = p.gate ? `Kapı ${p.gate} açıldı` : 'Yolculuk';
+      $('gateTitle').textContent = gate ? gate.name : 'Tebrikler!';
+      $('gateWorld').textContent = p.gate
+        ? (W.isWorldStart(p.gate) ? `Yeni dünya: ${world.name}` : world.name)
+        : (GATE_COUNT < W.GATES.length ? 'Bu dünyayı bitirdin. Yeni kapılar yakında açılacak.' : 'Bütün kapıları açtın.');
+      $('gateRewards').innerHTML = rewards.join('');
+      $('gateCard').classList.remove('hidden');
+      launchConfetti(2);
+    };
+    $('gateGo').onclick = () => {
+      Sound.tap();
+      $('gateCard').classList.add('hidden');
+      veil.hidden = true;
+      mapBusy = false;
+      done();
+    };
+    veil.onclick = showCard; // dokununca tören atlanır
+    if (REDUCED || !arch) { Sound.gate(); showCard(); return; }
+    setTimeout(() => { arch.classList.add('opening'); Sound.gate(); }, 450);
+    setTimeout(showCard, 2100);
+  }
+
+  // ---- Harita zemini: dünyanın renginde yavaşça yükselen ışık parçacıkları ----
+  const mapCanvas = $('mapFx');
+  const mctx = mapCanvas.getContext('2d');
+  let motes = [];
+  function drawMapFx(now) {
+    const wrap = mapCanvas.parentElement;
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    if (mapCanvas.width !== Math.round(w * dpr) || mapCanvas.height !== Math.round(h * dpr)) {
+      mapCanvas.width = Math.round(w * dpr);
+      mapCanvas.height = Math.round(h * dpr);
+      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    mctx.clearRect(0, 0, w, h);
+    if (REDUCED || !w) return;
+    const map = $('map');
+    const accent = W.worldOfGate(mapGateAt(map.scrollTop + map.clientHeight / 2)).theme.accent;
+    while (motes.length < 22) {
+      motes.push({ x: Math.random() * w, y: h + Math.random() * h, r: 1 + Math.random() * 2.4,
+                   v: 0.15 + Math.random() * 0.35, ph: Math.random() * TAU });
+    }
+    mctx.fillStyle = accent;
+    for (const m of motes) {
+      m.y -= m.v;
+      if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
+      mctx.globalAlpha = 0.25 + 0.25 * Math.sin(now / 900 + m.ph);
+      mctx.beginPath(); mctx.arc(m.x + Math.sin(now / 1600 + m.ph) * 8, m.y, m.r, 0, TAU); mctx.fill();
+    }
+    mctx.globalAlpha = 1;
+  }
+
+  // ---- Yeni dünyaya ilk giriş kartı ----
+  function maybeWorldCard(n) {
+    const g = W.gateOf(n);
+    const world = W.worldOfGate(g);
+    if (W.posInGate(n) !== 1 || !W.isWorldStart(g) || g === 1) return;
+    if (progress.rewards['world:' + world.id]) return;
+    showWorldCard(world);
+  }
+  function showWorldCard(world) {
+    $('worldTitle').textContent = world.name;
+    $('worldIntro').textContent = world.intro;
+    $('worldCard').style.setProperty('--wa', world.theme.accent);
+    $('worldCard').classList.remove('hidden');
+    $('worldGo').onclick = () => {
+      Sound.tap();
+      progress.rewards['world:' + world.id] = true;
+      saveProgress();
+      $('worldCard').classList.add('hidden');
+    };
   }
 
   // ---- Boyutlandırma ----
@@ -220,14 +565,20 @@
     const src = srcOf(n);
     const def = getLevel(src);
     if (!def) { showTip('Bu seviye yüklenemedi'); return; }
+    applyWorld(W.worldOfGate(W.gateOf(n)));
     startDef(def, n, null);
+    maybeWorldCard(n);
     if (src === 1) showTip('Halkayı sürükleyerek döndür', 4000);
     else if (src === 2) showTip('Parlayan nokta: halka oradan geçebilir', 4000);
     else if (src === 5) showTip('Gri halkalar kilitli, dönmez', 3500);
     else if (src === 7) showTip('Noktalı çizgiyle bağlı halkalar birlikte döner', 4000);
     else if (src === 8) showTip('Bu halkanın iki boşluğu var', 3500);
     else if (src === 9) showTip('Çubuk dönmez: halkaların boşluğunu çubuğa getir', 4500);
-    else if (src === 51) showTip('Bir hayvan dostu! Onu halkalardan kurtar', 3500);
+    else if (def.name && !progress.shapeTip) {
+      showTip(`${def.name} halkalara takılmış! Onu kurtar`, 3500);
+      progress.shapeTip = true;
+      saveProgress();
+    }
     else if (!progress.coinTip && S.coins.length) {
       showTip('Altını almak için yanındaki halkayı serbest bırak', 4000);
       progress.coinTip = true;
@@ -255,7 +606,7 @@
 
   function updateHud() {
     $('levelLabel').textContent = S.tut != null ? 'Nasıl oynanır'
-      : 'Seviye ' + S.levelNo + (S.def.name ? ' · ' + S.def.name : '');
+      : 'Seviye ' + S.levelNo + ' · ' + (S.def.name || W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
     $('movesNum').textContent = S.tut != null ? S.moves : left;
     $('movesLbl').textContent = S.tut != null ? 'hamle' : 'hamle kaldı';
@@ -419,6 +770,7 @@
     const par = S.def.par ?? S.moves;
     const stars = starsFor(S.moves, par);
     const key = idOf(S.levelNo);
+    if (stars > (progress.stars[key] || 0)) lastWon = S.levelNo;
     progress.stars[key] = Math.max(progress.stars[key] || 0, stars);
     const earned = S.coins.filter(c => c.taken).length;
     progress.coins += earned;
@@ -438,7 +790,7 @@
       `<span class="star-ico${k <= stars ? '' : ' off'}" style="animation-delay:${200 + k * 180}ms"></span>`).join('');
     $('winMoves').textContent = S.moves;
     $('winPar').textContent = par;
-    $('continue').textContent = S.levelNo < TOTAL ? 'Sonraki seviye' : 'Seviye haritası';
+    $('continue').textContent = W.posInGate(S.levelNo) === W.GATE_SIZE || S.levelNo >= TOTAL ? 'Haritaya dön' : 'Sonraki seviye';
     $('win').classList.remove('hidden');
     Sound.win();
     for (let k = 1; k <= stars; k++) setTimeout(() => Sound.star(k), 400 + k * 180);
@@ -618,7 +970,8 @@
       else finishTutorial();
       return;
     }
-    if (S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
+    // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
+    if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
   $('hint').onclick = () => {
@@ -977,6 +1330,7 @@
         drawFinger(now);
         drawParticles();
       }
+      if (!$('levels').hidden) drawMapFx(now);
       drawFx(now);
     } catch (err) {
       console.error(err);
@@ -1010,6 +1364,7 @@
   // Geliştirme kısayolu: index.html?level=12 doğrudan o seviyeyi açar, ?screen=levels haritayı
   const params = new URLSearchParams(location.search);
   shownScore = totalScore();
+  settleRewards();
   const qLevel = parseInt(params.get('level'), 10);
   resize();
   if (qLevel > 0) {
@@ -1017,6 +1372,15 @@
     showScreen('game');
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
+  } else if (params.has('world')) {
+    // Geliştirme: ?world=atolye o dünyanın temasını ve giriş kartını gösterir
+    const world = W.worldById(params.get('world')) || W.WORLDS[1];
+    const g = W.GATES.findIndex(x => x.world === world.id) + 1;
+    loadLevel(Math.min(TOTAL, W.gateStart(Math.min(g, GATE_COUNT))));
+    themeWorld = null;
+    applyWorld(world);
+    showScreen('game');
+    showWorldCard(world);
   } else {
     const firstTime = !progress.tutorialDone && frontier() === 1 && !totalScore();
     if (firstTime || params.has('tutorial')) {
@@ -1034,6 +1398,9 @@
   if (AppPlugin) {
     AppPlugin.addListener('backButton', () => {
       if (!$('splash').hidden) return;
+      if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
+      if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
+      if (!$('ceremony').hidden) { $('ceremony').click(); return; }
       if (!$('fail').classList.contains('hidden')) { $('failRetry').click(); return; }
       if (!$('win').classList.contains('hidden')) { $('win').classList.add('hidden'); showScreen('levels'); return; }
       if (!$('game').hidden) { showScreen(S.tut != null ? 'home' : 'levels'); return; }
@@ -1042,6 +1409,6 @@
     });
   }
 
-  if (params.has('debug')) window.__halka = { S, scale: () => scale };
+  if (params.has('debug')) window.__halka = { S, scale: () => scale, progress, ORDER, renderMap };
   requestAnimationFrame(frame);
 })();

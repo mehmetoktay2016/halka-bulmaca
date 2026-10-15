@@ -297,8 +297,22 @@
   // deco: halkanın içine çizilen süsler (yüz, göz bebeği, gaga, karın); halkayla birlikte uçar.
   const MAIN_LEVELS = 50;    // 10 el yapımı + 40 üretilmiş
   const ANIMAL_LEVELS = 10;
-  const ANIMAL_SEQUENCE = ['Ayıcık', 'Kedi', 'Domuzcuk', 'Tavşan', 'Panda',
-                           'Baykuş', 'Kurbağa', 'Tırtıl', 'Penguen', 'Aslan'];
+  // Şekil planı: her şekil bölümünün kaynak numarası, kapısı ve rolü.
+  // final: kapının 10. bölümü (kapının zor bölümleri kadar); mid: kapının 5. bölümü (nefes molası).
+  // target: üreticinin hedeflediği zorluk puanı, bars: kafes çubuğu sayısı.
+  // Kaynak numaraları oyuncu kaydında kimliktir; var olan bir şeklin numarası değiştirilmez.
+  const SHAPE_PLAN = {
+    51: { name: 'Kedi', gate: 2, role: 'mid', target: 4.3, bars: 0 },
+    52: { name: 'Ayıcık', gate: 1, role: 'final', target: 3.6, bars: 0 },
+    53: { name: 'Tavşan', gate: 2, role: 'final', target: 5.8, bars: 1 },
+    54: { name: 'Panda', gate: 4, role: 'mid', target: 6.4, bars: 1 },
+    55: { name: 'Baykuş', gate: 3, role: 'final', target: 8.3, bars: 2 },
+    56: { name: 'Kurbağa', gate: 5, role: 'mid', target: 8.3, bars: 2 },
+    57: { name: 'Tırtıl', gate: 4, role: 'final', target: 9.4, bars: 2 },
+    58: { name: 'Domuzcuk', gate: 3, role: 'mid', target: 4.1, bars: 0 },
+    59: { name: 'Penguen', gate: 5, role: 'final', target: 9.4, bars: 2 },
+    60: { name: 'Aslan', gate: 6, role: 'final', target: 10.3, bars: 3 },
+  };
   const ANIMALS = [
     { name: 'Kedi',
       rings: [
@@ -312,8 +326,8 @@
     { name: 'Ayıcık',
       rings: [
         { x: 0, y: 0, r: 84, color: '#c98b5a' },
-        { x: -60.8, y: -60.8, r: 36, color: '#a8703f' },
-        { x: 60.8, y: -60.8, r: 36, color: '#a8703f' },
+        { x: -60.8, y: -60.8, r: 36, color: '#c08552' },
+        { x: 60.8, y: -60.8, r: 36, color: '#c08552' },
         { x: 0, y: 125, r: 70, color: '#ddb07f' },
       ],
       deco: [{ ring: 0, type: 'face', kind: 'bear' }] },
@@ -329,9 +343,9 @@
     { name: 'Panda',
       rings: [
         { x: 0, y: 0, r: 86, color: '#eef0ff' },
-        { x: -48.2, y: -68.8, r: 34, color: '#6f78a8' },
-        { x: 48.2, y: -68.8, r: 34, color: '#6f78a8' },
-        { x: 0, y: 124, r: 70, color: '#6f78a8' },
+        { x: -48.2, y: -68.8, r: 34, color: '#8790c4' },
+        { x: 48.2, y: -68.8, r: 34, color: '#8790c4' },
+        { x: 0, y: 124, r: 70, color: '#8790c4' },
       ],
       couples: [[1, 2]],
       deco: [{ ring: 0, type: 'face', kind: 'panda' }] },
@@ -340,8 +354,8 @@
         { x: -42, y: 0, r: 56, color: '#ffd166' },
         { x: 42, y: 0, r: 56, color: '#ffd166' },
         { x: 0, y: 78, r: 96, color: '#c08552' },
-        { x: -100, y: 100, r: 40, color: '#9a6237' },
-        { x: 100, y: 100, r: 40, color: '#9a6237' },
+        { x: -100, y: 100, r: 40, color: '#b8794a' },
+        { x: 100, y: 100, r: 40, color: '#b8794a' },
       ],
       couples: [[0, 1], [3, 4]],
       deco: [{ ring: 2, type: 'fill', z: -1 }, { ring: 0, type: 'pupil' }, { ring: 1, type: 'pupil' },
@@ -380,8 +394,8 @@
       rings: [
         { x: 0, y: 0, r: 60, color: '#7d8ccc' },
         { x: 0, y: 118, r: 92, color: '#7d8ccc' },
-        { x: -90, y: 128, r: 36, color: '#5d6bb0' },
-        { x: 90, y: 128, r: 36, color: '#5d6bb0' },
+        { x: -90, y: 128, r: 36, color: '#7684d0' },
+        { x: 90, y: 128, r: 36, color: '#7684d0' },
         { x: -32, y: 200, r: 24, color: '#ff9f1c' },
         { x: 32, y: 200, r: 24, color: '#ff9f1c' },
       ],
@@ -411,11 +425,11 @@
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
   // olacak şekilde seçer.
   function finishAnimal(levelNo) {
-    const j = levelNo - MAIN_LEVELS - 1;  // 0..24
-    if (j < 0 || j >= ANIMAL_LEVELS) return null;
-    const base = ANIMALS.find(a => a.name === ANIMAL_SEQUENCE[j % ANIMAL_SEQUENCE.length]);
-    // Hedef zorluk oyun boyunca eşit aralıklarla artar; zorlaştıkça kafes çubukları eklenir
-    const spec = { ...base, target: 3.6 + j * 0.5, bars: j < 2 ? 0 : Math.min(1 + Math.floor(j / 6), 4) };
+    const plan = SHAPE_PLAN[levelNo];
+    if (!plan) return null;
+    const base = ANIMALS.find(a => a.name === plan.name);
+    // Hedef zorluk, şeklin kapıdaki rolünden gelir; zorlaştıkça kafes çubukları eklenir
+    const spec = { ...base, target: plan.target, bars: plan.bars };
     let best = null, bestErr = Infinity;
     for (let attempt = 0; attempt < 400 && bestErr > 0.4; attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729);
@@ -470,36 +484,57 @@
     return def;
   }
 
-  // Oyuncunun gördüğü sıra: 60 seviyenin hepsi zorluk puanına göre, kolaydan zora.
-  // Kurallar: bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9) tanıtılmadan onu kullanan
-  // seviye gelemez; iki hayvan seviyesi art arda gelmez (zorluk farkı küçükse araya normal seviye girer).
-  function levelOrder(get) {
-    const intro = { fixed: 5, couple: 7, double: 8, bar: 9 };
-    const needs = def => {
-      const f = [];
-      if (def.rings.some(r => r.fixed)) f.push('fixed');
-      if ((def.couples || []).length) f.push('couple');
-      if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
-      if (def.rings.some(r => r.type === 'bar')) f.push('bar');
-      return f;
-    };
+  // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9) tanıtılmadan onu kullanan bölüm gelemez.
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9 };
+  function features(def) {
+    const f = [];
+    if (def.rings.some(r => r.fixed)) f.push('fixed');
+    if ((def.couples || []).length) f.push('couple');
+    if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
+    if (def.rings.some(r => r.type === 'bar')) f.push('bar');
+    return f;
+  }
+
+  // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar.
+  // - Her kapının 10. bölümü bir şekil finalidir; bazı kapılarda 5. bölüm de ara şekildir (SHAPE_PLAN).
+  // - Kapının içinde zorluk artar; yeni kapı bir öncekinin zirvesinin biraz altından başlar
+  //   (testere dişi). Bunun için her yuvaya bir hedef sıra verilir ve bölümler zorluk sırasıyla
+  //   bu yuvalara dağıtılır.
+  const GATE_LEN = 10;
+  const MID_POS = 4;    // ara şeklin kapı içindeki yeri (0'dan sayılır)
+  const GATE_STEP = 6;  // yeni kapı, önceki kapının 7. bölümü kadar zor başlar
+  function gateOrder(get) {
     const all = Array.from({ length: MAIN_LEVELS + ANIMAL_LEVELS }, (_, i) => i + 1);
     const D = new Map(all.map(s => [s, difficultyScore(get(s))]));
-    const isAnimal = s => s > MAIN_LEVELS;
-    const pool = all.slice().sort((a, b) => D.get(a) - D.get(b) || a - b);
-    const placed = new Set();
+    const byD = (a, b) => D.get(a) - D.get(b) || a - b;
+    const mains = all.filter(s => s <= MAIN_LEVELS).sort(byD);
+    const shapes = all.filter(s => s > MAIN_LEVELS);
+    const gates = all.length / GATE_LEN;
+    // Şekillerin yeri şekil planından gelir: her kapının bir finali, bazılarının bir ara şekli var
+    const finals = [], mids = [];
+    for (const s of shapes) (SHAPE_PLAN[s].role === 'final' ? finals : mids)[SHAPE_PLAN[s].gate - 1] = s;
+    const midGate = g => mids[g] != null;
+    // Normal bölümlerin yuvaları ve hedef sıraları
+    const slots = [];
+    for (let g = 0; g < gates; g++) {
+      const count = GATE_LEN - 1 - (midGate(g) ? 1 : 0);
+      for (let j = 0; j < count; j++) slots.push({ g, j, t: g * GATE_STEP + j * 8 / (count - 1) });
+    }
+    slots.sort((a, b) => a.t - b.t || a.g - b.g);
+    slots.forEach((s, k) => { s.src = mains[k]; });
     const order = [];
-    const ready = s => needs(get(s)).every(f => intro[f] === s || placed.has(intro[f]));
-    while (pool.length) {
-      const avail = pool.filter(ready);
-      let pick = avail[0];
-      if (isAnimal(pick) && order.slice(-2).some(isAnimal)) {
-        const alt = avail.find(s => !isAnimal(s));
-        if (alt && D.get(alt) - D.get(pick) <= 0.8) pick = alt;
+    for (let g = 0; g < gates; g++) {
+      const own = slots.filter(s => s.g === g).sort((a, b) => a.j - b.j).map(s => s.src);
+      if (midGate(g)) own.splice(MID_POS, 0, mids[g]);
+      own.push(finals[g]);
+      order.push(...own);
+    }
+    // Tanıtım kuralı: bir bölüm, mekaniğinin tanıtımından önce geliyorsa tanıtımla yer değiştirir
+    for (let p = 0; p < order.length; p++) {
+      for (const f of features(get(order[p]))) {
+        const q = order.indexOf(INTRO[f]);
+        if (q > p) { [order[p], order[q]] = [order[q], order[p]]; p = -1; break; }
       }
-      order.push(pick);
-      placed.add(pick);
-      pool.splice(pool.indexOf(pick), 1);
     }
     return order;
   }
@@ -538,8 +573,8 @@
   }
 
   const api = {
-    BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal,
-    difficultyScore, levelOrder, MAX_PAR,
+    BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
+    difficultyScore, gateOrder, features, INTRO, MAX_PAR,
     connected, noRingFreeAtStart, difficulty, barVsRing,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

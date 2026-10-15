@@ -15,7 +15,7 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
 - Her bölümde en fazla 10 hamle hakkın var; biterse bölüm başa döner.
 - Skor: yıldız başına 100, altın başına 25 (her bölümün en iyi sonucu sayılır).
 
-60 bölüm kolaydan zora dizilidir; aralarına 10 hayvan bölümü (kedi, ayıcık, aslan…) serpiştirilmiştir.
+Bölümler 10'arlı kapılara dizilidir; her kapının sonunda bir şekil finali (kedi, ayıcık, aslan…) vardır. Kapıyı bitiren yeni kapıyı açar; kapılar dünyalara (Başlangıç Vadisi, Atölye…) ayrılır.
 
 ## GitHub Pages ile yayınlama
 
@@ -39,13 +39,15 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 |---|---|
 | `index.html`, `style.css` | Sayfa ve tasarım |
 | `logic.js` | Kurallar: kesişimler, serbest kalma, çözücüler |
-| `levels.js` | El yapımı 10 tanıtım bölümü, deneme bölümleri, hayvanlar, seviye üretici, zorluk sırası |
+| `levels.js` | El yapımı 10 tanıtım bölümü, deneme bölümleri, hayvanlar ve şekil planı, seviye üretici, kapı sırası |
 | `levels_data.js` | Önceden üretilmiş bölümler (elle düzenlenmez) |
+| `worlds.js` | Yolculuk: dünyalar, kapılar, unvanlar, dünya temaları |
 | `save.js` | Oyuncu kaydı: yükleme, eski sürümden taşıma, kilit sınırı |
 | `deco.js` | Hayvan yüzleri ve süsler |
 | `game.js` | Ekranlar, çizim, dokunma, ses, skor, kayıt |
 | `manifest.webmanifest`, `icon-*.png` | Telefonda uygulama gibi açılma |
 | `tools/check_levels.js` | `node tools/check_levels.js` → bütün bölümleri ve zorluk sırasını doğrular |
+| `tools/check_themes.js` | Her dünyanın zemininde halkaların okunaklı olduğunu (kontrast) doğrular |
 | `tools/test_save.js` | `npm test` → kayıt ve eski kayıt taşıma testleri |
 | `tools/build_levels.js` | `node tools/build_levels.js 11 50` → bölümleri yeniden üretir |
 | `tools/autoplay.js` | Tarayıcıda otomatik oynatma testi (`index.html?level=5&debug&autoplay`) |

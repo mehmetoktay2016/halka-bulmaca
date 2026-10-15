@@ -58,18 +58,46 @@ for (let n = 1; n <= last; n++) {
     (problems.length ? '  <-- ' + problems.join(', ') : ''));
   if (problems.length) failed++;
 }
-// Oyuncunun gördüğü sıra kolaydan zora gitmeli: 5 seviyelik hareketli ortalama hiç düşmemeli,
-// tek tek seviyeler ise bir öncekinden en fazla 1.5 puan kolay olabilir.
+// Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (testere dişi zorluk).
+// - Her kapı tam 10 bölüm, 10. bölüm bir şekil finali.
+// - Kapının içinde normal bölümler kolaydan zora gider.
+// - Yeni kapı önceki kapının zirvesinden kolay başlar, ama zirvesi öncekinden düşük olamaz.
+// - Final, kapının normal bölümlerinin zorluk aralığında olmalı (en kolayından kolay olamaz).
+// - Bir mekanik tanıtılmadan onu kullanan bölüm gelemez.
+const Worlds = require('../worlds.js');
 const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s);
-const order = Levels.levelOrder(get);
-const D = order.map(s => Levels.difficultyScore(get(s)));
-console.log('\nOyuncu sırası (kaynak):', order.join(' '));
-console.log('Hedef hamle:', order.map(s => get(s).par).join(' '));
-console.log('Zorluk puanı:', D.map(d => d.toFixed(1)).join(' '));
-const avg = D.map((_, i) => { const w = D.slice(Math.max(0, i - 4), i + 1); return w.reduce((a, b) => a + b, 0) / w.length; });
-for (let i = 1; i < D.length; i++) {
-  if (avg[i] < avg[i - 1] - 0.05) { console.log(`Sıra ${i + 1}: ortalama zorluk düşüyor (${avg[i - 1].toFixed(2)} → ${avg[i].toFixed(2)})`); failed++; }
-  if (D[i] < D[i - 1] - 1.5) { console.log(`Sıra ${i + 1}: ani kolaylaşma (${D[i - 1].toFixed(1)} → ${D[i].toFixed(1)})`); failed++; }
+const order = Levels.gateOrder(get);
+const Dof = s => Levels.difficultyScore(get(s));
+const isShape = s => !!get(s).name;
+const G = Worlds.GATE_SIZE;
+console.log('');
+if (order.length % G) { console.log(`Bölüm sayısı (${order.length}) ${G}'un katı değil`); failed++; }
+if (new Set(order).size !== order.length) { console.log('Sırada tekrar eden bölüm var'); failed++; }
+if (order.length / G > Worlds.GATES.length) { console.log(`Kapı tanımı yetersiz: ${order.length / G} kapı gerekiyor`); failed++; }
+let prevPeak = -Infinity;
+for (let g = 0; g < order.length / G; g++) {
+  const row = order.slice(g * G, g * G + G);
+  const mains = row.filter(s => !isShape(s)).map(Dof);
+  const peak = Math.max(...mains);
+  const gate = Worlds.GATES[g];
+  const problems = [];
+  if (!isShape(row[G - 1])) problems.push('10. bölüm şekil değil');
+  for (let k = 1; k < mains.length; k++) if (mains[k] < mains[k - 1] - 0.05) problems.push(`zorluk ${k + 1}. normal bölümde düşüyor`);
+  if (g > 0 && mains[0] >= prevPeak) problems.push(`önceki zirveden (${prevPeak.toFixed(1)}) kolay başlamıyor`);
+  if (peak < prevPeak - 0.05) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
+  if (Dof(row[G - 1]) < Math.min(...mains) - 0.05) problems.push(`final kapının en kolay bölümünden kolay (${Dof(row[G - 1]).toFixed(1)})`);
+  console.log(`Kapı ${String(g + 1).padStart(2)} ${(gate ? gate.name : '?').padEnd(14)} ` +
+    row.map(s => `${s}${isShape(s) ? '*' : ''}:${Dof(s).toFixed(1)}`).join(' ') +
+    (problems.length ? '  <-- ' + problems.join(', ') : ''));
+  failed += problems.length;
+  prevPeak = Math.max(prevPeak, peak);
 }
-console.log(failed ? `\n${failed} sorun var` : '\nTüm seviyeler geçerli, sıra kolaydan zora gidiyor');
+const seenFeat = new Set();
+order.forEach((s, p) => {
+  for (const f of Levels.features(get(s))) {
+    if (Levels.INTRO[f] !== s && !seenFeat.has(f)) { console.log(`Sıra ${p + 1} (#${s}): "${f}" tanıtılmadan kullanılıyor`); failed++; }
+  }
+  if (Object.values(Levels.INTRO).includes(s)) seenFeat.add(Object.keys(Levels.INTRO).find(k => Levels.INTRO[k] === s));
+});
+console.log(failed ? `\n${failed} sorun var` : '\nTüm seviyeler geçerli, kapılar kolaydan zora gidiyor');
 process.exit(failed ? 1 : 0);
