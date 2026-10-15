@@ -32,7 +32,7 @@ bağı açıksa halka serbest kalır ve uçar. Hedef hamle sayısı çözücüyl
 
 ## Ek fikirler (fark yaratmak için)
 
-- Geri al (undo) ve sıfırla butonu, ücretsiz.
+- Sıfırla (yeniden başla) butonu, ücretsiz. Geri al 2.0'da kaldırıldı: hamle sayacını geri verdiği için deneme-yanılmayı bedava yapıyor, hamle hakkını ve yıldızı anlamsızlaştırıyordu.
 - Günlük bulmaca.
 - Tek seferlik "reklamları kaldır" satın alımı.
 - İnternetsiz oynanabilir.

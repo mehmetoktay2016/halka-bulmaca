@@ -180,10 +180,6 @@
       </div>
 
       <footer class="controls">
-        <button id="undo" class="tool">
-          <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/></svg></span>
-          <span class="lbl">Geri al</span>
-        </button>
         <button id="reset" class="tool">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg></span>
           <span class="lbl">Yeniden</span>
@@ -243,6 +239,19 @@
         <p id="gateWorld" class="win-note"></p>
         <div id="gateRewards" class="gate-rewards"></div>
         <div class="row"><button id="gateGo" class="btn-primary">Yola devam</button></div>
+      </div>
+    </div>
+
+    <!-- Büyük Makine: 200. bölüm ilk kez bitince yolculuğun kapanışı -->
+    <div id="ending" class="ending" role="dialog" aria-modal="true" aria-labelledby="endingTitle" hidden>
+      <canvas id="endingFx" aria-hidden="true"></canvas>
+      <div class="ending-text">
+        <div class="eyebrow">Yolculuğun sonu</div>
+        <h2 id="endingTitle">Büyük Makine çalıştı!</h2>
+        <p id="endingLead">200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.</p>
+        <div id="endingStats" class="ending-stats"></div>
+        <p id="endingMore" class="ending-more"></p>
+        <button id="endingGo" class="btn-primary">Haritaya dön</button>
       </div>
     </div>
 

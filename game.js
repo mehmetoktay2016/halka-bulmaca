@@ -135,7 +135,7 @@
   // ---- Oyun durumu ----
   const S = {
     levelNo: 1, def: null, L: null,
-    angles: [], mask: 0, moves: 0, history: [],
+    angles: [], mask: 0, moves: 0,
     fly: {}, shake: {}, drag: null, hint: null, won: false,
     shownStars: 3,
     auto: null,     // "Hamleyi yap": halka kendiliğinden dönerken { ring, delta, done, t0, before }
@@ -734,7 +734,7 @@
 
   function startDef(def, levelNo, tut, preview = null) {
     Object.assign(S, {
-      levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
+      levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
@@ -831,7 +831,6 @@
     $('movesNum').classList.toggle('warn', S.tut == null && left <= 2 && !S.won);
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins + S.coinsTaken;
-    $('undo').disabled = !S.history.length || S.won || S.failed;
     renderHintCount();
   }
 
@@ -945,7 +944,7 @@
     coinFly.push({ x: start.x, y: start.y, t0: performance.now() + delay });
     setTimeout(() => Sound.coin(), delay);
     setTimeout(() => {
-      if (!c.taken || S.won) return; // geri alındıysa ya da bölüm bittiyse sayma
+      if (!c.taken || S.won) return; // bölüm bittiyse kasaya showWin ekler
       S.coinsTaken = S.coins.filter(k => k.taken).length;
       updateHud();
       const pill = $('coinPill');
@@ -1318,7 +1317,6 @@
 
   // Bir hamle tamamlandı (elle ya da "Hamleyi yap" ile)
   function commitMove(before) {
-    S.history.push(before);
     S.moves++;
     S.help.lastAct = performance.now();
     const el = $('movesNum');
@@ -1360,24 +1358,6 @@
     $('settings').classList.remove('hidden');
   };
   $('settingsClose').onclick = () => { Sound.tap(); $('settings').classList.add('hidden'); };
-  $('undo').onclick = () => {
-    if (S.auto) return;
-    const prev = S.history.pop();
-    if (!prev || S.won || S.failed) return;
-    Sound.tap();
-    S.angles = prev.angles;
-    S.mask = prev.mask;
-    S.moves = prev.moves;
-    S.coins.forEach((c, k) => { c.taken = prev.taken[k]; });
-    S.coinsTaken = S.coins.filter(c => c.taken).length;
-    coinFly = [];
-    S.fly = {};
-    S.keyFly = [];
-    S.hint = null;
-    renderMeter(false);
-    updateHud();
-    guide();
-  };
   const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : loadLevel(S.levelNo));
   $('reset').onclick = () => { Sound.tap(); restart(); };
   $('again').onclick = () => { Sound.tap(); restart(); };
@@ -1401,10 +1381,120 @@
       return;
     }
     if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
+    // Son bölüm ilk kez bitince: Büyük Makine kapanışı, sonra harita
+    if (S.levelNo === TOTAL && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding(); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
+  // ---- Büyük Makine: yolculuğun kapanışı ----
+  // Oyunun halka renklerindeki 8 halka (bir dünyaya bir halka) dört bir yandan uçup altın merkez halkanın
+  // çevresinde makineyi kurar, makine dişliler gibi döner, kıvılcımlar saçılır; ardından yolculuğun özeti gelir.
+  const END_RINGS = COLORS.slice(0, W.WORLDS.length);
+  let endingRun = null;
+  function showEnding(replay) {
+    if (!replay) {
+      progress.rewards.ending = today();
+      saveProgress();
+    }
+    const el = $('ending');
+    el.className = 'ending';
+    el.hidden = false;
+    const shapes = shapeLevels();
+    const earned = Object.keys(progress.badges).length;
+    const perfect = Object.values(progress.stars).filter(v => v === 3).length;
+    $('endingStats').innerHTML = [
+      [`${totalStars()}`, `/ ${TOTAL * 3} yıldız`],
+      [`${earned}`, `/ ${B.BADGES.length} rozet`],
+      [`${shapes.filter(n => starsOf(n)).length}`, `/ ${shapes.length} şekil`],
+      [fmt(progress.stats.coinsTotal || 0), 'altın'],
+    ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
+    const missing = TOTAL - perfect;
+    $('endingMore').textContent = missing > 0 ? `${missing} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.` : 'Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.';
+    const quick = REDUCED || !fxOn();
+    const t0 = performance.now();
+    endingRun = { t0, sparks: [] };
+    setTimeout(() => el.classList.add('show-title'), quick ? 0 : 2500);
+    setTimeout(() => el.classList.add('show-stats'), quick ? 0 : 3300);
+    setTimeout(() => el.classList.add('show-go'), quick ? 0 : 3900);
+    Sound.gate();
+    setTimeout(() => { Sound.win(); launchConfetti(3); }, quick ? 0 : 2400);
+    requestAnimationFrame(drawEnding);
+    $('endingGo').onclick = () => {
+      Sound.tap();
+      el.hidden = true;
+      endingRun = null;
+      showScreen('levels');
+    };
+  }
+
+  function drawEnding(now) {
+    const run = endingRun;
+    if (!run) return;
+    requestAnimationFrame(drawEnding);
+    const c = $('endingFx'), g = c.getContext('2d');
+    const w = c.clientWidth, h = c.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const quick = REDUCED || !fxOn();
+    const t = quick ? 99 : (now - run.t0) / 1000;
+    const cx = w / 2, cy = h * 0.34, R = Math.min(w * 0.33, 130), r = R * 0.36;
+    const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+    // Arkada dönen ışık hüzmeleri (makine çalışınca)
+    const run2 = ease((t - 1.8) / 0.8);
+    if (run2 > 0) {
+      g.save(); g.translate(cx, cy); g.rotate(t * 0.15);
+      for (let k = 0; k < 12; k++) {
+        g.rotate(Math.PI / 6);
+        const grd = g.createLinearGradient(0, 0, R * 2.4, 0);
+        grd.addColorStop(0, `rgba(255, 211, 107, ${0.16 * run2})`); grd.addColorStop(1, 'rgba(255, 211, 107, 0)');
+        g.fillStyle = grd;
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(R * 2.4, -R * 0.18); g.lineTo(R * 2.4, R * 0.18); g.closePath(); g.fill();
+      }
+      g.restore();
+    }
+    const ring = (x, y, rad, color, angle, width, alpha) => {
+      g.save(); g.globalAlpha = alpha; g.lineCap = 'round';
+      for (const [col, lw, dx, dy] of [['rgba(0,0,0,.4)', width + 6, 2, 4], [color, width, 0, 0], ['rgba(255,255,255,.3)', 3, -2, -2]]) {
+        g.strokeStyle = col; g.lineWidth = lw;
+        g.beginPath(); g.arc(x + dx, y + dy, rad, angle + 0.45, angle + Math.PI * 2 - 0.45); g.stroke();
+      }
+      // dişli tıkları
+      g.fillStyle = 'rgba(255,255,255,.55)';
+      for (let k = 0; k < 8; k++) {
+        const a = angle + k * Math.PI / 4 + Math.PI / 8;
+        g.beginPath(); g.arc(x + Math.cos(a) * (rad + width), y + Math.sin(a) * (rad + width), 2.2, 0, Math.PI * 2); g.fill();
+      }
+      g.restore();
+    };
+    // 8 dünya halkası: dört bir yandan uçup yerine oturur, sonra dişli gibi zıt yönlerde döner
+    END_RINGS.forEach((col, k) => {
+      const a = -Math.PI / 2 + k * Math.PI / 4;
+      const tx = cx + Math.cos(a) * R, ty = cy + Math.sin(a) * R;
+      const fx = cx + Math.cos(a) * Math.max(w, h), fy = cy + Math.sin(a) * Math.max(w, h);
+      const p = ease((t - k * 0.14) / 0.9);
+      const x = fx + (tx - fx) * p, y = fy + (ty - fy) * p;
+      const spin = run2 * (t - 1.8) * (k % 2 ? -1.6 : 1.6);
+      ring(x, y, r, col, a + spin, 9, Math.min(1, p * 1.5));
+    });
+    // Altın merkez halka: halkalar yerleşince belirir, sonra hepsini döndürür
+    const core = ease((t - 1.4) / 0.6);
+    if (core > 0) ring(cx, cy, R * 0.62 * (0.6 + 0.4 * core), '#ffd36b', -run2 * (t - 1.8) * 0.8, 13, core);
+    // Kıvılcımlar
+    if (run2 > 0 && !quick && Math.random() < 0.6) {
+      const a = Math.random() * Math.PI * 2;
+      run.sparks.push({ x: cx + Math.cos(a) * R * 0.62, y: cy + Math.sin(a) * R * 0.62, vx: Math.cos(a) * (1 + Math.random() * 2.5), vy: Math.sin(a) * (1 + Math.random() * 2.5), life: 1 });
+    }
+    run.sparks = run.sparks.filter(s => (s.life -= 0.02) > 0);
+    for (const s of run.sparks) {
+      s.x += s.vx; s.y += s.vy; s.vy += 0.03;
+      g.globalAlpha = s.life; g.fillStyle = s.life > 0.5 ? '#fff3b0' : '#ffb347';
+      g.beginPath(); g.arc(s.x, s.y, 2, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+
   // ---- İpucu: ampul sayacı ve kademeli ipucu ----
   // Dürtme her zaman ücretsiz; İpucu ve Hamleyi yap birer ampul. 1. kapıda ve denemelerde hepsi ücretsiz.
   const hintsFree = () => S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
@@ -1425,7 +1515,8 @@
   function bestMove() {
     const key = boardKey();
     if (hintCache && hintCache.key === key) return hintCache.sol;
-    const sol = solveFast(S.L, S.angles, S.mask, 40000, 0.8) || solveFast(S.L, S.angles, S.mask, 30000);
+    // 2000 düğüm: denge testinde (tools/balance.js) 40000 ile aynı sonuç, en yavaş adım ~0,2 sn
+    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8) || solveFast(S.L, S.angles, S.mask, 30000);
     hintCache = { key, sol };
     return sol;
   }
@@ -2293,6 +2384,11 @@
     showScreen('game');
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
+  } else if (params.has('ending')) {
+    // Geliştirme: ?ending kapanış sahnesini kayda dokunmadan gösterir
+    applyWorld(W.worldOfGate(W.GATES.length));
+    showScreen('home');
+    showEnding(true);
   } else if (params.has('src')) {
     // Geliştirme: ?src=1001 bir bölümü kaynak numarasıyla açar (kapıya yerleşmemiş tanıtımlar için)
     loadPreview(parseInt(params.get('src'), 10));
@@ -2323,6 +2419,7 @@
   if (AppPlugin) {
     AppPlugin.addListener('backButton', () => {
       if (!$('splash').hidden) return;
+      if (!$('ending').hidden) { $('endingGo').click(); return; }
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
       if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }

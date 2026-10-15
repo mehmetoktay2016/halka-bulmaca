@@ -5,7 +5,8 @@ mağaza metinleri ve görselleri (`store/`), Expo test uygulaması (`expo_app/`)
 Aşağıdakiler senin hesabınla ve senin elinle yapılması gereken adımlar.
 
 - **Uygulama kimliği:** `com.mehmetoktay.halkabulmaca` (Play'e yüklendikten sonra değiştirilemez)
-- **Sürüm:** `versionCode 1`, `versionName "1.0"` → `android/app/build.gradle`
+- **Sürüm:** `versionCode 3`, `versionName "2.0"` → `android/app/build.gradle` (her yüklemede versionCode 1 artmalı)
+- **Hazır deneme paketi:** `dist/HalkaBulmaca-deneme-2.0.apk` (imzasız deneme; mağazaya imzalı .aab yüklenir, bkz. 3. adım)
 
 ---
 
