@@ -489,17 +489,27 @@
   // Kapılara Görev 13'te yerleşir; o zamana dek yalnızca ?src=1001 ile açılır.
   // Yerleşim: eşli iki halka (0 ve 2) birbirini keser, böylece dönüş yönü sonucu doğrudan belirler.
   // Kural doğru anlaşılınca 2 hamle; normal eş gibi düşünülürse en az 3 hamle (tools/check_levels.js).
+  // Tıklı halka tanıtımı (1003): üstteki halka 45°'lik adımlarla döner. Serbest dönseydi 1 hamle
+  // yeterdi; tık kuralıyla boşluk o kesişime tam oturmaz, oyuncu başka yol bulur (2 hamle).
   const CROSSED = [{ x: 145, y: 280, r: 66 }, { x: 200, y: 375, r: 60 }, { x: 255, y: 280, r: 66 }, { x: 200, y: 185, r: 60 }];
   const MECH_LEVELS = {
     1001: { title: 'Ters dişli', world: 'atolye', tip: 'Ters dişli: biri sağa dönerse eşi sola döner',
       rings: CROSSED.map((r, i) => ({ ...r, a: [150, 240, 330, 210][i] })), couples: [[0, 2, -1]] },
     1002: { title: 'Hızlı dişli', world: 'fabrika', tip: '×2 yazan halka, eşinin iki katı döner',
       rings: CROSSED.map((r, i) => ({ ...r, a: [180, 120, 30, 270][i] })), couples: [[0, 2, 2]] },
+    1003: { title: 'Tıklı halka', world: 'saat', tip: 'Tıklı halkanın boşluğu yalnızca noktalarda durur',
+      rings: [{ x: 200, y: 215, r: 70, a: 255, step: 45 }, { x: 140, y: 320, r: 64, a: 135 }, { x: 260, y: 320, r: 64, a: 195 }] },
   };
+  // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
+  const plainVersion = def => ({
+    ...def,
+    rings: def.rings.map(r => ({ ...r, step: undefined })),
+    couples: (def.couples || []).map(([a, b]) => [a, b]),
+  });
 
-  // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002)
-  // tanıtılmadan onu kullanan bölüm gelemez.
-  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002 };
+  // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002,
+  // tıklı halka 1003) tanıtılmadan onu kullanan bölüm gelemez.
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -507,6 +517,7 @@
     if (ratios.includes(1)) f.push('couple');
     if (ratios.includes(-1)) f.push('reverse');
     if (ratios.some(r => Math.abs(r) === 2 || Math.abs(r) === 0.5)) f.push('fast');
+    if (def.rings.some(r => r.step)) f.push('click');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -598,7 +609,7 @@
 
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
-    difficultyScore, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS,
+    difficultyScore, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

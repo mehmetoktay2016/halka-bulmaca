@@ -52,5 +52,31 @@ test('kilitli halkaya bağlı eş dönmez', () => {
   assert.deepStrictEqual(L.rotatable, [false, false]);
 });
 
+test('tıklı halka: hedef en yakın tık yerine çekilir', () => {
+  const L = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 10, step: 45 }] });
+  close(Logic.snapStep(L, 0, 70 * DEG), 55 * DEG);   // 10 + 45
+  close(Logic.snapStep(L, 0, 300 * DEG), 280 * DEG); // 10 - 90
+});
+
+test('tıklı halka: çözücünün her hamlesi tık yerine düşer', () => {
+  const Levels = require('../levels.js');
+  const L = Logic.buildLevel(Levels.MECH_LEVELS[1003]);
+  let a = L.startAngles.slice(), m = 0, n = 0;
+  while (m !== L.full && n < 10) {
+    const s = Logic.solve(L, a, m, 200000);
+    a = Logic.rotate(L, a, s.first.ring, s.first.delta);
+    const k = Logic.signedDelta(L.startAngles[0], a[0]) / L.rings[0].step;
+    assert.ok(Math.abs(k - Math.round(k)) < 1e-9, 'tıklı halka tık yeri dışında: ' + k);
+    m = Logic.cascade(L, a, m).mask;
+    n++;
+  }
+  assert.strictEqual(m, L.full);
+});
+
+test("tıklı halka eşli olamaz, adım 360'ı bölmeli", () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 45 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /eşli olamaz/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 50 }] }), /360/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

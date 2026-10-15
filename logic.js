@@ -59,7 +59,12 @@
       id: i, kind: 'ring', x: r.x, y: r.y, r: r.r,
       fixed: !!r.fixed,
       gaps: (r.gaps || [0]).map(g => g * DEG),
+      // Tıklı halka: yalnızca başlangıç açısından step'in katları kadar döner (derece; 360'ı tam bölmeli)
+      step: r.step ? r.step * DEG : 0,
     }));
+    for (const [i, r] of def.rings.entries()) {
+      if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
+    }
     const n = rings.length;
     const links = [];
     const ringLinks = rings.map(() => []);
@@ -104,6 +109,8 @@
       }
     }
     const group = rings.map((_, i) => rings.filter((_, k) => groupId[k] === groupId[i]).map(r => r.id));
+    // Tıklı halka eşli olamaz: eşi farklı oranla dönünce halka tık yerlerinin dışına düşerdi
+    for (const r of rings) if (r.step && group[r.id].length > 1) throw new Error(`Halka ${r.id}: tıklı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
 
     return {
@@ -160,7 +167,16 @@
     return out;
   }
 
-  // Halka i için anlamlı hedef açılar: boşluğu henüz açık olmayan bir kesişime getirmek
+  // Tıklı halkanın t açısına en yakın tık yeri (tık yerleri başlangıç açısından ölçülür)
+  function snapStep(L, i, t) {
+    const ring = L.rings[i];
+    if (!ring.step) return t;
+    const base = L.startAngles[i];
+    return norm(base + Math.round(signedDelta(base, t) / ring.step) * ring.step);
+  }
+
+  // Halka i için anlamlı hedef açılar: boşluğu henüz açık olmayan bir kesişime getirmek.
+  // Tıklı halkada hedef en yakın tık yerine çekilir; boşluk orada kesişimi açmıyorsa hedef sayılmaz.
   function candidates(L, angles, mask, i) {
     const ring = L.rings[i];
     const out = [];
@@ -172,7 +188,9 @@
         if (pointOpen(L, k, p, angles)) continue;
         const angI = k.a === i ? p.angA : p.angB;
         for (const g of ring.gaps) {
-          const t = norm(angI - g);
+          const t = snapStep(L, i, norm(angI - g));
+          if (ring.step && !gapCovers(ring, t, angI)) continue;
+          if (angDist(t, angles[i]) < DEG / 2) continue;
           if (!out.some(o => angDist(o, t) < DEG)) out.push(t);
         }
       }
@@ -294,7 +312,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

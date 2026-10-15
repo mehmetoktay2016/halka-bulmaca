@@ -110,6 +110,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Tıklı halka her adımda: saat tıkırtısı
+      clack: () => { tone(2200, 0.025, 'square', 0.035); tone(900, 0.05, 'triangle', 0.05, 600); },
       context: audio,
     };
   })();
@@ -1239,6 +1241,7 @@
       lastAng: Math.atan2(p.y - r.y, p.x - r.x),
       total: 0,
       notch: 0,
+      applied: 0, // tıklı halkada uygulanan dönüş (adımın katı)
       before: snapshot(),
     };
     if (S.hint && S.L.group[i].includes(S.hint.ring)) S.hint = null;
@@ -1252,6 +1255,17 @@
     const d = signedDelta(S.drag.lastAng, ang);
     S.drag.lastAng = ang;
     S.drag.total += d;
+    if (r.step) {
+      // Tıklı halka parmağı serbestçe izlemez: en yakın tık yerine atlar
+      const want = Math.round(S.drag.total / r.step) * r.step;
+      if (want !== S.drag.applied) {
+        S.angles = rotate(S.L, S.angles, S.drag.ring, want - S.drag.applied);
+        S.drag.applied = want;
+        S.tickPop = { ring: S.drag.ring, t0: performance.now() };
+        Sound.clack();
+      }
+      return;
+    }
     S.angles = rotate(S.L, S.angles, S.drag.ring, d);
     // her 15 derecede bir hafif "tık" sesi
     const notch = Math.round(S.drag.total / (15 * DEG));
@@ -1262,7 +1276,8 @@
     if (!S.drag) return;
     const drag = S.drag;
     S.drag = null;
-    if (Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
+    const stepped = S.L.rings[drag.ring].step;
+    if (stepped ? !drag.applied : Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
     commitMove(drag.before);
   }
 
@@ -1565,8 +1580,9 @@
     const d = a.delta * e - a.done;
     S.angles = rotate(S.L, S.angles, a.ring, d);
     a.done += d;
-    const notch = Math.round(a.done / (15 * DEG));
-    if (notch !== a.notch) { a.notch = notch; Sound.tick(); }
+    const unit = S.L.rings[a.ring].step || 15 * DEG;
+    const notch = Math.round(a.done / unit);
+    if (notch !== a.notch) { a.notch = notch; S.L.rings[a.ring].step ? Sound.clack() : Sound.tick(); }
     if (t >= 1) { S.auto = null; commitMove(a.before); }
   }
 
@@ -1693,11 +1709,38 @@
       ctx.shadowColor = color;
       ctx.shadowBlur = 18;
     }
+    if (ring.step) drawStepDots(i, cx, cy, now);
     strokeRing(ring, S.angles[i], 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
     strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
     strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
     if (ring.fixed) drawLock(cx, cy);
+    ctx.restore();
+  }
+
+  // Tıklı halka: boşluğun durabileceği yerler halkanın dışında küçük noktalar.
+  // Boşluğun şu an durduğu nokta parlak; her tıkta kısa bir parıltı.
+  function drawStepDots(i, cx, cy, now) {
+    const ring = S.L.rings[i];
+    const n = Math.round(TAU / ring.step);
+    const base = S.L.startAngles[i];
+    const rr = ring.r + STROKE / 2 + 8;
+    const pop = S.tickPop && S.tickPop.ring === i ? Math.max(0, 1 - (now - S.tickPop.t0) / 220) : 0;
+    ctx.save();
+    for (const g of ring.gaps) {
+      for (let k = 0; k < n; k++) {
+        const a = base + g + k * ring.step;
+        const here = angDist(a, S.angles[i] + g) < ring.step / 2;
+        // Koyu kenar: nokta, zemindeki kadran dokusunda kaybolmasın
+        ctx.fillStyle = here ? '#ffd36b' : 'rgba(255,255,255,.72)';
+        ctx.strokeStyle = 'rgba(8, 10, 24, .7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, here ? 5.5 + 3 * pop : 3.8, 0, TAU);
+        ctx.stroke();
+        ctx.fill();
+      }
+    }
     ctx.restore();
   }
 

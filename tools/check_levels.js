@@ -100,7 +100,7 @@ order.forEach((s, p) => {
   if (Object.values(Levels.INTRO).includes(s)) seenFeat.add(Object.keys(Levels.INTRO).find(k => Levels.INTRO[k] === s));
 });
 // Yeni mekaniklerin tanıtım bölümleri: çözülebilir, başta kilitli ve kural gerçekten gerekli
-// (oranlar 1 yapılınca, yani normal eş gibi oynanınca, aynı hamlede çözülmemeli)
+// (mekanik kaldırılınca, örneğin eş oranları 1 ya da tıklar yokken, çözüm aynı kalmamalı)
 for (const [src, def] of Object.entries(Levels.MECH_LEVELS)) {
   const L = Logic.buildLevel(def);
   const sol = Logic.solve(L, L.startAngles, 0, 200000);
@@ -109,9 +109,9 @@ for (const [src, def] of Object.entries(Levels.MECH_LEVELS)) {
   if (!sol) problems.push('çözülemiyor');
   else {
     if (sol.moves !== Levels.getLevel(Number(src)).par) problems.push(`par ${def.par}, çözüm ${sol.moves}`);
-    const plain = Logic.buildLevel({ ...def, couples: def.couples.map(([a, b]) => [a, b]) });
+    const plain = Logic.buildLevel(Levels.plainVersion(def));
     const ps = Logic.solve(plain, plain.startAngles, 0, 200000);
-    if (ps && ps.moves <= sol.moves) problems.push(`kural fark etmiyor (normal eşle de ${ps.moves} hamle)`);
+    if (ps && ps.moves === sol.moves) problems.push(`kural fark etmiyor (mekaniksiz de ${ps.moves} hamle)`);
   }
   if (!Levels.features(def).some(f => Levels.INTRO[f] === Number(src))) problems.push('INTRO tablosunda yok');
   console.log(`Tanıtım #${src} ${def.title.padEnd(12)} par ${sol ? sol.moves : '-'}` + (problems.length ? '  <-- ' + problems.join(', ') : ''));
