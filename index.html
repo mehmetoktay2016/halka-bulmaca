@@ -48,8 +48,14 @@
       <div class="splash-bar"><span></span></div>
     </div>
 
+    <!-- Dünyanın arka planda süzülen parçacıkları (kıvılcım, buhar, yıldız...) -->
+    <canvas id="bgFx" aria-hidden="true"></canvas>
+
     <!-- Ana menü -->
     <section id="home" class="screen home">
+      <button id="homeSettings" class="round corner" aria-label="Ayarlar">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
+      </button>
       <div class="home-score" aria-label="Toplam skor"><span>Skor</span><b id="homeScore">0</b></div>
       <div class="logo-mark" aria-hidden="true">
         <svg viewBox="0 0 200 140">
@@ -106,8 +112,8 @@
           <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>
         </button>
         <div id="scorePill" class="score-pill" aria-label="Toplam skor"><span>Skor</span><b id="scoreNum">0</b></div>
-        <button id="soundBtn" class="round" aria-label="Sesi kapat" aria-pressed="true">
-          <svg viewBox="0 0 24 24"><path class="fillme" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="mute" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+        <button id="settingsBtn" class="round" aria-label="Ayarlar">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
         </button>
       </header>
 
@@ -129,7 +135,10 @@
       </div>
 
       <main id="stage">
-        <canvas id="board"></canvas>
+        <div class="board-wrap">
+          <canvas id="boardBg" aria-hidden="true"></canvas>
+          <canvas id="board"></canvas>
+        </div>
         <div id="tip" class="tip"></div>
       </main>
 
@@ -206,6 +215,25 @@
       </div>
     </div>
 
+    <!-- Ayarlar -->
+    <div id="settings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="card settings-card">
+        <h2 id="settingsTitle">Ayarlar</h2>
+        <div class="toggles">
+          <button class="toggle" role="switch" data-key="sound" aria-checked="true">
+            <span><b>Ses</b><small>Dönme, patlama ve ödül sesleri</small></span><i aria-hidden="true"></i>
+          </button>
+          <button class="toggle" role="switch" data-key="ambient" aria-checked="true">
+            <span><b>Ortam sesi</b><small>Her dünyanın kendi arka plan sesi</small></span><i aria-hidden="true"></i>
+          </button>
+          <button class="toggle" role="switch" data-key="effects" aria-checked="true">
+            <span><b>Efektler</b><small>Parçacıklar, ışık dalgası, büyük patlama</small></span><i aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="row"><button id="settingsClose" class="btn-primary">Tamam</button></div>
+      </div>
+    </div>
+
     <canvas id="fx" aria-hidden="true"></canvas>
   </div>
 
@@ -219,6 +247,8 @@
   <script src="worlds.js"></script>
   <script src="save.js"></script>
   <script src="deco.js"></script>
+  <script src="scenery.js"></script>
+  <script src="ambience.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

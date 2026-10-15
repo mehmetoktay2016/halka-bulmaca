@@ -1,11 +1,12 @@
 // Kullanım: node tools/check_themes.js
 // Her dünyanın zemini üzerinde halkaların, kilitli halkanın ve çubuğun okunabildiğini doğrular.
-// Ölçü WCAG kontrast oranıdır; zeminin en açık noktası (üst renk + en güçlü ışık) ve en koyu
+// Ölçü WCAG kontrast oranıdır; zeminin en açık noktası (üst renk + en güçlü ışık + tahta dokusu) ve en koyu
 // noktası (alt renk) için ayrı ayrı hesaplanır, kötü olanı sayılır.
 const fs = require('fs');
 const path = require('path');
 const Worlds = require('../worlds.js');
 const Levels = require('../levels.js');
+const Scenery = require('../scenery.js');
 
 // Grafik öğeler için WCAG 1.4.11 en az 3:1 ister. Kilitli halka bilerek sönük (dönmediğini anlatır),
 // yine de zeminden ayrılmalı.
@@ -32,7 +33,10 @@ for (const w of Worlds.WORLDS) {
     const m = mix(top, hex(c), a);
     return lum(m) > lum(best) ? m : best;
   }, top);
-  const grounds = [brightest, hex(t.bottom)];
+  // Tahta paneli (scenery.js): önce koyu taban, en açık yerde üstüne tint rengi board.alpha opaklıkla
+  const textured = t.board
+    ? mix(mix(brightest, [0, 0, 0], Scenery.PANEL_SHADE), hex(t.board.tint), t.board.alpha) : brightest;
+  const grounds = [lum(textured) > lum(brightest) ? textured : brightest, hex(t.bottom)];
   const worst = color => Math.min(...grounds.map(g => contrast(hex(color), g)));
 
   // Bu dünyadaki bölümlerin kendi halka renkleri (şekiller)

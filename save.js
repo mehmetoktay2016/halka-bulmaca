@@ -21,7 +21,9 @@
       version: 3,
       stars: {},          // bölüm kimliği -> en iyi yıldız (kayıt varsa bölüm bitirilmiştir)
       best: {},           // bölüm kimliği -> en iyi skor
-      sound: true,
+      sound: true,        // oyun sesleri
+      ambient: true,      // dünyanın ortam sesi
+      effects: true,      // arka plan parçacıkları ve büyük patlamalar
       coins: 0,
       hints: START_HINTS, // ampul (ipucu hakkı)
       hintGiftDay: null,  // son ücretsiz günlük ampulün verildiği gün (YYYY-AA-GG)

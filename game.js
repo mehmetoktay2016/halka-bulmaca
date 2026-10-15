@@ -21,6 +21,8 @@
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Süs efektleri (arka plan parçacıkları, büyük patlama, ışık dalgası): ayarlardan kapanabilir
+  const fxOn = () => progress.effects !== false && !REDUCED;
 
   const $ = id => document.getElementById(id);
   const canvas = $('board');
@@ -63,6 +65,7 @@
       const t = a.currentTime + delay;
       const o = a.createOscillator();
       const g = a.createGain();
+      g.gain.value = 0; // otomasyon başlamadan önce tam seste bir örnek çıkmasın (çıt sesi)
       o.type = type;
       o.frequency.setValueAtTime(freq, t);
       if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
@@ -88,8 +91,29 @@
         [2349, 2637, 3136].forEach((f, k) => tone(f, 0.3, 'sine', 0.04, null, 0.6 + k * 0.07));
       },
       unlock: k => tone(740 + k * 60, 0.12, 'sine', 0.08, 1100 + k * 60),
+      // Son halka: derin bir gümleme ve üstünde parıltı
+      boom: () => {
+        tone(150, 0.7, 'sine', 0.28, 36);
+        tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
+        [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
+      },
+      // Zincir: halka sayısı arttıkça yükselen üçlü
+      chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
+      // 3 yıldız ışık dalgası
+      shine: () => [1568, 1976, 2349, 2637, 3136].forEach((f, k) => tone(f, 0.55, 'sine', 0.04, null, k * 0.07)),
+      context: audio,
     };
   })();
+
+  // ---- Ortam sesi ve arka plan parçacıkları (dünyaya göre) ----
+  const ambience = window.RingAmbience.Ambience(() => Sound.context());
+  const backdrop = window.RingScenery.Backdrop($('bgFx'));
+  function syncAmbience() {
+    ambience.play(progress.ambient !== false && !document.hidden && themeWorld ? themeWorld : null);
+  }
+  // Tarayıcı sesi ancak bir dokunuştan sonra açar: ilk dokunuşta ortam sesi başlar
+  document.addEventListener('pointerdown', () => { if (progress.ambient !== false) { Sound.context(); ambience.resume(); } }, true);
+  document.addEventListener('visibilitychange', syncAmbience);
 
   // ---- Oyun durumu ----
   const S = {
@@ -103,6 +127,9 @@
   let coinFly = []; // { x, y (uygulama koordinatı), t0 }
   let particles = [];
   let confetti = [];
+  let shocks = [];     // son halkanın şok dalgası { x, y, t0 } (uygulama koordinatı)
+  let floaters = [];   // yükselen yazılar, ör. "Zincir ×3" { text, x, y, t0 } (uygulama koordinatı)
+  let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
   // ---- Ekran geçişleri ----
   function showScreen(name) {
@@ -121,6 +148,19 @@
     root.style.setProperty('--scene', W.sceneCss(world.theme));
     root.style.setProperty('--accent', world.theme.accent);
     root.dataset.world = world.id;
+    backdrop.setWorld(world);
+    drawBoardBg();
+    syncAmbience();
+  }
+
+  // Tahtanın altındaki doku (ahşap, taş, metal...): dünya ya da boyut değişince yeniden çizilir
+  function drawBoardBg() {
+    const bg = $('boardBg');
+    if (!bg.width || !themeWorld) return;
+    const w = BOARD.w * scale, h = BOARD.h * scale;
+    const g = bg.getContext('2d');
+    g.setTransform(bg.width / w, 0, 0, bg.height / h, 0, 0);
+    window.RingScenery.drawBoard(g, w, h, W.worldById(themeWorld).theme, themeWorld);
   }
 
   // ---- Yolculuk: kapılar, unvan ----
@@ -502,6 +542,10 @@
       canvas.width = Math.round(BOARD.w * scale * dpr);
       canvas.height = Math.round(BOARD.h * scale * dpr);
       ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+      const bg = $('boardBg');
+      bg.width = canvas.width;
+      bg.height = canvas.height;
+      drawBoardBg();
     }
     const app = $('app');
     const dpr = window.devicePixelRatio || 1;
@@ -535,6 +579,9 @@
     coinFly = [];
     particles = [];
     confetti = [];
+    shocks = [];
+    floaters = [];
+    lightWaves = [];
     clearTimeout(failTimer);
     $('win').classList.add('hidden');
     $('fail').classList.add('hidden');
@@ -614,8 +661,6 @@
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins + S.coinsTaken;
     $('undo').disabled = !S.history.length || S.won || S.failed;
-    $('soundBtn').setAttribute('aria-pressed', String(progress.sound));
-    $('soundBtn').setAttribute('aria-label', progress.sound ? 'Sesi kapat' : 'Sesi aç');
   }
 
   let tipTimer = 0;
@@ -632,7 +677,10 @@
   function settle() {
     const { mask, waves } = cascade(S.L, S.angles, S.mask);
     const now = performance.now();
+    const finale = mask === S.L.full && !S.won;
     waves.forEach((wave, w) => {
+      const last = finale && w === waves.length - 1;
+      if (last) setTimeout(() => finaleBlast(wave), w * WAVE_MS);
       for (const i of wave) {
         const r = S.L.rings[i];
         let dx = r.x - BOARD.w / 2, dy = r.y - BOARD.h / 2;
@@ -645,9 +693,11 @@
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
         S.fly[i] = { t0: now + w * WAVE_MS, dx, dy };
-        setTimeout(() => { Sound.pop(w); burst(i); }, w * WAVE_MS);
+        setTimeout(() => { Sound.pop(w); burst(i, last); }, w * WAVE_MS);
       }
     });
+    const freed = waves.flat();
+    if (freed.length >= 2) setTimeout(() => showChain(freed), (waves.length - 1) * WAVE_MS);
     S.mask = mask;
     for (const c of S.coins) {
       if (c.taken) continue;
@@ -660,7 +710,7 @@
     if (waves.length && navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* yok say */ } }
     if (mask === S.L.full && !S.won) {
       S.won = true;
-      setTimeout(showWin, waves.length * WAVE_MS + FLY_MS);
+      setTimeout(showWin, waves.length * WAVE_MS + FLY_MS + (fxOn() ? 350 : 0));
     }
     updateHud();
   }
@@ -748,13 +798,15 @@
     }
   }
 
-  function burst(i) {
+  // big: bölümün son halkası, daha çok ve daha hızlı parça saçar
+  function burst(i, big) {
     if (REDUCED) return;
     const r = S.L.rings[i];
     const color = ringColor(i);
-    for (let k = 0; k < 26; k++) {
+    const many = big && fxOn();
+    for (let k = 0; k < (many ? 70 : 26); k++) {
       const a = Math.random() * TAU;
-      const sp = 1.5 + Math.random() * 3.5;
+      const sp = (1.5 + Math.random() * 3.5) * (many ? 1.7 : 1);
       const t = Math.random();
       particles.push({
         x: r.kind === 'bar' ? r.x1 + (r.x2 - r.x1) * t : r.x + Math.cos(a) * r.r,
@@ -763,6 +815,39 @@
         life: 1, size: 2 + Math.random() * 3, color,
       });
     }
+  }
+
+  // Halkaların (ya da çubukların) orta noktası
+  function waveCenter(wave) {
+    let x = 0, y = 0;
+    for (const i of wave) {
+      const r = S.L.rings[i];
+      x += r.kind === 'bar' ? (r.x1 + r.x2) / 2 : r.x;
+      y += r.kind === 'bar' ? (r.y1 + r.y2) / 2 : r.y;
+    }
+    return { x: x / wave.length, y: y / wave.length };
+  }
+
+  // Son halka: gümleme, şok dalgası, beyaz parlama ve tahtada kısa bir sarsıntı
+  function finaleBlast(wave) {
+    Sound.boom();
+    if (navigator.vibrate) { try { navigator.vibrate(40); } catch (e) { /* yok say */ } }
+    if (!fxOn()) return;
+    const c = waveCenter(wave);
+    shocks.push({ ...boardToApp(c.x, c.y), t0: performance.now() });
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+
+  // Bir hamlede birden çok halka açılırsa: "Zincir ×N" (N = açılan halka sayısı)
+  function showChain(freed) {
+    if (S.tut != null) return;
+    const n = freed.length;
+    const c = waveCenter(freed);
+    const p = boardToApp(c.x, c.y);
+    const w = $('app').clientWidth;
+    floaters.push({ text: `Zincir ×${n}`, x: Math.max(80, Math.min(w - 80, p.x)), y: p.y, t0: performance.now(), big: n >= 3 });
+    Sound.chain(n);
   }
 
   function showWin() {
@@ -783,7 +868,9 @@
     $('winCoins').textContent = '+' + earned;
     $('winScore').textContent = '+' + fmt(after - before);
     countScore(before, after);
-    $('win').querySelector('.card').classList.remove('tut');
+    const card = $('win').querySelector('.card');
+    card.classList.remove('tut');
+    card.classList.toggle('perfect', stars === 3 && fxOn());
     $('winLevel').textContent = S.def.name ? `${S.def.name} kurtarıldı` : `Seviye ${S.levelNo} tamamlandı`;
     $('winTitle').textContent = stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Başardın!';
     $('stars').innerHTML = [1, 2, 3].map(k =>
@@ -794,14 +881,26 @@
     $('win').classList.remove('hidden');
     Sound.win();
     for (let k = 1; k <= stars; k++) setTimeout(() => Sound.star(k), 400 + k * 180);
+    if (stars === 3) setTimeout(perfectWave, 400 + 3 * 180 + 120);
     launchConfetti(stars);
     updateHud();
+  }
+
+  // 3 yıldız: ortadaki yıldızdan bütün ekrana yayılan altın ışık halkası
+  function perfectWave() {
+    if ($('win').classList.contains('hidden')) return;
+    Sound.shine();
+    if (!fxOn()) return;
+    const st = $('stars').getBoundingClientRect();
+    const ar = $('app').getBoundingClientRect();
+    lightWaves.push({ x: st.left - ar.left + st.width / 2, y: st.top - ar.top + st.height / 2, t0: performance.now() });
   }
 
   const TUT_PRAISE = ['Harika!', 'Süper!', 'Çok iyi!', 'Hazırsın!'];
   function showTutorialWin() {
     const last = S.tut === TUTORIAL.length - 1;
     $('win').querySelector('.card').classList.add('tut');
+    $('win').querySelector('.card').classList.remove('perfect');
     $('winLevel').textContent = `Deneme ${S.tut + 1} / ${TUTORIAL.length}`;
     $('winTitle').textContent = TUT_PRAISE[S.tut] || 'Harika!';
     $('winNote').textContent = last ? 'Artık gerçek seviyelere hazırsın.' : 'Bir sonraki denemeye geç.';
@@ -927,12 +1026,29 @@
   $('levelsBtn').onclick = () => { Sound.tap(); showScreen('levels'); };
   $('levelsBack').onclick = () => { Sound.tap(); showScreen('home'); };
   $('menuBtn').onclick = () => { Sound.tap(); showScreen('levels'); };
-  $('soundBtn').onclick = () => {
-    progress.sound = !progress.sound;
-    saveProgress();
-    updateHud();
+
+  // ---- Ayarlar ----
+  const toggles = [...document.querySelectorAll('#settings .toggle')];
+  function renderSettings() {
+    for (const b of toggles) b.setAttribute('aria-checked', String(progress[b.dataset.key] !== false));
+  }
+  if (REDUCED) toggles.find(b => b.dataset.key === 'effects').querySelector('small').textContent = 'Cihazda hareketi azaltma açık, efektler kapalı';
+  for (const b of toggles) {
+    b.onclick = () => {
+      const key = b.dataset.key;
+      progress[key] = progress[key] === false;
+      saveProgress();
+      renderSettings();
+      if (key === 'ambient') syncAmbience();
+      Sound.tap();
+    };
+  }
+  $('settingsBtn').onclick = $('homeSettings').onclick = () => {
     Sound.tap();
+    renderSettings();
+    $('settings').classList.remove('hidden');
   };
+  $('settingsClose').onclick = () => { Sound.tap(); $('settings').classList.add('hidden'); };
   $('undo').onclick = () => {
     const prev = S.history.pop();
     if (!prev || S.won || S.failed) return;
@@ -1275,6 +1391,88 @@
     ctx.globalAlpha = 1;
   }
 
+  // Şok dalgası: iki genişleyen halka (beyaz, sonra dünyanın rengi) ve kısa bir parlama.
+  // Tahtanın dışına taşabilsin diye üst efekt katmanına çizilir.
+  function drawShocks(now) {
+    if (!shocks.length) return;
+    const accent = themeWorld ? W.worldById(themeWorld).theme.accent : '#fff';
+    const reach = 300 * scale;
+    shocks = shocks.filter(s => now < s.t0 + 900);
+    for (const s of shocks) {
+      const flash = Math.max(0, 1 - (now - s.t0) / 260);
+      if (flash > 0) {
+        const grd = fctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, reach);
+        grd.addColorStop(0, `rgba(255,255,255,${0.45 * flash})`);
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        fctx.fillStyle = grd;
+        fctx.beginPath(); fctx.arc(s.x, s.y, reach, 0, TAU); fctx.fill();
+      }
+      [[0, '#ffffff', 14], [130, accent, 9]].forEach(([delay, color, width]) => {
+        const t = (now - s.t0 - delay) / 650;
+        if (t < 0 || t > 1) return;
+        const e = 1 - Math.pow(1 - t, 3);
+        fctx.save();
+        fctx.globalAlpha = 1 - t;
+        fctx.strokeStyle = color;
+        fctx.lineWidth = (width * (1 - t) + 1) * scale;
+        fctx.shadowColor = color;
+        fctx.shadowBlur = 20;
+        fctx.beginPath(); fctx.arc(s.x, s.y, (20 + 300 * e) * scale, 0, TAU); fctx.stroke();
+        fctx.restore();
+      });
+    }
+  }
+
+  // "Zincir ×N": büyüyerek belirir, yükselir ve söner
+  const FLOAT_FONT = '"Baloo 2", "Trebuchet MS", sans-serif';
+  function drawFloaters(now) {
+    floaters = floaters.filter(f => now < f.t0 + 1300);
+    for (const f of floaters) {
+      const t = (now - f.t0) / 1300;
+      const pop = !fxOn() ? 1 : t < 0.12 ? 0.5 + (t / 0.12) * 0.7 : t < 0.25 ? 1.2 - ((t - 0.12) / 0.13) * 0.2 : 1;
+      const size = f.big ? 38 : 32;
+      fctx.save();
+      fctx.globalAlpha = t > 0.65 ? (1 - t) / 0.35 : 1;
+      fctx.translate(f.x, f.y - 46 - 50 * t);
+      fctx.scale(pop, pop);
+      fctx.font = `800 ${size}px ${FLOAT_FONT}`;
+      fctx.textAlign = 'center';
+      fctx.textBaseline = 'middle';
+      fctx.lineJoin = 'round';
+      fctx.lineWidth = 7;
+      fctx.strokeStyle = 'rgba(20, 12, 0, .75)';
+      fctx.strokeText(f.text, 0, 0);
+      const grd = fctx.createLinearGradient(0, -size / 2, 0, size / 2);
+      grd.addColorStop(0, '#fff3b0');
+      grd.addColorStop(1, '#ffb52e');
+      fctx.fillStyle = grd;
+      fctx.fillText(f.text, 0, 0);
+      fctx.restore();
+    }
+  }
+
+  // 3 yıldız: altın ışık halkası ekranın kenarlarına kadar yayılır
+  function drawLightWaves(now) {
+    if (!lightWaves.length) return;
+    const app = $('app');
+    const reach = Math.hypot(app.clientWidth, app.clientHeight);
+    lightWaves = lightWaves.filter(l => now < l.t0 + 1100);
+    for (const l of lightWaves) {
+      const t = (now - l.t0) / 1100;
+      const r = 30 + reach * (1 - Math.pow(1 - t, 2));
+      const band = 50 + 40 * t;
+      const grd = fctx.createRadialGradient(l.x, l.y, Math.max(0, r - band), l.x, l.y, r);
+      grd.addColorStop(0, 'rgba(255, 214, 102, 0)');
+      grd.addColorStop(0.7, `rgba(255, 230, 150, ${0.5 * (1 - t)})`);
+      grd.addColorStop(1, 'rgba(255, 214, 102, 0)');
+      fctx.save();
+      fctx.globalCompositeOperation = 'lighter';
+      fctx.fillStyle = grd;
+      fctx.beginPath(); fctx.arc(l.x, l.y, r, 0, TAU); fctx.fill();
+      fctx.restore();
+    }
+  }
+
   function drawFx(now) {
     fctx.clearRect(0, 0, fx.width, fx.height);
     if (coinFly.length) {
@@ -1289,7 +1487,10 @@
         drawCoin(fctx, x, y, r, now / 120);
       }
     }
+    drawShocks(now);
+    drawLightWaves(now);
     drawConfetti();
+    drawFloaters(now);
   }
 
   function drawConfetti() {
@@ -1330,6 +1531,7 @@
         drawFinger(now);
         drawParticles();
       }
+      backdrop.draw(now, fxOn() && $('levels').hidden);
       if (!$('levels').hidden) drawMapFx(now);
       drawFx(now);
     } catch (err) {
@@ -1398,6 +1600,7 @@
   if (AppPlugin) {
     AppPlugin.addListener('backButton', () => {
       if (!$('splash').hidden) return;
+      if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
       if (!$('ceremony').hidden) { $('ceremony').click(); return; }
@@ -1409,6 +1612,9 @@
     });
   }
 
-  if (params.has('debug')) window.__halka = { S, scale: () => scale, progress, ORDER, renderMap };
+  if (params.has('debug')) {
+    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, ambience, settle,
+      fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
+  }
   requestAnimationFrame(frame);
 })();
