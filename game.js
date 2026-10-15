@@ -822,7 +822,7 @@
 
   function updateHud() {
     $('levelLabel').textContent = S.tut != null ? 'Nasıl oynanır'
-      : S.preview ? 'Tanıtım · ' + S.def.title
+      : S.preview ? 'Önizleme · ' + (S.def.title || S.def.name)
       : 'Seviye ' + S.levelNo + ' · ' + (S.def.name || W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
     $('movesNum').textContent = S.tut != null ? S.moves : left;
@@ -1118,7 +1118,7 @@
     const stars = S.extra ? 1 : starsFor(S.moves, S.def.par ?? S.moves);
     const card = $('win').querySelector('.card');
     card.classList.remove('tut', 'perfect');
-    $('winLevel').textContent = 'Tanıtım · ' + S.def.title;
+    $('winLevel').textContent = 'Önizleme · ' + (S.def.title || S.def.name);
     $('winTitle').textContent = stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Başardın!';
     $('stars').innerHTML = [1, 2, 3].map(k =>
       `<span class="star-ico${k <= stars ? '' : ' off'}" style="animation-delay:${200 + k * 180}ms"></span>`).join('');
@@ -1138,7 +1138,9 @@
   function loadPreview(src) {
     const def = getLevel(src);
     if (!def) { showTip('Bu bölüm yüklenemedi'); return; }
-    applyWorld(W.worldById(def.world) || W.WORLDS[0]);
+    // Şekiller gireceği kapının dünyasında, tanıtımlar kendi dünyasında görünür
+    const plan = window.RingLevels.SHAPE_PLAN[src];
+    applyWorld(W.worldById(def.world) || (plan ? W.worldOfGate(plan.gate) : W.WORLDS[0]));
     startDef(def, 0, null, src);
     if (def.tip) showTip(def.tip, 5000);
   }
