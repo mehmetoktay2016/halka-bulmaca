@@ -15,7 +15,8 @@ const first = process.argv[3] ? Number(process.argv[2]) : Levels.HAND_LEVELS.len
 const last = Number(process.argv[3] || process.argv[2] || 60);
 for (let n = first; n <= last; n++) {
   const t0 = Date.now();
-  const def = n > Levels.MAIN_LEVELS ? Levels.finishAnimal(n) : Levels.generate(n);
+  const def = Levels.SHAPE_PLAN[n] ? Levels.finishAnimal(n)
+    : Levels.NORMAL_PLAN[n] ? Levels.generateFor(n) : Levels.generate(n);
   if (!def) { console.log(`#${n}: üretilemedi`); continue; }
   out[n] = def;
   console.log(`#${n}: ${def.rings.length} halka, hedef=${def.par}, ${Date.now() - t0} ms`);

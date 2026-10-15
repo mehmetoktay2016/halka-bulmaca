@@ -55,9 +55,10 @@
   const levelScore = (stars, coins) => stars * 100 + coins * 25;
   const totalScore = () => Object.values(progress.best || {}).reduce((a, b) => a + b, 0);
   const fmt = n => n.toLocaleString('tr-TR');
-  // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10. Aşılırsa seviye başa döner.
-  const MAX_MOVES = 10;
-  const moveLimit = par => Math.min(MAX_MOVES, par + Math.max(3, Math.ceil(par * 0.6)));
+  // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10 (17. kapıdan sonra 14; orada en iyi çözüm 10'a çıkar).
+  // Aşılırsa "Hamlen bitti" penceresi açılır.
+  const moveCap = src => ((window.RingLevels.gateOfSource(src) || 1) >= 17 ? 14 : 10);
+  const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 
   // ---- Ses (WebAudio ile sentez; dosya gerekmez) ----
   const Sound = (() => {
@@ -736,7 +737,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null,
-      coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
+      coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
     closeHintMenu();

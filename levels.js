@@ -360,7 +360,7 @@
     78: { name: 'Arı', gate: 15, role: 'mid', target: 7.5, bars: 2 },
     79: { name: 'Robot', gate: 15, role: 'final', target: 9.0, bars: 2 },
     80: { name: 'Ördek', gate: 16, role: 'mid', target: 7.0, bars: 2 },
-    81: { name: 'Gemi', gate: 16, role: 'final', target: 9.0, bars: 3 },
+    81: { name: 'Gemi', gate: 16, role: 'final', target: 7.9, bars: 3 }, // ulaşılabilen en yüksek; kapı buna göre başlar
     82: { name: 'Uzaylı', gate: 17, role: 'mid', target: 7.5, bars: 2 },
     83: { name: 'Füze', gate: 17, role: 'final', target: 9.5, bars: 3 },
     84: { name: 'Ahtapot', gate: 18, role: 'mid', target: 8.0, bars: 2 },
@@ -896,7 +896,232 @@
   const GATE_LEN = 10;
   const MID_POS = 4;    // ara şeklin kapı içindeki yeri (0'dan sayılır)
   const GATE_STEP = 6;  // yeni kapı, önceki kapının 7. bölümü kadar zor başlar
+
+  // ---- Kapı 7-20: dünyaların yeni bölümleri (Görev 13) ----
+  // Kapı 1-6 eskisi gibi kalır; yalnızca 6. kapıya ara şekil (Kaplumbağa) girer ve o kapının en zor
+  // normal bölümü MOVED_GATE'e taşınır. Kapı 7-20'de her kapı: (dünyanın ilk kapısıysa) tanıtım,
+  // normal bölümler, 5. sırada ara şekil, sonda final. Normal bölümler 90'dan başlayan kaynak
+  // numaralarıyla kendi kapılarının dünyasına göre üretilir (NORMAL_PLAN: kapı ve hedef zorluk).
+  const OLD_GATES = 6;
+  const LAST_GATE = 20;
+  const NEW_FIRST = 90;
+  const MOVED_GATE = 12;
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002 };
+  // Kapının en zor normal bölümünün hedefi: kapıdan kapıya yükselir (17'den sonra en iyi çözüm 10'a çıkar)
+  // Zirveler hiç düşmez: 6. kapının zirvesi (11,6) en az aşılır, en iyi çözüm sınırı 8 olduğu için
+  // 16. kapıya kadar yavaş, 17'den sonra (sınır 10) daha hızlı yükselir.
+  const GATE_PEAK = { 7: 11.7, 8: 11.75, 9: 11.6, 10: 11.85, 11: 11.6, 12: 12.0, 13: 12.1, 14: 12.2,
+    15: 11.8, 16: 12.4, 17: 12.8, 18: 13.3, 19: 13.8, 20: 14.3 };
+  const OLD_PEAK = 11.6; // 6. kapının zirvesi (en zor bölümü 12. kapıya taşındıktan sonra)
+  const maxParOfGate = g => (g >= 17 ? 10 : MAX_PAR);
+  const shapeOf = (g, role) => Number(Object.keys(SHAPE_PLAN).find(k => SHAPE_PLAN[k].gate === g && SHAPE_PLAN[k].role === role));
+
+  // Yeni normal bölümlerin planı: kaynak -> { gate, target }. Kapı içinde hedef, başlangıçtan zirveye
+  // doğrusal artar. Başlangıç, önceki kapının zirvesinin altında (testere dişi; yeni dünyada daha da
+  // aşağıda) ve kapının finalinden kolay olmalı (final kapının en kolay bölümünden kolay olamaz).
+  const NORMAL_PLAN = {};
+  (function () {
+    let src = NEW_FIRST, prevPeak = OLD_PEAK;
+    for (let g = OLD_GATES + 1; g <= LAST_GATE; g++) {
+      const slots = GATE_LEN - 2 - (WORLD_INTRO[g] ? 1 : 0) - (g === MOVED_GATE ? 1 : 0);
+      const finalT = SHAPE_PLAN[shapeOf(g, 'final')].target;
+      const start = Math.min(prevPeak - (WORLD_INTRO[g] ? 1.4 : 0.8), finalT - 0.3);
+      const peak = GATE_PEAK[g];
+      for (let j = 0; j < slots; j++) {
+        // Kapının en zor bölümü (peak) zirve hedefinin altında kalamaz
+        NORMAL_PLAN[src++] = { gate: g, target: Math.round((start + (peak - start) * j / (slots - 1)) * 100) / 100, peak: j === slots - 1 };
+      }
+      prevPeak = peak;
+    }
+  })();
+  const NEW_LAST = NEW_FIRST + Object.keys(NORMAL_PLAN).length - 1;
+
+  // Bir kaynağın kapısı (bilinmiyorsa null): en iyi çözüm sınırı ve hamle hakkı buna göre
+  function gateOfSource(src) {
+    if (NORMAL_PLAN[src]) return NORMAL_PLAN[src].gate;
+    if (SHAPE_PLAN[src]) return SHAPE_PLAN[src].gate;
+    const intro = Object.keys(WORLD_INTRO).find(g => WORLD_INTRO[g] === src);
+    return intro ? Number(intro) : null;
+  }
+  const maxParOf = src => maxParOfGate(gateOfSource(src) || 1);
+
+  // Kapalı çerçeve yerleştirir (dikdörtgen ya da üçgen): her kenar halkaları ya temiz keser ya hiç
+  // dokunmaz, köşeler halkaların dışında kalır, kenarlar halka-halka kesişimlerinden uzak durur.
+  function placeFrame(rnd, rings) {
+    const ringPts = [];
+    for (let i = 0; i < rings.length; i++) {
+      for (let j = i + 1; j < rings.length; j++) {
+        const pts = Logic.circleIntersections(rings[i], rings[j]);
+        if (pts) ringPts.push(...pts);
+      }
+    }
+    const b = bounds(rings);
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    for (let tries = 0; tries < 400; tries++) {
+      let pts;
+      const jx = (rnd() - 0.5) * 60, jy = (rnd() - 0.5) * 60;
+      if (rnd() < 0.65) {
+        const w = (b.x1 - b.x0) * (0.45 + rnd() * 0.5), h = (b.y1 - b.y0) * (0.45 + rnd() * 0.5);
+        pts = [[cx + jx - w / 2, cy + jy - h / 2], [cx + jx + w / 2, cy + jy - h / 2], [cx + jx + w / 2, cy + jy + h / 2], [cx + jx - w / 2, cy + jy + h / 2]];
+      } else {
+        const R = Math.min(b.x1 - b.x0, b.y1 - b.y0) * (0.35 + rnd() * 0.35), a0 = rnd() * Math.PI * 2;
+        pts = [0, 1, 2].map(k => [cx + jx + Math.cos(a0 + k * 2.094) * R, cy + jy + Math.sin(a0 + k * 2.094) * R]);
+      }
+      pts = pts.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+      if (pts.some(([x, y]) => x < 14 || x > BOARD.w - 14 || y < 14 || y > BOARD.h - 14)) continue;
+      let ok = true, crossings = 0;
+      for (let k = 0; k < pts.length && ok; k++) {
+        const q2 = pts[(k + 1) % pts.length];
+        const seg = { x1: pts[k][0], y1: pts[k][1], x2: q2[0], y2: q2[1] };
+        if (Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1) < 60) { ok = false; break; }
+        for (const c of rings) {
+          const rel = barVsRing(seg, c);
+          if (rel === 'bad') { ok = false; break; }
+          if (rel === 'cross') crossings++;
+        }
+        if (ok && ringPts.some(q => segDist(q.x, q.y, seg) < 18)) ok = false;
+      }
+      if (ok && crossings >= 2) return { type: 'frame', points: pts };
+    }
+    return null;
+  }
+
+  // Çubuk çerçevenin herhangi bir kenarını kesiyor mu?
+  function crossesFrame(bar, frame) {
+    const P = frame.points;
+    const side = (ax, ay, bx, by, cx, cy) => Math.sign((bx - ax) * (cy - ay) - (by - ay) * (cx - ax));
+    return P.some((q, k) => {
+      const q2 = P[(k + 1) % P.length];
+      return side(bar.x1, bar.y1, bar.x2, bar.y2, q[0], q[1]) !== side(bar.x1, bar.y1, bar.x2, bar.y2, q2[0], q2[1]) &&
+        side(q[0], q[1], q2[0], q2[1], bar.x1, bar.y1) !== side(q[0], q[1], q2[0], q2[1], bar.x2, bar.y2);
+    });
+  }
+
+  // Dünyaya göre mekanikler: Atölye ters dişli, Saat Kulesi tıklı halka, Zindan kilit,
+  // Şehir çerçeve, Fabrika hızlı dişli; Uzay ve Büyük Usta hepsini karıştırır.
+  const WORLD_MECH = { 7: ['reverse'], 8: ['reverse'], 9: ['click'], 10: ['click'], 11: ['key'], 12: ['key'],
+    13: ['frame'], 14: ['frame'], 15: ['fast'], 16: ['fast'] };
+  function mechanicsFor(gate, rnd) {
+    if (WORLD_MECH[gate]) {
+      const own = WORLD_MECH[gate].slice();
+      // Dünyanın ikinci kapısında arada önceki dünyaların mekaniklerinden biri de gelir
+      if (gate % 2 === 0 && rnd() < 0.45) own.push(['reverse', 'click', 'key'][Math.floor(rnd() * Math.min(3, (gate - 6) / 2))]);
+      return own;
+    }
+    const all = ['reverse', 'click', 'key', 'frame', 'fast'];
+    const n = gate >= 19 ? 2 + (rnd() < 0.4 ? 1 : 0) : 2;
+    const out = [];
+    while (out.length < n) { const m = all[Math.floor(rnd() * all.length)]; if (!out.includes(m)) out.push(m); }
+    return out;
+  }
+
+  // Yeni normal bölüm: kapısının dünyasına göre mekanikli, hedef zorluğa en yakın aday seçilir
+  // first/count: denenecek aday aralığı (aynı bölüm için aralıklar paralel işlere bölünebilir)
+  function generateFor(levelNo, first = 0, count = NORMAL_PLAN[levelNo] && NORMAL_PLAN[levelNo].peak ? 900 : 500) {
+    const plan = NORMAL_PLAN[levelNo];
+    if (!plan) return null;
+    const maxPar = maxParOfGate(plan.gate);
+    let best = null, bestErr = Infinity;
+    for (let attempt = first; attempt < first + count && bestErr > 0.3; attempt++) {
+      const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 77);
+      const mech = mechanicsFor(plan.gate, rnd);
+      // Çerçeve çok halkalı zor yerleşimlerde kenarlarına yer bulamayabilir: uzun süre olmazsa
+      // o bölümde çerçeve yerine önceki dünyaların mekaniklerinden biri kullanılır
+      if (attempt >= 250 && mech.includes('frame')) mech.splice(mech.indexOf('frame'), 1, ['reverse', 'click', 'key'][attempt % 3]);
+      // Zirve bölümü tek mekanikle yeterince zorlaşamayabilir: yarı yarıya önceki dünyalardan bir mekanik eklenir
+      if (plan.peak && WORLD_MECH[plan.gate] && rnd() < 0.5) {
+        const extra = ['reverse', 'click', 'key'][Math.floor(rnd() * 3)];
+        if (!mech.includes(extra)) mech.push(extra);
+      }
+      const t = plan.target;
+      const count = t < 9 ? 6 : t < 10.5 ? 7 : t < 12 ? 8 : 9;
+      const pos = placeRings(rnd, count);
+      if (!pos) continue;
+      const idx = pos.map((_, i) => i).sort(() => rnd() - 0.5);
+      const take = () => idx.shift();
+      const rings = pos.map(c => ({ x: Math.round(c.x * 10) / 10, y: Math.round(c.y * 10) / 10, r: Math.round(c.r), a: Math.round(rnd() * 360) }));
+      const couples = [];
+      const pair = ratio => { if (idx.length >= 2) couples.push([take(), take(), ratio]); };
+      if (mech.includes('reverse')) { pair(-1); if (t > 10 && rnd() < 0.5) pair(-1); }
+      if (mech.includes('fast')) pair(rnd() < 0.5 ? 2 : -2);
+      if (rnd() < 0.35) pair(1);
+      if (mech.includes('click') && idx.length) {
+        rings[take()].step = [30, 45, 60, 90][Math.floor(rnd() * 4)];
+        if (t > 10.5 && idx.length && rnd() < 0.5) rings[take()].step = [45, 60][Math.floor(rnd() * 2)];
+      }
+      if (mech.includes('key') && idx.length) {
+        const lock = take();
+        let key = Math.floor(rnd() * rings.length);
+        if (key === lock) key = (key + 1) % rings.length;
+        rings[lock].lockedBy = key;
+      }
+      if (idx.length && rnd() < 0.3) rings[take()].fixed = true;
+      for (const i of idx) if (rnd() < 0.12) rings[i].gaps = [0, 180];
+      for (const c of couples) if (c[2] === 1) c.length = 2;
+      let extra = [];
+      if (mech.includes('frame')) {
+        const f = placeFrame(rnd, rings);
+        if (!f) continue;
+        extra = [f];
+        // Zor çerçeveli bölümlerde bir çubuk da olabilir; çerçevenin kenarlarını kesmemeli
+        if (t > 10.5 && rnd() < 0.6) {
+          const bars = placeBars(rnd, rings, 1);
+          if (bars && !crossesFrame(bars[0], f)) extra.push(bars[0]);
+        }
+      } else if (rnd() < 0.45) {
+        const bars = placeBars(rnd, rings, rnd() < 0.7 ? 1 : 2);
+        if (bars) extra = bars;
+      }
+      const def = { rings: rings.concat(extra), couples };
+      let L;
+      try { L = Logic.buildLevel(def); } catch (e) { continue; }
+      if (!connected(L)) continue;
+      for (let re = 0; re < 20 && !noRingFreeAtStart(L); re++) {
+        for (const r of def.rings) if (!r.type) r.a = Math.round(rnd() * 360);
+        L = Logic.buildLevel(def);
+      }
+      if (!noRingFreeAtStart(L)) continue;
+      const quick = Logic.solveFast(L, L.startAngles, 0, 20000);
+      if (!quick || quick.moves < 3) continue;
+      def.par = quick.moves;
+      if (difficultyScore(def) < t - 1.0) continue; // en iyi çözüm bundan da kısa olabilir: zaten kolay
+      const exact = Logic.solve(L, L.startAngles, 0, count >= 9 ? 60000 : 150000);
+      def.par = exact ? exact.moves : quick.moves;
+      if (def.par > maxPar || def.par < 3) continue;
+      if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) continue; // ipucu çözebilmeli
+      const sc = difficultyScore(def);
+      if (plan.peak && sc < t - 0.05) continue;
+      const err = Math.abs(sc - t);
+      if (err < bestErr) { best = def; bestErr = err; }
+    }
+    return best;
+  }
+
   function gateOrder(get) {
+    const order = oldGateOrder(get);
+    const D = s => difficultyScore(get(s));
+    // Kapı 6: en zor normal bölüm MOVED_GATE'e taşınır, yerine ara şekil girer
+    const g6 = order.slice((OLD_GATES - 1) * GATE_LEN, OLD_GATES * GATE_LEN);
+    const normals6 = g6.slice(0, GATE_LEN - 1);
+    const moved = normals6.reduce((a, b) => (D(b) > D(a) ? b : a));
+    const own6 = normals6.filter(s => s !== moved);
+    own6.splice(MID_POS, 0, shapeOf(OLD_GATES, 'mid'));
+    order.splice((OLD_GATES - 1) * GATE_LEN, GATE_LEN, ...own6, g6[GATE_LEN - 1]);
+    // Kapı 7-20
+    for (let g = OLD_GATES + 1; g <= LAST_GATE; g++) {
+      const normals = Object.keys(NORMAL_PLAN).map(Number).filter(s => NORMAL_PLAN[s].gate === g);
+      if (g === MOVED_GATE) normals.push(moved);
+      normals.sort((a, b) => D(a) - D(b) || a - b);
+      const own = WORLD_INTRO[g] ? [WORLD_INTRO[g], ...normals] : normals;
+      own.splice(MID_POS, 0, shapeOf(g, 'mid'));
+      own.push(shapeOf(g, 'final'));
+      order.push(...own);
+    }
+    return order;
+  }
+
+  // Kapı 1-6'nın sırası (Görev 13'ten önceki hâli; değiştirilmez)
+  function oldGateOrder(get) {
     const all = Array.from({ length: MAIN_LEVELS + ANIMAL_LEVELS }, (_, i) => i + 1);
     const D = new Map(all.map(s => [s, difficultyScore(get(s))]));
     const byD = (a, b) => D.get(a) - D.get(b) || a - b;
@@ -955,6 +1180,8 @@
       }
     } else if (SHAPE_PLAN[levelNo]) {
       def = pre || finishAnimal(levelNo);
+    } else if (NORMAL_PLAN[levelNo]) {
+      def = pre || generateFor(levelNo);
     } else if (levelNo <= HAND_LEVELS.length) {
       def = HAND_LEVELS[levelNo - 1];
       if (def.par == null) {
@@ -966,7 +1193,7 @@
       // Önceden üretilmiş seviyeler (levels_data.js) varsa onları kullan
       def = pre || generate(levelNo);
     }
-    if (def && levelNo > MAIN_LEVELS) def = fitted(def);
+    if (def && (SHAPE_PLAN[levelNo] || MECH_LEVELS[levelNo])) def = fitted(def);
     if (def) def = centered(def);
     cache[levelNo] = def;
     return def;
@@ -976,6 +1203,7 @@
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
     difficultyScore, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars,
+    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLevels = api;

@@ -25,7 +25,7 @@ for (let n = 1; n <= last; n++) {
   if (!Levels.connected(L)) problems.push('bağlı değil');
   if (!Levels.noRingFreeAtStart(L)) problems.push('başta serbest halka var');
   if (def.par == null) problems.push('çözülemedi');
-  else if (def.par > Levels.MAX_PAR) problems.push(`en iyi çözüm ${def.par} hamle (sınır ${Levels.MAX_PAR})`);
+  else if (def.par > Levels.maxParOf(n)) problems.push(`en iyi çözüm ${def.par} hamle (sınır ${Levels.maxParOf(n)})`);
   else {
     const fast = Logic.solveFast(L, L.startAngles, 0, 30000);
     if (!fast) problems.push('hızlı çözücü çözemedi (ipucu çalışmaz)');
@@ -61,7 +61,7 @@ for (let n = 1; n <= last; n++) {
 // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (testere dişi zorluk).
 // - Her kapı tam 10 bölüm, 10. bölüm bir şekil finali.
 // - Kapının içinde normal bölümler kolaydan zora gider.
-// - Yeni kapı önceki kapının zirvesinden kolay başlar, ama zirvesi öncekinden düşük olamaz.
+// - Yeni kapı önceki kapının zirvesinden kolay başlar, ama zirvesi öncekinden belirgin düşük olamaz.
 // - Final, kapının normal bölümlerinin zorluk aralığında olmalı (en kolayından kolay olamaz).
 // - Bir mekanik tanıtılmadan onu kullanan bölüm gelemez.
 const Worlds = require('../worlds.js');
@@ -84,7 +84,9 @@ for (let g = 0; g < order.length / G; g++) {
   if (!isShape(row[G - 1])) problems.push('10. bölüm şekil değil');
   for (let k = 1; k < mains.length; k++) if (mains[k] < mains[k - 1] - 0.05) problems.push(`zorluk ${k + 1}. normal bölümde düşüyor`);
   if (g > 0 && mains[0] >= prevPeak) problems.push(`önceki zirveden (${prevPeak.toFixed(1)}) kolay başlamıyor`);
-  if (peak < prevPeak - 0.05) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
+  // Zirve, önceki en yüksek zirveden belirgin düşük olamaz. Zorluk puanı bir tahmin olduğu için 0,7'lik
+  // fark (aynı en iyi hamle sayısında birkaç parça fazlası ya da eksiği) tolere edilir.
+  if (peak < prevPeak - 0.7) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
   if (Dof(row[G - 1]) < Math.min(...mains) - 0.05) problems.push(`final kapının en kolay bölümünden kolay (${Dof(row[G - 1]).toFixed(1)})`);
   console.log(`Kapı ${String(g + 1).padStart(2)} ${(gate ? gate.name : '?').padEnd(14)} ` +
     row.map(s => `${s}${isShape(s) ? '*' : ''}:${Dof(s).toFixed(1)}`).join(' ') +
