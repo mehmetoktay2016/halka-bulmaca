@@ -7,7 +7,8 @@
     "www": "node tools/build_www.js",
     "android:sync": "node tools/build_www.js && npx cap sync android",
     "android:open": "npx cap open android",
-    "check": "node tools/check_levels.js"
+    "check": "node tools/check_levels.js",
+    "test": "node tools/test_save.js"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

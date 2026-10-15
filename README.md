@@ -41,10 +41,12 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `logic.js` | Kurallar: kesişimler, serbest kalma, çözücüler |
 | `levels.js` | El yapımı 10 tanıtım bölümü, deneme bölümleri, hayvanlar, seviye üretici, zorluk sırası |
 | `levels_data.js` | Önceden üretilmiş bölümler (elle düzenlenmez) |
+| `save.js` | Oyuncu kaydı: yükleme, eski sürümden taşıma, kilit sınırı |
 | `deco.js` | Hayvan yüzleri ve süsler |
 | `game.js` | Ekranlar, çizim, dokunma, ses, skor, kayıt |
 | `manifest.webmanifest`, `icon-*.png` | Telefonda uygulama gibi açılma |
 | `tools/check_levels.js` | `node tools/check_levels.js` → bütün bölümleri ve zorluk sırasını doğrular |
+| `tools/test_save.js` | `npm test` → kayıt ve eski kayıt taşıma testleri |
 | `tools/build_levels.js` | `node tools/build_levels.js 11 50` → bölümleri yeniden üretir |
 | `tools/autoplay.js` | Tarayıcıda otomatik oynatma testi (`index.html?level=5&debug&autoplay`) |
 

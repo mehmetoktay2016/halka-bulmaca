@@ -27,24 +27,16 @@
   const fx = $('fx');
   const fctx = fx.getContext('2d');
 
-  // ---- Kayıt (tarayıcıda yerel) ----
-  // v2: seviye sırası değişti; eski kayıttan yalnızca altın ve ses ayarı taşınır
-  const SAVE_KEY = 'halka.progress.v2';
-  function loadProgress() {
-    const fresh = { unlocked: 1, stars: {}, best: {}, sound: true, coins: 0 };
-    try {
-      const p = JSON.parse(localStorage.getItem(SAVE_KEY));
-      if (p && p.unlocked) return { ...fresh, ...p };
-      const old = JSON.parse(localStorage.getItem('halka.progress.v1'));
-      if (old) return { ...fresh, coins: old.coins || 0, sound: old.sound !== false, coinTip: old.coinTip };
-    } catch (e) { /* gizli sekme vb. */ }
-    return fresh;
-  }
-  function saveProgress() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(progress)); } catch (e) { /* yok say */ }
-  }
-  const progress = loadProgress();
-  const isUnlocked = n => n <= progress.unlocked;
+  // ---- Kayıt (tarayıcıda yerel; ayrıntılar save.js'te) ----
+  // Yıldız ve skor bölümün kalıcı kimliğiyle (kaynak numarası) tutulur, sıra numarasıyla değil.
+  const store = (() => { try { return window.localStorage; } catch (e) { return null; } })();
+  const memStore = { getItem: () => null, setItem: () => {} };
+  const progress = window.RingSave.load(store || memStore);
+  function saveProgress() { window.RingSave.save(store || memStore, progress); }
+  const idOf = n => String(srcOf(n));
+  const starsOf = n => progress.stars[idOf(n)] || 0;
+  const frontier = () => window.RingSave.frontier(progress, ORDER);
+  const isUnlocked = n => n <= frontier();
   const totalStars = () => Object.values(progress.stars).reduce((a, b) => a + b, 0);
   const starsFor = (moves, par) => (moves <= par ? 3 : moves <= par + 2 ? 2 : 1);
   // Skor: her seviyenin en iyi sonucu sayılır (yıldız başına 100, altın başına 25)
@@ -114,7 +106,7 @@
   }
 
   function renderHome() {
-    const next = Math.min(progress.unlocked, TOTAL);
+    const next = frontier();
     $('playLevel').textContent = 'Seviye ' + next;
     $('homeStars').textContent = totalStars();
     $('homeCoins').textContent = progress.coins;
@@ -138,9 +130,9 @@
       }
       const b = document.createElement('button');
       const locked = !isUnlocked(n);
-      const got = progress.stars[n] || 0;
+      const got = starsOf(n);
       b.className = 'tile' + (locked ? ' locked' : '') + (srcOf(n) > 50 ? ' animal' : '') +
-        (n === Math.min(progress.unlocked, TOTAL) ? ' current' : '');
+        (n === frontier() ? ' current' : '');
       b.disabled = locked;
       b.setAttribute('aria-label', locked ? `Seviye ${n}, kilitli` : `Seviye ${n}, ${got} yıldız`);
       b.innerHTML = locked ? LOCK_SVG
@@ -426,9 +418,8 @@
     if (S.tut != null) { showTutorialWin(); return; }
     const par = S.def.par ?? S.moves;
     const stars = starsFor(S.moves, par);
-    const key = String(S.levelNo);
+    const key = idOf(S.levelNo);
     progress.stars[key] = Math.max(progress.stars[key] || 0, stars);
-    progress.unlocked = Math.max(progress.unlocked, Math.min(S.levelNo + 1, TOTAL));
     const earned = S.coins.filter(c => c.taken).length;
     progress.coins += earned;
     S.coinsTaken = 0;
@@ -580,7 +571,7 @@
   canvas.addEventListener('pointercancel', endDrag);
 
   // ---- Düğmeler ----
-  $('playBtn').onclick = () => { Sound.tap(); loadLevel(Math.min(progress.unlocked, TOTAL)); showScreen('game'); };
+  $('playBtn').onclick = () => { Sound.tap(); loadLevel(frontier()); showScreen('game'); };
   $('levelsBtn').onclick = () => { Sound.tap(); showScreen('levels'); };
   $('levelsBack').onclick = () => { Sound.tap(); showScreen('home'); };
   $('menuBtn').onclick = () => { Sound.tap(); showScreen('levels'); };
@@ -616,7 +607,7 @@
     const firstTime = !progress.tutorialDone;
     progress.tutorialDone = true;
     saveProgress();
-    if (firstTime) { loadLevel(Math.min(progress.unlocked, TOTAL)); showScreen('game'); }
+    if (firstTime) { loadLevel(frontier()); showScreen('game'); }
     else { $('win').classList.add('hidden'); showScreen('home'); }
   }
 
@@ -1027,12 +1018,12 @@
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
   } else {
-    const firstTime = !progress.tutorialDone && progress.unlocked === 1 && !totalScore();
+    const firstTime = !progress.tutorialDone && frontier() === 1 && !totalScore();
     if (firstTime || params.has('tutorial')) {
       loadTutorial(0);
       showScreen('game');
     } else {
-      loadLevel(Math.min(progress.unlocked, TOTAL));
+      loadLevel(frontier());
       showScreen(params.get('screen') === 'levels' ? 'levels' : 'home');
     }
     runSplash();

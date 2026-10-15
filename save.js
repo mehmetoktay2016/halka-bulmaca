@@ -1,0 +1,84 @@
+// Oyuncu kaydı: yükleme, eski sürümlerden taşıma ve kilit sınırı.
+// Hem tarayıcıda (window.RingSave) hem Node'da (require) çalışır.
+// v3: yıldız ve skor, ekrandaki sıra numarasıyla değil bölümün kalıcı kimliğiyle
+// (levels.js'teki kaynak numarası) tutulur; böylece bölüm sırası değişse de kayıt bozulmaz.
+(function (root) {
+  'use strict';
+
+  const KEY = 'halka.progress.v3';
+  const V2_KEY = 'halka.progress.v2';
+  const V1_KEY = 'halka.progress.v1';
+  const START_HINTS = 3;
+
+  // v2'de oyuncunun gördüğü sıra (ORDER[n-1] = kaynak bölüm). v2 kayıtları bu sırayla tutuluyordu;
+  // sıra artık değişeceği için taşıma için burada sabitlendi. Değiştirmeyin.
+  const V2_ORDER = [1, 2, 4, 5, 9, 7, 8, 3, 11, 52, 10, 13, 51, 12, 14, 58, 6, 15, 17, 21,
+    16, 19, 53, 18, 20, 54, 23, 24, 22, 55, 27, 29, 56, 26, 33, 31, 25, 32, 28, 57,
+    35, 39, 59, 41, 45, 47, 38, 42, 48, 50, 34, 37, 49, 60, 43, 30, 36, 44, 46, 40];
+
+  function fresh() {
+    return {
+      version: 3,
+      stars: {},          // bölüm kimliği -> en iyi yıldız (kayıt varsa bölüm bitirilmiştir)
+      best: {},           // bölüm kimliği -> en iyi skor
+      sound: true,
+      coins: 0,
+      hints: START_HINTS, // ampul (ipucu hakkı)
+      hintGiftDay: null,  // son ücretsiz günlük ampulün verildiği gün (YYYY-AA-GG)
+      rewards: {},        // verilmiş tek seferlik ödüller (kapı, final, altın kapı)
+    };
+  }
+
+  // Ekran sırasına göre tutulan v2 kaydını bölüm kimliğine çevirir
+  function fromV2(p) {
+    const out = { ...fresh(), sound: p.sound !== false, coins: p.coins || 0 };
+    for (const flag of ['coinTip', 'tutorialDone']) if (p[flag]) out[flag] = p[flag];
+    for (const field of ['stars', 'best']) {
+      for (const [n, v] of Object.entries(p[field] || {})) {
+        const src = V2_ORDER[Number(n) - 1];
+        if (src != null && v) out[field][String(src)] = v;
+      }
+    }
+    return out;
+  }
+
+  // v1'in sırası bambaşkaydı; ondan yalnızca altın ve ayarlar taşınır
+  function fromV1(p) {
+    return { ...fresh(), coins: p.coins || 0, sound: p.sound !== false, coinTip: p.coinTip };
+  }
+
+  function readJSON(storage, key) {
+    try { return JSON.parse(storage.getItem(key)); } catch (e) { return null; }
+  }
+
+  // Kaydı okur; eski bir sürüm bulursa çevirip v3 olarak yazar (eski kayıt silinmez).
+  function load(storage) {
+    try {
+      const p3 = readJSON(storage, KEY);
+      if (p3 && p3.version === 3) return { ...fresh(), ...p3 };
+      const p2 = readJSON(storage, V2_KEY);
+      const p1 = p2 ? null : readJSON(storage, V1_KEY);
+      const p = p2 && p2.unlocked ? fromV2(p2) : p1 ? fromV1(p1) : fresh();
+      if (p2 || p1) save(storage, p);
+      return p;
+    } catch (e) {
+      return fresh(); // gizli sekme vb.
+    }
+  }
+
+  function save(storage, progress) {
+    try { storage.setItem(KEY, JSON.stringify(progress)); } catch (e) { /* yok say */ }
+  }
+
+  // Açık olan son sıra numarası: bitirilmiş en ileri bölümün bir sonrası.
+  // order[n-1] = n. sıradaki bölümün kimliği.
+  function frontier(progress, order) {
+    let f = 1;
+    for (let n = 1; n <= order.length; n++) if (progress.stars[String(order[n - 1])]) f = n + 1;
+    return Math.min(f, order.length);
+  }
+
+  const api = { KEY, V2_KEY, V1_KEY, V2_ORDER, START_HINTS, fresh, fromV2, fromV1, load, save, frontier };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.RingSave = api;
+})(this);
