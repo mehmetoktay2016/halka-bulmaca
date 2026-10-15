@@ -779,6 +779,74 @@ svg { display: block; }
 .tool .lbl { font-size: 13px; font-weight: 800; color: var(--muted); }
 .tool:disabled { opacity: .35; }
 .tool.hint svg { stroke: var(--gold); }
+.tool em.bump { animation: bump .35s ease; }
+.tool em.empty { background: rgba(255, 255, 255, .18); color: var(--text); box-shadow: none; }
+/* Akıllı yardım: oyuncu takılınca ipucu düğmesi nabız atar */
+.tool.hint.pulse .ico { animation: hint-pulse 1.4s ease-in-out infinite; }
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: 0 4px 0 rgba(0, 0, 0, .4), 0 0 0 0 rgba(255, 201, 74, 0); }
+  50% { box-shadow: 0 4px 0 rgba(0, 0, 0, .4), 0 0 0 8px rgba(255, 201, 74, .28); transform: scale(1.06); }
+}
+
+/* Kademeli ipucu menüsü: ipucu düğmesinin üstünde açılır */
+.hint-menu {
+  position: absolute;
+  right: 12px;
+  bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  z-index: 4;
+  width: min(300px, calc(100% - 24px));
+  padding: 8px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid rgba(255, 201, 74, .25);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: menu-in .2s cubic-bezier(.2, 1.3, .4, 1) both;
+  transform-origin: 85% 100%;
+}
+@keyframes menu-in { from { opacity: 0; transform: scale(.9) translateY(6px); } }
+.hint-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  text-align: left;
+  transition: background .15s;
+}
+.hint-opt:hover, .hint-opt:focus-visible { background: rgba(255, 255, 255, .07); }
+.hint-opt span { display: flex; flex-direction: column; }
+.hint-opt b { font-family: var(--font-display); font-size: 17px; font-weight: 800; }
+.hint-opt small { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.hint-opt.locked { opacity: .45; }
+.cost {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 14px;
+  background: rgba(255, 201, 74, .14);
+  color: var(--gold);
+}
+.cost.free { background: rgba(45, 212, 191, .14); color: #5eead4; font-size: 12.5px; }
+.bulb-ico {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff6c4, var(--gold) 60%, var(--gold-deep));
+  box-shadow: 0 0 8px rgba(255, 201, 74, .6);
+}
+.hint-bank { margin: 2px 12px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.hint-bank b { color: var(--gold); }
 .tool em {
   position: absolute;
   top: -6px;

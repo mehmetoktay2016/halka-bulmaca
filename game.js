@@ -20,6 +20,7 @@
   const FLY_MS = 520;
   const WAVE_MS = 170;
   const COIN_MS = 650;
+  const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Süs efektleri (arka plan parçacıkları, büyük patlama, ışık dalgası): ayarlardan kapanabilir
   const fxOn = () => progress.effects !== false && !REDUCED;
@@ -121,6 +122,8 @@
     angles: [], mask: 0, moves: 0, history: [],
     fly: {}, shake: {}, drag: null, hint: null, won: false,
     shownStars: 3,
+    auto: null,     // "Hamleyi yap": halka kendiliğinden dönerken { ring, delta, done, t0, before }
+    help: null,     // akıllı yardım: { lastAct, shown } (oyuncu takıldı mı?)
     coins: [],      // { link, x, y, taken, phase }
     coinsTaken: 0,  // bu bölümde toplanan; bölüm bitince kasaya eklenir
   };
@@ -573,7 +576,10 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
+      auto: null, help: { lastAct: performance.now(), shown: false },
     });
+    closeHintMenu();
+    $('hint').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
     S.coins = tut == null ? placeCoins() : [];
     coinFly = [];
@@ -661,6 +667,7 @@
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins + S.coinsTaken;
     $('undo').disabled = !S.history.length || S.won || S.failed;
+    renderHintCount();
   }
 
   let tipTimer = 0;
@@ -968,7 +975,9 @@
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (S.won || S.failed) return;
+    if (S.won || S.failed || S.auto) return;
+    closeHintMenu();
+    S.help.lastAct = performance.now();
     const p = toBoard(e);
     const i = hitRing(p);
     if (i < 0) return;
@@ -985,7 +994,7 @@
       lastAng: Math.atan2(p.y - r.y, p.x - r.x),
       total: 0,
       notch: 0,
-      before: { angles: S.angles.slice(), mask: S.mask, moves: S.moves, taken: S.coins.map(c => c.taken) },
+      before: snapshot(),
     };
     if (S.hint && S.L.group[i].includes(S.hint.ring)) S.hint = null;
   });
@@ -1009,12 +1018,21 @@
     const drag = S.drag;
     S.drag = null;
     if (Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
-    S.history.push(drag.before);
+    commitMove(drag.before);
+  }
+
+  const snapshot = () => ({ angles: S.angles.slice(), mask: S.mask, moves: S.moves, taken: S.coins.map(c => c.taken) });
+
+  // Bir hamle tamamlandı (elle ya da "Hamleyi yap" ile)
+  function commitMove(before) {
+    S.history.push(before);
     S.moves++;
+    S.help.lastAct = performance.now();
     const el = $('movesNum');
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     renderMeter(false);
     settle();
+    if (S.mask !== before.mask) $('hint').classList.remove('pulse');
     if (S.tut != null) guide();
     else if (!S.won && S.moves >= S.limit) showFail();
   }
@@ -1050,6 +1068,7 @@
   };
   $('settingsClose').onclick = () => { Sound.tap(); $('settings').classList.add('hidden'); };
   $('undo').onclick = () => {
+    if (S.auto) return;
     const prev = S.history.pop();
     if (!prev || S.won || S.failed) return;
     Sound.tap();
@@ -1090,15 +1109,109 @@
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
+  // ---- İpucu: ampul sayacı ve kademeli ipucu ----
+  // Dürtme her zaman ücretsiz; İpucu ve Hamleyi yap birer ampul. 1. kapıda ve denemelerde hepsi ücretsiz.
+  const hintsFree = () => S.tut != null || W.gateOf(S.levelNo) === 1;
+
+  function renderHintCount() {
+    const el = $('hintCount');
+    const free = hintsFree();
+    el.textContent = free ? '∞' : progress.hints;
+    el.classList.toggle('empty', !free && progress.hints <= 0);
+    $('hint').setAttribute('aria-label', free ? 'İpucu (ücretsiz)' : `İpucu (${progress.hints} ampul)`);
+  }
+
+  function openHintMenu() {
+    const free = hintsFree();
+    for (const b of $('hintMenu').querySelectorAll('.hint-opt')) {
+      if (b.dataset.tier === 'nudge') continue;
+      const cost = b.querySelector('.cost');
+      cost.innerHTML = free ? 'Ücretsiz' : '<i class="bulb-ico"></i>1';
+      cost.classList.toggle('free', free);
+      b.classList.toggle('locked', !free && progress.hints <= 0);
+    }
+    $('hintBank').innerHTML = free ? 'Bu kapıda bütün ipuçları ücretsiz.'
+      : progress.hints > 0 ? `Ampulün: <b>${progress.hints}</b>` : 'Ampulün kalmadı. Dürtme her zaman ücretsiz.';
+    $('hintMenu').hidden = false;
+  }
+  function closeHintMenu() { $('hintMenu').hidden = true; }
+
+  function useHint(tier) {
+    if (S.won || S.failed || S.auto) return;
+    const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
+    if (cost > progress.hints) { Sound.deny(); showTip('Ampulün kalmadı. Ücretsiz dürtmeyi dene'); return; }
+    closeHintMenu();
+    const sol = solveFast(S.L, S.angles, S.mask, 30000);
+    // Çözüm bulunamazsa ampul harcanmaz
+    if (!sol || !sol.first) { showTip('İpucu bulunamadı, yeniden başlatmayı dene'); return; }
+    if (cost) {
+      progress.hints -= cost;
+      saveProgress();
+      const el = $('hintCount');
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    $('hint').classList.remove('pulse');
+    S.help.lastAct = performance.now();
+    Sound.tap();
+    const now = performance.now();
+    if (tier === 'nudge') {
+      S.hint = { ...sol.first, t0: now, nudge: true };
+      showTip('Parlayan halkayı çevir');
+    } else if (tier === 'hint') {
+      S.hint = { ...sol.first, t0: now };
+      showTip('Parlayan halkanın boşluğunu sarı halkaya getir');
+    } else {
+      S.hint = null;
+      hideTip();
+      S.auto = { ...sol.first, done: 0, notch: 0, t0: now, before: snapshot(),
+                 ms: 300 + Math.abs(sol.first.delta) / DEG * 2.5 };
+    }
+    updateHud();
+  }
+
   $('hint').onclick = () => {
-    if (S.won || S.failed) return;
+    if (S.won || S.failed || S.auto) return;
     if (S.tut != null) { guide(); return; }
     Sound.tap();
-    const sol = solveFast(S.L, S.angles, S.mask, 30000);
-    if (!sol || !sol.first) { showTip('İpucu bulunamadı, yeniden başlatmayı dene'); return; }
-    S.hint = { ...sol.first, t0: performance.now() };
-    showTip('Parlayan halkanın boşluğunu sarı halkaya getir');
+    if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
   };
+  for (const b of $('hintMenu').querySelectorAll('.hint-opt')) b.onclick = () => useHint(b.dataset.tier);
+  // Menünün dışına dokununca kapanır
+  document.addEventListener('pointerdown', e => {
+    if (!$('hintMenu').hidden && !e.target.closest('#hintMenu, #hint')) closeHintMenu();
+  }, true);
+
+  // "Hamleyi yap": halka doğru açıya kendiliğinden döner, sonra normal bir hamle gibi sayılır
+  function stepAuto(now) {
+    const a = S.auto;
+    if (!a) return;
+    const t = Math.min(1, (now - a.t0) / a.ms);
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const d = a.delta * e - a.done;
+    S.angles = rotate(S.L, S.angles, a.ring, d);
+    a.done += d;
+    const notch = Math.round(a.done / (15 * DEG));
+    if (notch !== a.notch) { a.notch = notch; Sound.tick(); }
+    if (t >= 1) { S.auto = null; commitMove(a.before); }
+  }
+
+  // Akıllı yardım: en iyi hamle sayısı aşıldıysa ya da uzun süre hamle yoksa ipucu düğmesi nabız atar
+  function checkHelp(now) {
+    if (S.tut != null || S.won || S.failed || S.auto || S.hint || S.help.shown) return;
+    if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
+      S.help.lastAct = now;
+      return;
+    }
+    const stuck = S.moves > (S.def.par ?? 99) || now - S.help.lastAct > HELP_IDLE_MS;
+    if (!stuck) return;
+    S.help.shown = true;
+    $('hint').classList.add('pulse');
+    if (!progress.helpTip) {
+      showTip('Takıldıysan ipucuna dokun: dürtme ücretsiz', 4000);
+      progress.helpTip = true;
+      saveProgress();
+    }
+  }
 
   // ---- Çizim ----
   function ringColor(i) {
@@ -1199,7 +1312,8 @@
     ctx.globalAlpha = alpha;
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
     const color = ringColor(i);
-    const active = S.drag && S.L.group[S.drag.ring].includes(i);
+    const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
+    const active = mover >= 0 && S.L.group[mover].includes(i);
     if (active) {
       ctx.shadowColor = color;
       ctx.shadowBlur = 18;
@@ -1354,6 +1468,8 @@
     ctx.strokeStyle = `rgba(255,255,255,${0.2 + 0.3 * pulse})`;
     ctx.lineWidth = STROKE + 10;
     ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, TAU); ctx.stroke();
+    // Dürtme yalnızca halkayı gösterir; yön ve hedef ipucunda
+    if (h.nudge) { ctx.restore(); return; }
     const tx = ring.x + Math.cos(h.target) * ring.r;
     const ty = ring.y + Math.sin(h.target) * ring.r;
     ctx.shadowColor = '#ffc94a';
@@ -1520,6 +1636,8 @@
       ctx.globalAlpha = 1;
       ctx.clearRect(0, 0, BOARD.w, BOARD.h);
       if (S.L && !$('game').hidden) {
+        stepAuto(now);
+        checkHelp(now);
         drawCouples();
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
         drawDeco(visible, now);
@@ -1601,6 +1719,7 @@
     AppPlugin.addListener('backButton', () => {
       if (!$('splash').hidden) return;
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
+      if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
       if (!$('ceremony').hidden) { $('ceremony').click(); return; }

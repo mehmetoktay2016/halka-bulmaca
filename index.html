@@ -142,6 +142,20 @@
         <div id="tip" class="tip"></div>
       </main>
 
+      <!-- Kademeli ipucu: ücretsiz dürtme, ipucu, hamleyi yap -->
+      <div id="hintMenu" class="hint-menu" hidden role="dialog" aria-label="İpucu seç">
+        <button class="hint-opt" data-tier="nudge">
+          <span><b>Dürt</b><small>Hangi halkayı çevireceğini gösterir</small></span><em class="cost free">Ücretsiz</em>
+        </button>
+        <button class="hint-opt" data-tier="hint">
+          <span><b>İpucu</b><small>Halkayı, yönü ve hedefi gösterir</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
+        </button>
+        <button class="hint-opt" data-tier="move">
+          <span><b>Hamleyi yap</b><small>Doğru hamleyi senin yerine yapar</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
+        </button>
+        <p id="hintBank" class="hint-bank"></p>
+      </div>
+
       <footer class="controls">
         <button id="undo" class="tool">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/></svg></span>
@@ -152,7 +166,7 @@
           <span class="lbl">Yeniden</span>
         </button>
         <button id="hint" class="tool hint">
-          <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><em>∞</em></span>
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><em id="hintCount">3</em></span>
           <span class="lbl">İpucu</span>
         </button>
       </footer>
