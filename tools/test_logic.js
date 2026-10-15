@@ -105,5 +105,28 @@ test('anahtarlı kilit: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, lockedBy: 2 }, { x: 170, y: 100, r: 50 }, { x: 240, y: 100, r: 50 }], couples: [[0, 1]] }), /eşli/);
 });
 
+const box = [[110, 190], [290, 190], [290, 370], [110, 370]];
+
+test('çerçeve: her kesen kenar ayrı bağ, bölümün bitişine çerçeve dahil değil', () => {
+  const L = Logic.buildLevel({ rings: [{ x: 110, y: 270, r: 66 }, { type: 'frame', points: box }] });
+  assert.strictEqual(L.links.length, 1);
+  assert.ok(L.links[0].seg, 'bağda kenar bilgisi yok');
+  assert.strictEqual(L.full, 1); // yalnızca halka
+});
+
+test('çerçeve: hiç tahtadan çıkmaz, halka ondan kurtulunca bölüm biter', () => {
+  const L = Logic.buildLevel({ rings: [{ x: 110, y: 270, r: 66, a: 180 }, { type: 'frame', points: box }] });
+  // Boşluk (180°) halkanın sol tarafında: kesişimler x=110 çizgisinde, halkanın üstünde ve altında (90°/270°)
+  assert.strictEqual(Logic.cascade(L, L.startAngles, 0).mask, 0);
+  const a = Logic.rotate(L, L.startAngles, 0, 90 * DEG);
+  const m = Logic.cascade(L, a, 0).mask;
+  assert.strictEqual(m, L.full);
+  assert.ok(!(m & 2), 'çerçeve çıkmamalı');
+});
+
+test('çerçeve: köşesi halkanın içinde kalırsa hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 120, y: 200, r: 40 }, { type: 'frame', points: box }] }), /köşesi/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

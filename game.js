@@ -361,7 +361,9 @@
 
   // Şekil bölümünün küçük resmi: halkalar ve çubuklar, renkli ya da gri siluet
   function shapeSvg(def, colored) {
-    const ext = def.rings.map(r => (r.type === 'bar'
+    const ext = def.rings.map(r => (r.type === 'frame'
+      ? [Math.min(...r.points.map(q => q[0])), Math.min(...r.points.map(q => q[1])), Math.max(...r.points.map(q => q[0])), Math.max(...r.points.map(q => q[1]))]
+      : r.type === 'bar'
       ? [Math.min(r.x1, r.x2), Math.min(r.y1, r.y2), Math.max(r.x1, r.x2), Math.max(r.y1, r.y2)]
       : [r.x - r.r, r.y - r.r, r.x + r.r, r.y + r.r]));
     const x0 = Math.min(...ext.map(e => e[0])), y0 = Math.min(...ext.map(e => e[1]));
@@ -370,7 +372,10 @@
     const ox = (48 - (x1 - x0) * k) / 2 - x0 * k, oy = (48 - (y1 - y0) * k) / 2 - y0 * k;
     const sw = Math.max(1.6, 13 * k);
     const parts = def.rings.map((r, i) => {
-      const c = colored ? (r.type === 'bar' ? BAR_COLOR : r.fixed ? FIXED_COLOR : r.color || COLORS[i % COLORS.length]) : 'rgba(255,255,255,.26)';
+      const c = colored ? (r.type === 'bar' || r.type === 'frame' ? BAR_COLOR : r.fixed ? FIXED_COLOR : r.color || COLORS[i % COLORS.length]) : 'rgba(255,255,255,.26)';
+      if (r.type === 'frame') {
+        return `<polygon points="${r.points.map(q => `${q[0] * k + ox},${q[1] * k + oy}`).join(' ')}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      }
       return r.type === 'bar'
         ? `<line x1="${r.x1 * k + ox}" y1="${r.y1 * k + oy}" x2="${r.x2 * k + ox}" y2="${r.y2 * k + oy}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round"/>`
         : `<circle cx="${r.x * k + ox}" cy="${r.y * k + oy}" r="${r.r * k}" fill="none" stroke="${c}" stroke-width="${sw}"/>`;
@@ -712,6 +717,9 @@
 
   function present(i) { return !(S.mask & (1 << i)); }
   const isBar = i => S.L.rings[i].kind === 'bar';
+  const isFrame = i => S.L.rings[i].kind === 'frame';
+  // Bir noktanın çubuğa ya da çerçevenin en yakın kenarına uzaklığı
+  const pieceDist = (px, py, r) => (r.kind === 'frame' ? Math.min(...r.segs.map(s => segDist(px, py, s))) : segDist(px, py, r));
 
   function segDist(px, py, b) {
     const dx = b.x2 - b.x1, dy = b.y2 - b.y1;
@@ -905,11 +913,11 @@
     for (const li of order) {
       if (out.length >= want) break;
       const k = L.links[li];
-      if (L.rings[k.a].kind === 'bar' || L.rings[k.b].kind === 'bar' || k.pts.length < 2) continue;
+      if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2) continue;
       const x = (k.pts[0].x + k.pts[1].x) / 2;
       const y = (k.pts[0].y + k.pts[1].y) / 2;
       const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
-        (r.kind === 'bar' ? segDist(x, y, r) > 18 : Math.abs(Math.hypot(x - r.x, y - r.y) - r.r) > 18));
+        (r.kind !== 'ring' ? pieceDist(x, y, r) > 18 : Math.abs(Math.hypot(x - r.x, y - r.y) - r.r) > 18));
       const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30);
       if (clear && offMark && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
         out.push({ link: li, x, y, taken: false, phase: Math.random() * TAU });
@@ -1231,7 +1239,7 @@
     let best = -1, bestD = 26;
     S.L.rings.forEach((r, i) => {
       if (!present(i)) return;
-      const d = r.kind === 'bar' ? segDist(p.x, p.y, r) + 4 : Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      const d = r.kind !== 'ring' ? pieceDist(p.x, p.y, r) + 4 : Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
       if (d < bestD) { bestD = d; best = i; }
     });
     return best;
@@ -1248,6 +1256,7 @@
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
       if (isBar(i)) showTip('Çubuk dönmez: halkaların boşluğunu çubuğa getir');
+      else if (isFrame(i)) showTip('Çerçeve yerinden oynamaz: halkaları etrafından kurtar');
       else if (S.L.rings[i].lockedBy >= 0) {
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
@@ -1628,7 +1637,7 @@
 
   // ---- Çizim ----
   function ringColor(i) {
-    if (S.L.rings[i].kind === 'bar') return BAR_COLOR;
+    if (S.L.rings[i].kind !== 'ring') return BAR_COLOR;
     if (S.L.rings[i].fixed) return FIXED_COLOR;
     return S.def.rings[i].color || COLORS[i % COLORS.length];
   }
@@ -1718,6 +1727,7 @@
 
   function drawRing(i, now) {
     if (isBar(i)) { drawBar(i, now); return; }
+    if (isFrame(i)) { drawFrame(i, now); return; }
     const ring = S.L.rings[i];
     const { cx, cy, alpha, grow } = ringPose(i, now);
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
@@ -1847,6 +1857,30 @@
     }
   }
 
+  // Çerçeve: çubukla aynı metal; köşelerde cıvata. Hiç oynamaz, dokununca yalnızca sallanır.
+  function drawFrame(i, now) {
+    const f = S.L.rings[i];
+    const { cx } = ringPose(i, now);
+    const ox = cx - f.x;
+    const path = (dx, dy) => {
+      ctx.beginPath();
+      f.points.forEach((q, k) => (k ? ctx.lineTo(q.x + ox + dx, q.y + dy) : ctx.moveTo(q.x + ox + dx, q.y + dy)));
+      ctx.closePath();
+    };
+    ctx.save();
+    ctx.lineJoin = 'round';
+    path(2, 4); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = STROKE + 6; ctx.stroke();
+    path(0, 0); ctx.strokeStyle = BAR_COLOR; ctx.lineWidth = STROKE; ctx.stroke();
+    path(-1.5, -1.5); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.stroke();
+    for (const q of f.points) {
+      ctx.fillStyle = '#8d95ad';
+      ctx.beginPath(); ctx.arc(q.x + ox, q.y, 10, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#e3e7f1';
+      ctx.beginPath(); ctx.arc(q.x + ox - 1, q.y - 1, 4, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawLock(x, y) {
     ctx.fillStyle = FIXED_COLOR;
     ctx.strokeStyle = FIXED_COLOR;
@@ -1870,12 +1904,13 @@
         const ring = S.L.rings[top];
         const angP = idx === 0 ? p.angA : p.angB;
         const angle = S.angles[top];
-        if (ring.kind !== 'bar' && ring.gaps.some(g => angDist(angle + g, angP) < GAP_HALF + seg)) return;
+        const straight = ring.kind !== 'ring'; // çubuk ya da çerçeve kenarı
+        if (!straight && ring.gaps.some(g => angDist(angle + g, angP) < GAP_HALF + seg)) return;
         // üstteki parçanın kesişim çevresindeki küçük bölümü
         const piece = (s, ox = 0, oy = 0) => {
           ctx.beginPath();
-          if (ring.kind === 'bar') {
-            const { ux, uy } = barAxis(ring);
+          if (straight) {
+            const { ux, uy } = barAxis(ring.kind === 'frame' ? k.seg : ring);
             const L = 17 * s;
             ctx.moveTo(p.x - ux * L + ox, p.y - uy * L + oy);
             ctx.lineTo(p.x + ux * L + ox, p.y + uy * L + oy);
@@ -1895,9 +1930,9 @@
         ctx.strokeStyle = ringColor(top);
         ctx.lineWidth = STROKE;
         piece(1);
-        ctx.strokeStyle = ring.kind === 'bar' ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.3)';
+        ctx.strokeStyle = straight ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.3)';
         ctx.lineWidth = 3;
-        piece(1, ring.kind === 'bar' ? -1.5 : -2, ring.kind === 'bar' ? -1.5 : -2);
+        piece(1, straight ? -1.5 : -2, straight ? -1.5 : -2);
         ctx.restore();
       });
     });

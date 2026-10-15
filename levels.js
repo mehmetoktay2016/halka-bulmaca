@@ -90,6 +90,10 @@
 
   // Parçanın kapladığı alan (halka ya da çubuk)
   function extent(p) {
+    if (p.type === 'frame') {
+      const xs = p.points.map(q => q[0]), ys = p.points.map(q => q[1]);
+      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    }
     if (p.type === 'bar') {
       return { x0: Math.min(p.x1, p.x2), x1: Math.max(p.x1, p.x2), y0: Math.min(p.y1, p.y2), y1: Math.max(p.y1, p.y2) };
     }
@@ -103,6 +107,7 @@
     };
   }
   function movePiece(p, dx, dy, k = 1) {
+    if (p.type === 'frame') return { ...p, points: p.points.map(([x, y]) => [x * k + dx, y * k + dy]) };
     if (p.type === 'bar') {
       return { ...p, x1: p.x1 * k + dx, y1: p.y1 * k + dy, x2: p.x2 * k + dx, y2: p.y2 * k + dy };
     }
@@ -501,19 +506,25 @@
     // Kilit olmasa 2 hamle; kilitle önce anahtar kurtarılır, sonra kilitli halka döner (3 hamle).
     1004: { title: 'Kilit ve anahtar', world: 'zindan', tip: 'Kilitli halka, anahtarlı halka kurtulunca açılır',
       rings: CROSSED.map((r, i) => ({ ...r, a: [120, 315, 90, 60][i], lockedBy: i === 0 ? 1 : undefined })) },
+    // Çerçeve tanıtımı (1005): dikdörtgen çerçeve, sol, üst ve sağ kenarını kesen üç halka.
+    // Çerçeve olmasa 2 hamle; çerçeve hiç çıkmadığı için her halka ondan da kurtulmalı (3 hamle).
+    1005: { title: 'Çerçeve', world: 'sehir', tip: 'Çerçeve yerinden oynamaz: halkaları etrafından kurtar',
+      rings: [{ x: 110, y: 270, r: 66, a: 105 }, { x: 200, y: 190, r: 64, a: 345 }, { x: 290, y: 280, r: 66, a: 105 },
+        { type: 'frame', points: [[110, 190], [290, 190], [290, 370], [110, 370]] }] },
     1003: { title: 'Tıklı halka', world: 'saat', tip: 'Tıklı halkanın boşluğu yalnızca noktalarda durur',
       rings: [{ x: 200, y: 215, r: 70, a: 255, step: 45 }, { x: 140, y: 320, r: 64, a: 135 }, { x: 260, y: 320, r: 64, a: 195 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
+  // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
   const plainVersion = def => ({
     ...def,
-    rings: def.rings.map(r => ({ ...r, step: undefined, lockedBy: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
   // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002,
-  // tıklı halka 1003, kilit-anahtar 1004) tanıtılmadan onu kullanan bölüm gelemez.
-  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004 };
+  // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005) tanıtılmadan onu kullanan bölüm gelemez.
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -523,6 +534,7 @@
     if (ratios.some(r => Math.abs(r) === 2 || Math.abs(r) === 0.5)) f.push('fast');
     if (def.rings.some(r => r.step)) f.push('click');
     if (def.rings.some(r => r.lockedBy != null)) f.push('key');
+    if (def.rings.some(r => r.type === 'frame')) f.push('frame');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;

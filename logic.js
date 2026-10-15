@@ -49,8 +49,20 @@
   // Seviye tanımı (derece cinsinden) -> hesaplamaya hazır yapı.
   // Parçalar halka ya da düz çubuktur ({ type: 'bar', x1, y1, x2, y2 }).
   // Çubuk dönmez ve boşluğu yoktur; içinden geçtiği halkalar ondan kurtulunca çıkar.
+  // Çerçeve ({ type: 'frame', points: [[x, y], ...] }) kapalı bir çokgendir: hiç oynamaz ve tahtadan
+  // hiç çıkmaz; her kenarı ayrı bir çubuk gibi davranır. Bölüm, halkalar çerçeveden kurtulunca biter.
   function buildLevel(def) {
-    const rings = def.rings.map((r, i) => (r.type === 'bar' ? {
+    const rings = def.rings.map((r, i) => (r.type === 'frame' ? {
+      id: i, kind: 'frame',
+      x: r.points.reduce((s, q) => s + q[0], 0) / r.points.length,
+      y: r.points.reduce((s, q) => s + q[1], 0) / r.points.length, r: 0,
+      points: r.points.map(q => ({ x: q[0], y: q[1] })),
+      segs: r.points.map((q, k) => {
+        const q2 = r.points[(k + 1) % r.points.length];
+        return { x1: q[0], y1: q[1], x2: q2[0], y2: q2[1] };
+      }),
+      fixed: true, gaps: [], lockedBy: -1, step: 0,
+    } : r.type === 'bar' ? {
       id: i, kind: 'bar',
       x: (r.x1 + r.x2) / 2, y: (r.y1 + r.y2) / 2, r: 0,
       x1: r.x1, y1: r.y1, x2: r.x2, y2: r.y2,
@@ -67,7 +79,7 @@
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
       const k = def.rings[r.lockedBy];
-      if (!k || r.lockedBy === i || k.type === 'bar') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
+      if (!k || r.lockedBy === i || k.type === 'bar' || k.type === 'frame') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
       if (r.fixed) throw new Error(`Halka ${i}: hem sabit hem anahtarlı olamaz`);
     }
     for (const [i, r] of def.rings.entries()) {
@@ -76,12 +88,26 @@
     const n = rings.length;
     const links = [];
     const ringLinks = rings.map(() => []);
-    const angOn = (P, p) => (P.kind === 'bar' ? 0 : norm(Math.atan2(p.y - P.y, p.x - P.x)));
+    const angOn = (P, p) => (P.kind !== 'ring' ? 0 : norm(Math.atan2(p.y - P.y, p.x - P.x)));
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
+        const A = rings[i], B = rings[j];
+        if (A.kind === 'frame' || B.kind === 'frame') {
+          // Çerçeve ile halka: her kenar ayrı bir bağ (kenarın çizgisi `seg` çizim için saklanır)
+          if (A.kind !== 'ring' && B.kind !== 'ring') continue;
+          const [F, R] = A.kind === 'frame' ? [A, B] : [B, A];
+          for (const seg of F.segs) {
+            const pts = segmentCircle(seg, R);
+            if (!pts) continue;
+            if (pts.length !== 2) throw new Error(`Halka ${R.id}: çerçevenin köşesi halkanın içinde kalmamalı`);
+            ringLinks[i].push(links.length);
+            ringLinks[j].push(links.length);
+            links.push({ a: i, b: j, seg, pts: pts.map(p => ({ x: p.x, y: p.y, angA: angOn(A, p), angB: angOn(B, p) })) });
+          }
+          continue;
+        }
         const pts = crossings(rings[i], rings[j]);
         if (!pts) continue;
-        const A = rings[i], B = rings[j];
         const link = {
           a: i, b: j,
           pts: pts.map(p => ({ x: p.x, y: p.y, angA: angOn(A, p), angB: angOn(B, p) })),
@@ -125,7 +151,8 @@
 
     return {
       rings, links, ringLinks, group, groupId, rotatable, factor, couples,
-      full: (1 << n) - 1,
+      // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
+      full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
     };
   }
@@ -168,7 +195,7 @@
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (!(mask & (1 << i)) && isFree(L, i, angles, mask)) wave.push(i);
+        if (!(mask & (1 << i)) && L.rings[i].kind !== 'frame' && isFree(L, i, angles, mask)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
