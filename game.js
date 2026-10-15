@@ -2334,6 +2334,58 @@
     });
   }
 
+  // Geliştirme: ?gallery bütün şekilleri süsleriyle gösterir (bulmaca değil, yalnızca görünüş)
+  function showGallery() {
+    const shapes = window.RingLevels.ANIMALS;
+    const host = document.createElement('div');
+    host.className = 'gallery';
+    host.innerHTML = `<h2>Şekil galerisi</h2><p>${shapes.length} şekil. İlk 10'u oyundaki, diğerleri yeni.</p><div class="g-grid"></div>`;
+    document.body.appendChild(host);
+    const grid = host.querySelector('.g-grid');
+    const items = shapes.map((s, k) => {
+      const fig = document.createElement('figure');
+      fig.innerHTML = `<canvas width="420" height="420"></canvas><figcaption><b>${s.name}</b>${k >= 10 ? '<span>yeni</span>' : ''}</figcaption>`;
+      grid.appendChild(fig);
+      const c = fig.querySelector('canvas');
+      return { s, c, g: c.getContext('2d') };
+    });
+    const loop = now => { for (const it of items) drawGalleryShape(it, now); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+
+  function drawGalleryShape({ s, c, g }, now) {
+    const R = s.rings.filter(r => r.type !== 'bar');
+    const x0 = Math.min(...R.map(r => r.x - r.r)), x1 = Math.max(...R.map(r => r.x + r.r));
+    const y0 = Math.min(...R.map(r => r.y - r.r)), y1 = Math.max(...R.map(r => r.y + r.r));
+    const k = 360 / Math.max(x1 - x0, y1 - y0, 240);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    g.setTransform(k, 0, 0, k, c.width / 2 - (x0 + x1) / 2 * k, c.height / 2 - (y0 + y1) / 2 * k);
+    // Eşler: kesikli çizgi
+    g.setLineDash([6, 8]); g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 3;
+    for (const [a, b] of s.couples || []) {
+      g.beginPath(); g.moveTo(s.rings[a].x, s.rings[a].y); g.lineTo(s.rings[b].x, s.rings[b].y); g.stroke();
+    }
+    g.setLineDash([]);
+    // Süsler halkaların altında (oyundaki gibi), z küçük olan önce
+    for (const d of (s.deco || []).slice().sort((a, b) => (a.z || 0) - (b.z || 0))) {
+      const r = s.rings[d.ring];
+      g.save(); g.translate(r.x, r.y);
+      Deco.draw(g, d, r.r, now, r.color);
+      g.restore();
+    }
+    // Halkalar: oyundaki gibi gölge, renk ve parlama; her birinde bir boşluk
+    s.rings.forEach((r, i) => {
+      if (r.type === 'bar') return;
+      const gap = (i * 67 + 300) * DEG;
+      for (const [col, w, dx, dy] of [['rgba(0,0,0,.4)', STROKE + 6, 2, 4], [r.color, STROKE, 0, 0], ['rgba(255,255,255,.3)', 3, -2, -2]]) {
+        g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round';
+        g.beginPath(); g.arc(r.x + dx, r.y + dy, r.r, gap + GAP_HALF, gap + TAU - GAP_HALF); g.stroke();
+      }
+    });
+  }
+  if (params.has('gallery')) showGallery();
+
   if (params.has('debug')) {
     window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, ambience, settle, badgeCtx, awardBadges, showScreen,
       fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
