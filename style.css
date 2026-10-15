@@ -866,6 +866,13 @@ svg { display: block; }
 .cost.coin { background: rgba(255, 213, 74, .12); color: var(--coin); }
 .cost .coin-ico { font-size: 14px; }
 .gate-rewards:empty { display: none; }
+.chip.album-chip::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--accent, var(--gold));
+}
 .home-stars .bulb-ico { width: 13px; height: 13px; vertical-align: -1px; }
 .hint-bank { margin: 2px 12px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
 .hint-bank b { color: var(--gold); }
@@ -947,6 +954,130 @@ svg { display: block; }
 @keyframes shine { from { left: -60%; } to { left: 120%; } }
 
 /* ---------- Ayarlar ---------- */
+.round.corner-left { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 16px; }
+.round .dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  border: 2px solid var(--night);
+}
+#homeTrophies svg { stroke: var(--gold); }
+
+/* ---------- Koleksiyon: rozetler ve albüm ---------- */
+.trophy-screen { padding-bottom: 0; }
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--line);
+}
+.tabs button {
+  min-height: 42px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--muted);
+}
+.tabs button b { font-size: 13px; margin-left: 4px; opacity: .8; font-variant-numeric: tabular-nums; }
+.tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--text); box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
+.trophy-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 12px -16px 0;
+  padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  scrollbar-width: none;
+}
+.badge-group { margin: 14px 0 6px; }
+.badge-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.badge-row b { font-family: var(--font-body); font-size: 16px; font-weight: 800; line-height: 1.2; }
+.badge-row p { margin: 1px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.badge-row .meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.badge-row .bar-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.badge-row .bar-track i { display: block; height: 100%; border-radius: 3px; background: var(--tc); }
+.badge-row .got { color: var(--tc); }
+.medal {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 55%, #fff), var(--tc) 55%, color-mix(in srgb, var(--tc) 60%, #000));
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25), 0 4px 10px rgba(0, 0, 0, .35);
+}
+.medal::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .35); }
+.medal svg { width: 28px; height: 28px; fill: none; stroke: rgba(30, 18, 4, .85); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.medal.locked { background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .08); }
+.medal.locked::before { border-color: rgba(255, 255, 255, .08); }
+.medal.locked svg { stroke: rgba(255, 255, 255, .28); }
+.badge-row.new .medal { animation: medal-new 1.6s ease-in-out 2; }
+@keyframes medal-new { 50% { transform: scale(1.12) rotate(-6deg); box-shadow: 0 0 0 6px color-mix(in srgb, var(--tc) 30%, transparent); } }
+
+.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.album-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--line);
+  text-align: center;
+  min-width: 0;
+}
+.album-card svg { width: 72px; height: 72px; }
+.album-card b { font-family: var(--font-display); font-size: 15px; font-weight: 800; line-height: 1.1; }
+.album-card small { font-size: 11.5px; font-weight: 800; color: var(--muted); }
+.album-card .mini { font-size: 12px; display: flex; gap: 1px; }
+.album-card .mini .star-ico:not(.on) { background: rgba(255, 255, 255, .15); }
+.album-card.missing b { color: var(--muted); }
+.album-note { margin: 14px 4px 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+
+/* Rozet bildirimi */
+.toast {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 18px 8px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid rgba(255, 201, 74, .35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .5);
+  transform: translate(-50%, 0);
+  animation: toast-in .45s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.toast.out { animation: toast-out .35s ease forwards; }
+@keyframes toast-in { from { transform: translate(-50%, -140%); opacity: 0; } }
+@keyframes toast-out { to { transform: translate(-50%, -140%); opacity: 0; } }
+.toast .medal { width: 44px; height: 44px; flex: none; }
+.toast .medal svg { width: 22px; height: 22px; }
+.toast span { display: flex; flex-direction: column; line-height: 1.2; }
+.toast small { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+.toast b { font-family: var(--font-body); font-size: 16px; font-weight: 800; }
+.toast em { font-style: normal; font-size: 13px; font-weight: 800; color: var(--coin); }
 .round.corner { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: 16px; }
 .settings-card h2 { margin-bottom: 16px; }
 .toggles { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }

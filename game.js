@@ -144,8 +144,9 @@
 
   // ---- Ekran geçişleri ----
   function showScreen(name) {
-    for (const id of ['home', 'levels', 'game']) $(id).hidden = id !== name;
+    for (const id of ['home', 'levels', 'game', 'trophies']) $(id).hidden = id !== name;
     if (name === 'home') renderHome();
+    if (name === 'trophies') renderTrophies();
     if (name === 'levels') renderMap();
     if (name === 'game') requestAnimationFrame(resize);
   }
@@ -199,8 +200,132 @@
     }
     if (progress.title == null) progress.title = currentTitle();
     if (progress.seenFrontier == null) progress.seenFrontier = frontier();
+    // Toplam altın sayacı yeni: eski kayıtta en az kasadaki kadar toplanmıştır
+    progress.stats.coinsTotal = Math.max(progress.stats.coinsTotal || 0, progress.coins);
     saveProgress();
+    awardBadges(true);
   }
+
+  // ---- Başarımlar (rozetler) ve şekil albümü ----
+  const B = window.RingBadges;
+  let failedLevel = null; // hamlesi biten bölüm: hemen ardından kazanılırsa "Pes Etmeyen"
+  const stat = (key, v = 1) => { progress.stats[key] = (progress.stats[key] || 0) + v; };
+  let shapeList = null;
+  const shapeLevels = () => shapeList || (shapeList = ORDER.map((_, i) => i + 1).filter(n => getLevel(srcOf(n)).name));
+
+  function badgeCtx() {
+    const st = progress.stats;
+    let goldGates = 0;
+    for (let g = 1; g <= GATE_COUNT; g++) if (gateGold(g)) goldGates++;
+    const worlds = new Set();
+    for (let g = 1; g <= W.gateOf(frontier()); g++) worlds.add(W.worldOfGate(g).id);
+    const shapes = shapeLevels();
+    return {
+      wins: Object.keys(progress.stars).length,
+      gatesDone: gatesDone(),
+      worldsSeen: worlds.size,
+      stars: totalStars(),
+      perfect: Object.values(progress.stars).filter(v => v === 3).length,
+      goldGates,
+      hintless: Object.keys(progress.clean).length,
+      bestChain: st.bestChain || 0,
+      chains: st.chains || 0,
+      comebacks: st.comebacks || 0,
+      shapes: shapes.filter(n => starsOf(n)).length,
+      shapesTotal: shapes.length,
+      coinsTotal: st.coinsTotal || 0,
+      bulbsBought: progress.bulbsBought || 0,
+      hintsUsed: st.hintsUsed || 0,
+    };
+  }
+
+  const unseenBadges = () => Object.keys(progress.badges).filter(id => !progress.seenBadges[id]);
+
+  // Koşulu sağlanan rozetleri verir; her rozet kademesine göre altın kazandırır.
+  // silent: oyun açılırken (eski kayıt) bildirim gösterilmez, yalnızca kırmızı nokta yanar.
+  const toastQ = [];
+  let toastBusy = false;
+  function awardBadges(silent) {
+    const got = B.newlyEarned(progress.badges, badgeCtx());
+    if (!got.length) return;
+    for (const b of got) {
+      progress.badges[b.id] = today();
+      progress.coins += B.TIERS[b.tier].coins;
+    }
+    saveProgress();
+    if (!$('game').hidden) updateHud();
+    if (silent) return;
+    toastQ.push(...got);
+    nextToast();
+  }
+
+  const medalHtml = (b, done) =>
+    `<span class="medal${done ? '' : ' locked'}" style="--tc:${B.TIERS[b.tier].color}"><svg viewBox="0 0 24 24" aria-hidden="true">${B.ICONS[b.icon]}</svg></span>`;
+
+  function nextToast() {
+    if (toastBusy || !toastQ.length) return;
+    toastBusy = true;
+    const b = toastQ.shift();
+    const el = $('toast');
+    el.innerHTML = `${medalHtml(b, true)}<span><small>Yeni rozet</small><b>${b.name}</b><em>+${B.TIERS[b.tier].coins} altın</em></span>`;
+    el.classList.remove('out');
+    el.hidden = false;
+    Sound.gift();
+    setTimeout(() => {
+      el.classList.add('out');
+      setTimeout(() => { el.hidden = true; toastBusy = false; nextToast(); }, 350);
+    }, 2600);
+  }
+
+  let trophyTab = 'badges';
+  function renderTrophies() {
+    const ctx = badgeCtx();
+    const fresh = new Set(unseenBadges());
+    const earned = B.BADGES.filter(b => progress.badges[b.id]).length;
+    $('badgeCount').textContent = `${earned}/${B.BADGES.length}`;
+    $('albumCount').textContent = `${ctx.shapes}/${ctx.shapesTotal}`;
+    $('tabBadges').setAttribute('aria-selected', String(trophyTab === 'badges'));
+    $('tabAlbum').setAttribute('aria-selected', String(trophyTab === 'album'));
+    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : albumHtml();
+    // Görülen rozetlerin kırmızı noktası söner
+    for (const id of fresh) progress.seenBadges[id] = true;
+    if (fresh.size) saveProgress();
+  }
+
+  function badgesHtml(ctx, fresh) {
+    let html = '', group = '';
+    for (const b of B.BADGES) {
+      if (b.group !== group) { group = b.group; html += `<div class="eyebrow badge-group">${group}</div>`; }
+      const s = B.status(b, ctx);
+      const done = !!progress.badges[b.id];
+      const reward = B.TIERS[b.tier].coins;
+      const meta = done
+        ? `<span class="got">Kazanıldı · +${reward} altın</span>`
+        : `<span class="bar-track"><i style="width:${Math.round(100 * s.value / s.goal)}%"></i></span><span>${s.value} / ${s.goal}</span><span>+${reward}</span>`;
+      html += `<div class="badge-row${fresh.has(b.id) ? ' new' : ''}" style="--tc:${B.TIERS[b.tier].color}">
+        ${medalHtml(b, done)}
+        <div><b>${b.name}</b><p>${b.desc}</p><div class="meta">${meta}</div></div>
+      </div>`;
+    }
+    return html;
+  }
+
+  function albumHtml() {
+    const cards = shapeLevels().map(n => {
+      const def = getLevel(srcOf(n));
+      const got = starsOf(n);
+      const stars = got ? `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>` : '';
+      return `<div class="album-card${got ? '' : ' missing'}">${shapeSvg(def, !!got)}
+        <b>${got ? def.name : '???'}</b><small>Kapı ${W.gateOf(n)}</small>${stars}</div>`;
+    });
+    return `<div class="album-grid">${cards.join('')}</div>
+      <p class="album-note">Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.</p>`;
+  }
+
+  $('homeTrophies').onclick = () => { Sound.tap(); trophyTab = 'badges'; showScreen('trophies'); };
+  $('trophiesBack').onclick = () => { Sound.tap(); showScreen('home'); };
+  $('tabBadges').onclick = () => { Sound.tap(); trophyTab = 'badges'; renderTrophies(); };
+  $('tabAlbum').onclick = () => { Sound.tap(); trophyTab = 'album'; renderTrophies(); };
 
   function renderHome() {
     const next = frontier();
@@ -209,10 +334,12 @@
     $('homeStars').textContent = totalStars();
     $('homeCoins').textContent = progress.coins;
     $('homeBulbs').textContent = progress.hints;
+    $('trophyDot').hidden = !unseenBadges().length;
     $('homeScore').textContent = fmt(totalScore());
     $('homeTitle').textContent = progress.title || currentTitle();
     $('promiseLevels').textContent = TOTAL;
     $('promiseWorlds').textContent = W.WORLDS.length;
+    $('promiseBadges').textContent = B.BADGES.length;
   }
 
   // ---- Harita ----
@@ -592,7 +719,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
-      auto: null, help: { lastAct: performance.now(), shown: false },
+      auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
@@ -636,6 +763,7 @@
     const def = getLevel(src);
     if (!def) { showTip('Bu seviye yüklenemedi'); return; }
     applyWorld(W.worldOfGate(W.gateOf(n)));
+    if (n !== failedLevel) failedLevel = null;
     startDef(def, n, null);
     maybeWorldCard(n);
     if (dailyGift()) return;
@@ -873,6 +1001,10 @@
     const w = $('app').clientWidth;
     floaters.push({ text: `Zincir ×${n}`, x: Math.max(80, Math.min(w - 80, p.x)), y: p.y, t0: performance.now(), big: n >= 3 });
     Sound.chain(n);
+    stat('chains');
+    progress.stats.bestChain = Math.max(progress.stats.bestChain || 0, n);
+    saveProgress();
+    awardBadges(false);
   }
 
   function showWin() {
@@ -880,10 +1012,14 @@
     const par = S.def.par ?? S.moves;
     const stars = starsFor(S.moves, par);
     const key = idOf(S.levelNo);
+    const firstClear = !progress.stars[key];
     if (stars > (progress.stars[key] || 0)) lastWon = S.levelNo;
     progress.stars[key] = Math.max(progress.stars[key] || 0, stars);
     const earned = S.coins.filter(c => c.taken).length;
     progress.coins += earned;
+    stat('coinsTotal', earned);
+    if (!S.usedHint) progress.clean[key] = true;
+    if (failedLevel === S.levelNo) { stat('comebacks'); failedLevel = null; }
     S.coinsTaken = 0;
     progress.best = progress.best || {};
     const before = totalScore();
@@ -898,8 +1034,8 @@
     }
     saveProgress();
     $('winNote').textContent = '';
-    $('winRewards').innerHTML = goldGate
-      ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '';
+    $('winRewards').innerHTML = (firstClear && S.def.name ? `<span class="chip album-chip">Albüme eklendi: <b>${S.def.name}</b></span>` : '') +
+      (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '');
     if (goldGate) {
       bulbsInAir += GOLD_GATE_BULBS;
       setTimeout(() => {
@@ -926,6 +1062,7 @@
     if (stars === 3) setTimeout(perfectWave, 400 + 3 * 180 + 120);
     launchConfetti(stars);
     updateHud();
+    setTimeout(() => awardBadges(false), 1500);
   }
 
   // 3 yıldız: ortadaki yıldızdan bütün ekrana yayılan altın ışık halkası
@@ -957,6 +1094,7 @@
   let failTimer = 0;
   function showFail() {
     S.failed = true;
+    failedLevel = S.levelNo;
     S.hint = null;
     $('fail').classList.remove('hidden');
     Sound.fail();
@@ -1190,6 +1328,7 @@
     progress.hints++;
     progress.bulbsBought = (progress.bulbsBought || 0) + 1;
     saveProgress();
+    awardBadges(false);
     Sound.coin();
     const r = $('buyBulb').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
     bulbsInAir++;
@@ -1295,6 +1434,10 @@
     }
     $('hint').classList.remove('pulse');
     S.help.lastAct = performance.now();
+    S.usedHint = true;
+    stat('hintsUsed');
+    saveProgress();
+    awardBadges(false);
     Sound.tap();
     const now = performance.now();
     if (tier === 'nudge') {
@@ -1871,12 +2014,13 @@
       if (!$('win').classList.contains('hidden')) { $('win').classList.add('hidden'); showScreen('levels'); return; }
       if (!$('game').hidden) { showScreen(S.tut != null ? 'home' : 'levels'); return; }
       if (!$('levels').hidden) { showScreen('home'); return; }
+      if (!$('trophies').hidden) { showScreen('home'); return; }
       AppPlugin.exitApp();
     });
   }
 
   if (params.has('debug')) {
-    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, ambience, settle,
+    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, ambience, settle, badgeCtx, awardBadges, showScreen,
       fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
   }
   requestAnimationFrame(frame);

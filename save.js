@@ -28,6 +28,10 @@
       hints: START_HINTS, // ampul (ipucu hakkı)
       hintGiftDay: null,  // son ücretsiz günlük ampulün verildiği gün (YYYY-AA-GG)
       bulbsBought: 0,     // altınla alınan ampul sayısı (başarımlar için)
+      badges: {},         // rozet kimliği -> kazanıldığı gün
+      clean: {},          // ipucusuz bitirilen bölümler (bölüm kimliği -> true)
+      seenBadges: {},     // koleksiyon ekranında görülmüş rozetler (kırmızı nokta için)
+      stats: {},          // başarım sayaçları: chains, bestChain, comebacks, hintsUsed, coinsTotal
       rewards: {},        // verilmiş tek seferlik ödüller (kapı, final, altın kapı)
     };
   }
