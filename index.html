@@ -80,12 +80,13 @@
 
       <ul class="promises">
         <li><b>0</b> reklam</li>
-        <li><b>∞</b> ipucu</li>
+        <li><b id="promiseWorlds">8</b> dünya</li>
         <li><b id="promiseLevels">60</b> seviye</li>
       </ul>
       <p class="home-stars">
         <span><span class="star-ico"></span> <span id="homeStars">0</span> yıldız</span>
         <span><span class="coin-ico"></span> <span id="homeCoins">0</span> altın</span>
+        <span><span class="bulb-ico"></span> <span id="homeBulbs">0</span> ampul</span>
       </p>
     </section>
 
@@ -153,6 +154,9 @@
         <button class="hint-opt" data-tier="move">
           <span><b>Hamleyi yap</b><small>Doğru hamleyi senin yerine yapar</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
         </button>
+        <button id="buyBulb" class="buy-row">
+          <span><b>Ampul al</b><small id="buyNote">20 altın = 1 ampul</small></span><em class="cost coin"><i class="coin-ico"></i>20</em>
+        </button>
         <p id="hintBank" class="hint-bank"></p>
       </div>
 
@@ -185,6 +189,7 @@
           <div><b id="winScore" class="gold">+0</b><span>skor</span></div>
         </div>
         <p id="winNote" class="win-note"></p>
+        <div id="winRewards" class="gate-rewards"></div>
         <div class="row">
           <button id="again" class="round big" aria-label="Tekrar oyna">
             <svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg>

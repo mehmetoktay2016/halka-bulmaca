@@ -845,6 +845,28 @@ svg { display: block; }
   background: radial-gradient(circle at 40% 35%, #fff6c4, var(--gold) 60%, var(--gold-deep));
   box-shadow: 0 0 8px rgba(255, 201, 74, .6);
 }
+/* Altınla ampul alma: menünün altında, çizgiyle ayrılmış */
+.buy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  margin-top: 2px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 16px 16px;
+  text-align: left;
+}
+.buy-row:hover:not(:disabled), .buy-row:focus-visible { background: rgba(255, 255, 255, .07); }
+.buy-row span { display: flex; flex-direction: column; }
+.buy-row b { font-family: var(--font-display); font-size: 16px; font-weight: 800; }
+.buy-row small { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.buy-row:disabled { opacity: .5; }
+.cost.coin { background: rgba(255, 213, 74, .12); color: var(--coin); }
+.cost .coin-ico { font-size: 14px; }
+.gate-rewards:empty { display: none; }
+.home-stars .bulb-ico { width: 13px; height: 13px; vertical-align: -1px; }
 .hint-bank { margin: 2px 12px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
 .hint-bank b { color: var(--gold); }
 .tool em {

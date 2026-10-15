@@ -21,6 +21,9 @@
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
+  const BULB_PRICE = 20;      // altın
+  const GOLD_GATE_BULBS = 3;  // bir kapının 10 bölümü de 3 yıldız olunca
+  const BULB_MS = 750;        // ampulün ipucu düğmesine uçuşu
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Süs efektleri (arka plan parçacıkları, büyük patlama, ışık dalgası): ayarlardan kapanabilir
   const fxOn = () => progress.effects !== false && !REDUCED;
@@ -102,6 +105,9 @@
       chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
       // 3 yıldız ışık dalgası
       shine: () => [1568, 1976, 2349, 2637, 3136].forEach((f, k) => tone(f, 0.55, 'sine', 0.04, null, k * 0.07)),
+      // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
+      gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
+      bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
       context: audio,
     };
   })();
@@ -128,6 +134,8 @@
     coinsTaken: 0,  // bu bölümde toplanan; bölüm bitince kasaya eklenir
   };
   let coinFly = []; // { x, y (uygulama koordinatı), t0 }
+  let bulbFly = []; // ipucu düğmesine uçan ampuller { x, y, t0, landed }
+  let bulbsInAir = 0; // yoldaki ampuller: rozet onlar konunca artar
   let particles = [];
   let confetti = [];
   let shocks = [];     // son halkanın şok dalgası { x, y, t0 } (uygulama koordinatı)
@@ -183,6 +191,12 @@
       progress.rewards['gate:' + g] = true;
       progress.hints++;
     }
+    for (let g = 1; g <= GATE_COUNT; g++) {
+      if (gateGold(g) && !progress.rewards['gold:' + g]) {
+        progress.rewards['gold:' + g] = true;
+        progress.hints += GOLD_GATE_BULBS;
+      }
+    }
     if (progress.title == null) progress.title = currentTitle();
     if (progress.seenFrontier == null) progress.seenFrontier = frontier();
     saveProgress();
@@ -194,9 +208,11 @@
     $('playLevel').textContent = 'Seviye ' + next;
     $('homeStars').textContent = totalStars();
     $('homeCoins').textContent = progress.coins;
+    $('homeBulbs').textContent = progress.hints;
     $('homeScore').textContent = fmt(totalScore());
     $('homeTitle').textContent = progress.title || currentTitle();
     $('promiseLevels').textContent = TOTAL;
+    $('promiseWorlds').textContent = W.WORLDS.length;
   }
 
   // ---- Harita ----
@@ -583,6 +599,7 @@
     S.angles = S.L.startAngles.slice();
     S.coins = tut == null ? placeCoins() : [];
     coinFly = [];
+    landBulbs();
     particles = [];
     confetti = [];
     shocks = [];
@@ -621,6 +638,7 @@
     applyWorld(W.worldOfGate(W.gateOf(n)));
     startDef(def, n, null);
     maybeWorldCard(n);
+    if (dailyGift()) return;
     if (src === 1) showTip('Halkayı sürükleyerek döndür', 4000);
     else if (src === 2) showTip('Parlayan nokta: halka oradan geçebilir', 4000);
     else if (src === 5) showTip('Gri halkalar kilitli, dönmez', 3500);
@@ -871,7 +889,24 @@
     const before = totalScore();
     progress.best[key] = Math.max(progress.best[key] || 0, levelScore(stars, earned));
     const after = totalScore();
+    // Altın kapı: kapının 10 bölümü de 3 yıldız olunca bir kez ampul ödülü
+    const g = W.gateOf(S.levelNo);
+    const goldGate = gateGold(g) && !progress.rewards['gold:' + g];
+    if (goldGate) {
+      progress.rewards['gold:' + g] = true;
+      progress.hints += GOLD_GATE_BULBS;
+    }
     saveProgress();
+    $('winNote').textContent = '';
+    $('winRewards').innerHTML = goldGate
+      ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '';
+    if (goldGate) {
+      bulbsInAir += GOLD_GATE_BULBS;
+      setTimeout(() => {
+        const r = $('winRewards').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
+        flyBulbs(GOLD_GATE_BULBS, r.left - ar.left + r.width / 2, r.top - ar.top + r.height / 2, true);
+      }, 1300);
+    }
     $('winCoins').textContent = '+' + earned;
     $('winScore').textContent = '+' + fmt(after - before);
     countScore(before, after);
@@ -911,6 +946,7 @@
     $('winLevel').textContent = `Deneme ${S.tut + 1} / ${TUTORIAL.length}`;
     $('winTitle').textContent = TUT_PRAISE[S.tut] || 'Harika!';
     $('winNote').textContent = last ? 'Artık gerçek seviyelere hazırsın.' : 'Bir sonraki denemeye geç.';
+    $('winRewards').innerHTML = '';
     $('continue').textContent = last ? 'Oyuna başla' : 'Devam';
     $('win').classList.remove('hidden');
     Sound.win();
@@ -1116,9 +1152,10 @@
   function renderHintCount() {
     const el = $('hintCount');
     const free = hintsFree();
-    el.textContent = free ? '∞' : progress.hints;
-    el.classList.toggle('empty', !free && progress.hints <= 0);
-    $('hint').setAttribute('aria-label', free ? 'İpucu (ücretsiz)' : `İpucu (${progress.hints} ampul)`);
+    const shown = progress.hints - bulbsInAir;
+    el.textContent = free ? '∞' : shown;
+    el.classList.toggle('empty', !free && shown <= 0);
+    $('hint').setAttribute('aria-label', free ? 'İpucu (ücretsiz)' : `İpucu (${shown} ampul)`);
   }
 
   function openHintMenu() {
@@ -1132,7 +1169,113 @@
     }
     $('hintBank').innerHTML = free ? 'Bu kapıda bütün ipuçları ücretsiz.'
       : progress.hints > 0 ? `Ampulün: <b>${progress.hints}</b>` : 'Ampulün kalmadı. Dürtme her zaman ücretsiz.';
+    renderBuy();
     $('hintMenu').hidden = false;
+  }
+
+  // ---- Ampul kazanma: altınla alma, günlük hediye, ödül uçuşu ----
+  function renderBuy() {
+    const free = hintsFree();
+    const btn = $('buyBulb');
+    btn.hidden = free;
+    const have = progress.coins;
+    btn.disabled = have < BULB_PRICE;
+    btn.querySelector('.cost').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
+    $('buyNote').textContent = have >= BULB_PRICE ? `Altının: ${have}` : `${BULB_PRICE - have} altın daha topla (sende ${have})`;
+  }
+
+  function buyBulb() {
+    if (progress.coins < BULB_PRICE) { Sound.deny(); return; }
+    progress.coins -= BULB_PRICE;
+    progress.hints++;
+    progress.bulbsBought = (progress.bulbsBought || 0) + 1;
+    saveProgress();
+    Sound.coin();
+    const r = $('buyBulb').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
+    bulbsInAir++;
+    flyBulbs(1, r.left - ar.left + r.width - 40, r.top - ar.top + r.height / 2);
+    openHintMenu();
+    updateHud();
+    const pill = $('coinPill');
+    pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+  }
+  $('buyBulb').onclick = buyBulb;
+
+  // Günlük hediye: ampulü hiç kalmayan oyuncuya günde bir ampul. Verildiyse true.
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  function dailyGift() {
+    if (hintsFree() || progress.hints > 0 || progress.hintGiftDay === today()) return false;
+    progress.hintGiftDay = today();
+    progress.hints++;
+    saveProgress();
+    bulbsInAir++;
+    showTip('Günün hediyesi: 1 ampul', 3500);
+    setTimeout(() => {
+      const ar = $('app').getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
+      flyBulbs(1, sr.left - ar.left + sr.width / 2, sr.top - ar.top + sr.height / 2, true);
+    }, 500);
+    return true;
+  }
+
+  // n ampul (x, y)'den ipucu düğmesine uçar; konan her ampul rozeti bir artırır
+  function flyBulbs(n, x, y, big) {
+    const now = performance.now();
+    for (let k = 0; k < n; k++) {
+      bulbFly.push({ x: x + (k - (n - 1) / 2) * 26, y, t0: now + k * 180, big: !!big, landed: false });
+    }
+    if (big) Sound.gift();
+  }
+  // Uçuş yarıda kalırsa (bölüm değişti) ampuller hemen sayılır
+  function landBulbs() {
+    bulbFly = [];
+    bulbsInAir = 0;
+  }
+
+  function hintTarget() {
+    const r = $('hintCount').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
+    return { x: r.left - ar.left + r.width / 2, y: r.top - ar.top + r.height / 2 };
+  }
+
+  function drawBulb(g, x, y, r, glow) {
+    g.save();
+    const grd = g.createRadialGradient(x, y, 0, x, y, r * 2.6);
+    grd.addColorStop(0, `rgba(255, 220, 120, ${0.55 * glow})`);
+    grd.addColorStop(1, 'rgba(255, 220, 120, 0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(x, y, r * 2.6, 0, TAU); g.fill();
+    const body = g.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
+    body.addColorStop(0, '#fff6c4');
+    body.addColorStop(0.6, '#ffc94a');
+    body.addColorStop(1, '#c9851a');
+    g.fillStyle = body;
+    g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    g.restore();
+  }
+
+  function drawBulbFly(now) {
+    if (!bulbFly.length) return;
+    const tgt = hintTarget();
+    for (const f of bulbFly) {
+      const t = (now - f.t0) / BULB_MS;
+      if (t < 0) { drawBulb(fctx, f.x, f.y, f.big ? 13 : 10, 1); continue; }
+      if (t >= 1) {
+        if (!f.landed) {
+          f.landed = true;
+          bulbsInAir = Math.max(0, bulbsInAir - 1);
+          renderHintCount();
+          $('homeBulbs').textContent = progress.hints - bulbsInAir;
+          const el = $('hintCount');
+          el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+          Sound.bulb();
+        }
+        continue;
+      }
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const x = f.x + (tgt.x - f.x) * e;
+      const y = f.y + (tgt.y - f.y) * e - Math.sin(Math.PI * e) * 90;
+      drawBulb(fctx, x, y, (f.big ? 13 : 10) * (1 - 0.35 * e), 1 - 0.4 * e);
+    }
+    bulbFly = bulbFly.filter(f => !f.landed);
   }
   function closeHintMenu() { $('hintMenu').hidden = true; }
 
@@ -1606,6 +1749,7 @@
     drawShocks(now);
     drawLightWaves(now);
     drawConfetti();
+    drawBulbFly(now);
     drawFloaters(now);
   }
 

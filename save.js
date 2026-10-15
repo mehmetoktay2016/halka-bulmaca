@@ -27,6 +27,7 @@
       coins: 0,
       hints: START_HINTS, // ampul (ipucu hakkı)
       hintGiftDay: null,  // son ücretsiz günlük ampulün verildiği gün (YYYY-AA-GG)
+      bulbsBought: 0,     // altınla alınan ampul sayısı (başarımlar için)
       rewards: {},        // verilmiş tek seferlik ödüller (kapı, final, altın kapı)
     };
   }
