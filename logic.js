@@ -78,16 +78,36 @@
         links.push(link);
       }
     }
-    // Birlikte dönen halka grupları (union-find)
-    const parent = rings.map((_, i) => i);
-    const find = i => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-    for (const [a, b] of def.couples || []) parent[find(a)] = find(b);
-    const group = rings.map((_, i) => rings.filter((_, k) => find(k) === find(i)).map(r => r.id));
-    const groupId = rings.map((_, i) => find(i));
+    // Birlikte dönen halka grupları. Eş tanımı [a, b] ya da [a, b, oran]:
+    // a δ kadar dönünce b oran·δ kadar döner (1: aynı yöne, -1: ters dişli, 2: hızlı dişli).
+    // factor[i]: halkanın grubundaki dönüş katsayısı; i döndürülünce k, δ·factor[k]/factor[i] döner.
+    const couples = (def.couples || []).map(([a, b, ratio]) => ({ a, b, ratio: ratio == null ? 1 : ratio }));
+    const adj = rings.map(() => []);
+    for (const c of couples) {
+      if (!c.ratio) throw new Error('Eş oranı sıfır olamaz');
+      adj[c.a].push([c.b, c.ratio]);
+      adj[c.b].push([c.a, 1 / c.ratio]);
+    }
+    const factor = rings.map(() => 0);
+    const groupId = rings.map((_, i) => i);
+    for (let i = 0; i < n; i++) {
+      if (factor[i]) continue;
+      factor[i] = 1;
+      const stack = [i];
+      while (stack.length) {
+        const u = stack.pop();
+        for (const [v, r] of adj[u]) {
+          const f = factor[u] * r;
+          if (!factor[v]) { factor[v] = f; groupId[v] = i; stack.push(v); }
+          else if (Math.abs(factor[v] - f) > 1e-9) throw new Error(`Eş oranları çelişiyor (halka ${v})`);
+        }
+      }
+    }
+    const group = rings.map((_, i) => rings.filter((_, k) => groupId[k] === groupId[i]).map(r => r.id));
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
 
     return {
-      rings, links, ringLinks, group, groupId, rotatable,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples,
       full: (1 << n) - 1,
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
     };
@@ -133,9 +153,10 @@
     return { mask, waves };
   }
 
+  // Halka i'yi delta kadar döndürür; eşleri kendi oranlarıyla döner
   function rotate(L, angles, i, delta) {
     const out = angles.slice();
-    for (const k of L.group[i]) out[k] = norm(out[k] + delta);
+    for (const k of L.group[i]) out[k] = norm(out[k] + delta * L.factor[k] / L.factor[i]);
     return out;
   }
 
@@ -211,9 +232,12 @@
   }
 
   // Hızlı çözücü (ağırlıklı A*): her zaman en kısa yolu bulmaz ama milisaniyeler sürer.
-  // İpucu ve üretimde ön eleme için kullanılır.
-  function solveFast(L, angles, mask, maxNodes) {
+  // Üretimde ön eleme ve denemelerin rehber eli için kullanılır.
+  // weight: tahminin ağırlığı. 2 (varsayılan) en hızlısı; 0.8 neredeyse her zaman en kısa yolu bulur
+  // ama daha çok düğüm açar (ipucu bunu kullanır: ilk 50 bölümde 49'u en kısa yol).
+  function solveFast(L, angles, mask, maxNodes, weight) {
     maxNodes = maxNodes || 20000;
+    const W = weight == null ? 2 : weight;
     mask = cascade(L, angles, mask).mask;
     if (mask === L.full) return { moves: 0, first: null };
     const heap = [];
@@ -260,7 +284,7 @@
           if (seen.has(key)) continue;
           seen.add(key);
           const g = node.g + 1;
-          push({ angles: na, mask: m2, g, f: g + 2 * closedLinks(L, na, m2), first });
+          push({ angles: na, mask: m2, g, f: g + W * closedLinks(L, na, m2), first });
         }
       }
     }

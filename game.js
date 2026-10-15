@@ -716,12 +716,12 @@
     return { ux: (b.x2 - b.x1) / len, uy: (b.y2 - b.y1) / len, len };
   }
 
-  function startDef(def, levelNo, tut) {
+  function startDef(def, levelNo, tut, preview = null) {
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
-      auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0,
+      auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
@@ -806,6 +806,7 @@
 
   function updateHud() {
     $('levelLabel').textContent = S.tut != null ? 'Nasıl oynanır'
+      : S.preview ? 'Tanıtım · ' + S.def.title
       : 'Seviye ' + S.levelNo + ' · ' + (S.def.name || W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
     $('movesNum').textContent = S.tut != null ? S.moves : left;
@@ -876,6 +877,13 @@
     const order = L.links.map((_, i) => i).sort(() => Math.random() - 0.5);
     const want = Math.min(L.links.length, 1 + Math.floor(Math.random() * 3));
     const out = [];
+    // Dişli işaretlerinin (ters dişli oku, "×2" etiketi) üstüne altın konmaz
+    const marks = L.couples.filter(c => c.ratio !== 1).map(c => {
+      const a = L.rings[c.a], b = L.rings[c.b];
+      if (c.ratio === -1) return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const f = Math.abs(c.ratio) > 1 ? b : a;
+      return { x: f.x, y: f.y - 22 };
+    });
     for (const li of order) {
       if (out.length >= want) break;
       const k = L.links[li];
@@ -884,7 +892,8 @@
       const y = (k.pts[0].y + k.pts[1].y) / 2;
       const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
         (r.kind === 'bar' ? segDist(x, y, r) > 18 : Math.abs(Math.hypot(x - r.x, y - r.y) - r.r) > 18));
-      if (clear && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
+      const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30);
+      if (clear && offMark && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
         out.push({ link: li, x, y, taken: false, phase: Math.random() * TAU });
       }
     }
@@ -1002,6 +1011,7 @@
     const w = $('app').clientWidth;
     floaters.push({ text: `Zincir ×${n}`, x: Math.max(80, Math.min(w - 80, p.x)), y: p.y, t0: performance.now(), big: n >= 3 });
     Sound.chain(n);
+    if (S.preview) return;
     stat('chains');
     progress.stats.bestChain = Math.max(progress.stats.bestChain || 0, n);
     saveProgress();
@@ -1010,6 +1020,7 @@
 
   function showWin() {
     if (S.tut != null) { showTutorialWin(); return; }
+    if (S.preview) { showPreviewWin(); return; }
     const par = S.def.par ?? S.moves;
     const stars = S.extra ? 1 : starsFor(S.moves, par);
     const key = idOf(S.levelNo);
@@ -1074,6 +1085,36 @@
     const st = $('stars').getBoundingClientRect();
     const ar = $('app').getBoundingClientRect();
     lightWaves.push({ x: st.left - ar.left + st.width / 2, y: st.top - ar.top + st.height / 2, t0: performance.now() });
+  }
+
+  // Kapıya yerleşmemiş bir tanıtım bölümü (?src=): sonuç kaydedilmez
+  function showPreviewWin() {
+    const stars = S.extra ? 1 : starsFor(S.moves, S.def.par ?? S.moves);
+    const card = $('win').querySelector('.card');
+    card.classList.remove('tut', 'perfect');
+    $('winLevel').textContent = 'Tanıtım · ' + S.def.title;
+    $('winTitle').textContent = stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Başardın!';
+    $('stars').innerHTML = [1, 2, 3].map(k =>
+      `<span class="star-ico${k <= stars ? '' : ' off'}" style="animation-delay:${200 + k * 180}ms"></span>`).join('');
+    $('winMoves').textContent = S.moves;
+    $('winPar').textContent = S.def.par;
+    $('winCoins').textContent = '+0';
+    $('winScore').textContent = '+0';
+    $('winNote').textContent = 'Önizleme: sonuç kaydedilmedi.';
+    $('winRewards').innerHTML = '';
+    $('continue').textContent = 'Ana menü';
+    $('win').classList.remove('hidden');
+    Sound.win();
+    launchConfetti(stars);
+    updateHud();
+  }
+
+  function loadPreview(src) {
+    const def = getLevel(src);
+    if (!def) { showTip('Bu bölüm yüklenemedi'); return; }
+    applyWorld(W.worldById(def.world) || W.WORLDS[0]);
+    startDef(def, 0, null, src);
+    if (def.tip) showTip(def.tip, 5000);
   }
 
   const TUT_PRAISE = ['Harika!', 'Süper!', 'Çok iyi!', 'Hazırsın!'];
@@ -1288,10 +1329,10 @@
     updateHud();
     guide();
   };
-  const restart = () => (S.tut != null ? loadTutorial(S.tut) : loadLevel(S.levelNo));
+  const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : loadLevel(S.levelNo));
   $('reset').onclick = () => { Sound.tap(); restart(); };
   $('again').onclick = () => { Sound.tap(); restart(); };
-  $('failRetry').onclick = () => { Sound.tap(); loadLevel(S.levelNo); };
+  $('failRetry').onclick = () => { Sound.tap(); restart(); };
   $('extraMoves').onclick = buyExtraMoves;
   $('howBtn').onclick = () => { Sound.tap(); loadTutorial(0); showScreen('game'); };
   $('coachSkip').onclick = () => { Sound.tap(); finishTutorial(); };
@@ -1310,13 +1351,14 @@
       else finishTutorial();
       return;
     }
+    if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
   // ---- İpucu: ampul sayacı ve kademeli ipucu ----
   // Dürtme her zaman ücretsiz; İpucu ve Hamleyi yap birer ampul. 1. kapıda ve denemelerde hepsi ücretsiz.
-  const hintsFree = () => S.tut != null || W.gateOf(S.levelNo) === 1;
+  const hintsFree = () => S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
 
   function renderHintCount() {
     const el = $('hintCount');
@@ -1327,7 +1369,20 @@
     $('hint').setAttribute('aria-label', free ? 'İpucu (ücretsiz)' : `İpucu (${shown} ampul)`);
   }
 
+  // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
+  // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
+  let hintCache = null; // { key, sol }
+  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',');
+  function bestMove() {
+    const key = boardKey();
+    if (hintCache && hintCache.key === key) return hintCache.sol;
+    const sol = solveFast(S.L, S.angles, S.mask, 40000, 0.8) || solveFast(S.L, S.angles, S.mask, 30000);
+    hintCache = { key, sol };
+    return sol;
+  }
+
   function openHintMenu() {
+    setTimeout(() => { if (!$('hintMenu').hidden && !S.won && !S.failed) bestMove(); }, 60);
     const free = hintsFree();
     for (const b of $('hintMenu').querySelectorAll('.hint-opt')) {
       if (b.dataset.tier === 'nudge') continue;
@@ -1454,7 +1509,7 @@
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip('Ampulün kalmadı. Ücretsiz dürtmeyi dene'); return; }
     closeHintMenu();
-    const sol = solveFast(S.L, S.angles, S.mask, 30000);
+    const sol = bestMove();
     // Çözüm bulunamazsa ampul harcanmaz
     if (!sol || !sol.first) { showTip('İpucu bulunamadı, yeniden başlatmayı dene'); return; }
     if (cost) {
@@ -1466,9 +1521,12 @@
     $('hint').classList.remove('pulse');
     S.help.lastAct = performance.now();
     S.usedHint = true;
-    stat('hintsUsed');
-    saveProgress();
-    awardBadges(false);
+    // Önizleme (kapıya yerleşmemiş tanıtım) sayaçlara ve rozetlere dokunmaz
+    if (!S.preview) {
+      stat('hintsUsed');
+      saveProgress();
+      awardBadges(false);
+    }
     Sound.tap();
     const now = performance.now();
     if (tier === 'nudge') {
@@ -1716,36 +1774,76 @@
     });
   }
 
+  // Eşli halkalar: merkezleri kesikli çizgiyle bağlı, merkezlerinde renkli nokta.
+  // Ters dişlide çizginin ortasında zıt yönlü iki ok, hızlı dişlide hızlı halkanın üstünde "×2".
   function drawCouples() {
-    const groups = new Map();
-    S.L.rings.forEach((_, i) => {
-      if (S.L.group[i].length < 2 || !present(i)) return;
-      const g = S.L.groupId[i];
-      if (!groups.has(g)) groups.set(g, []);
-      groups.get(g).push(i);
-    });
+    const couples = S.L.couples.filter(c => present(c.a) && present(c.b));
+    if (!couples.length) return;
     ctx.save();
-    for (const members of groups.values()) {
-      ctx.setLineDash([6, 8]);
-      ctx.strokeStyle = S.def.deco ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.35)';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      for (let m = 1; m < members.length; m++) {
-        const a = S.L.rings[members[m - 1]], b = S.L.rings[members[m]];
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      for (const i of members) {
-        const r = S.L.rings[i];
-        ctx.fillStyle = ringColor(i);
-        ctx.beginPath(); ctx.arc(r.x, r.y, 7, 0, TAU); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,.7)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.setLineDash([6, 8]);
+    ctx.strokeStyle = S.def.deco ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.35)';
+    ctx.lineWidth = 3;
+    for (const c of couples) {
+      const a = S.L.rings[c.a], b = S.L.rings[c.b];
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    for (const i of new Set(couples.flatMap(c => [c.a, c.b]))) {
+      const r = S.L.rings[i];
+      ctx.fillStyle = ringColor(i);
+      ctx.beginPath(); ctx.arc(r.x, r.y, 7, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.7)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    for (const c of couples) {
+      if (c.ratio === 1) continue;
+      const a = S.L.rings[c.a], b = S.L.rings[c.b];
+      if (c.ratio === -1) drawReverseMark((a.x + b.x) / 2, (a.y + b.y) / 2);
+      else {
+        const fast = Math.abs(c.ratio) > 1 ? b : a;
+        drawFastMark(fast.x, fast.y, Math.max(Math.abs(c.ratio), 1 / Math.abs(c.ratio)));
       }
     }
     ctx.restore();
   }
+
+  // Ters dişli işareti: koyu yuvarlak üstünde zıt yönlü iki ok
+  function drawReverseMark(x, y) {
+    ctx.fillStyle = 'rgba(16, 20, 42, .92)';
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.2;
+    const arrow = (x0, x1, yy) => {
+      const d = Math.sign(x1 - x0);
+      ctx.beginPath();
+      ctx.moveTo(x0, yy); ctx.lineTo(x1, yy);
+      ctx.moveTo(x1 - d * 3.5, yy - 3.5); ctx.lineTo(x1, yy); ctx.lineTo(x1 - d * 3.5, yy + 3.5);
+      ctx.stroke();
+    };
+    arrow(x - 7, x + 7, y - 4);
+    arrow(x + 7, x - 7, y + 4);
+  }
+
+  // Hızlı dişli işareti: halkanın merkezinin üstünde altın rengi "×2" etiketi
+  function drawFastMark(x, y, k) {
+    const w = 30, h = 19, top = y - 13 - h;
+    ctx.fillStyle = '#ffc94a';
+    ctx.strokeStyle = 'rgba(16, 20, 42, .9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - w / 2, top, w, h, 9.5); else ctx.rect(x - w / 2, top, w, h);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3b2600';
+    ctx.font = '800 13px Nunito, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('×' + k, x, top + h / 2 + 1);
+  }
+
 
   // Denemede: parmak, halkayı tutup gösterilen yöne sürükler (döngü halinde)
   function drawFinger(now) {
@@ -2010,6 +2108,10 @@
     showScreen('game');
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
+  } else if (params.has('src')) {
+    // Geliştirme: ?src=1001 bir bölümü kaynak numarasıyla açar (kapıya yerleşmemiş tanıtımlar için)
+    loadPreview(parseInt(params.get('src'), 10));
+    showScreen('game');
   } else if (params.has('world')) {
     // Geliştirme: ?world=atolye o dünyanın temasını ve giriş kartını gösterir
     const world = W.worldById(params.get('world')) || W.WORLDS[1];

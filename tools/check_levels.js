@@ -99,5 +99,23 @@ order.forEach((s, p) => {
   }
   if (Object.values(Levels.INTRO).includes(s)) seenFeat.add(Object.keys(Levels.INTRO).find(k => Levels.INTRO[k] === s));
 });
+// Yeni mekaniklerin tanıtım bölümleri: çözülebilir, başta kilitli ve kural gerçekten gerekli
+// (oranlar 1 yapılınca, yani normal eş gibi oynanınca, aynı hamlede çözülmemeli)
+for (const [src, def] of Object.entries(Levels.MECH_LEVELS)) {
+  const L = Logic.buildLevel(def);
+  const sol = Logic.solve(L, L.startAngles, 0, 200000);
+  const problems = [];
+  if (Logic.cascade(L, L.startAngles, 0).mask) problems.push('başta serbest halka var');
+  if (!sol) problems.push('çözülemiyor');
+  else {
+    if (sol.moves !== Levels.getLevel(Number(src)).par) problems.push(`par ${def.par}, çözüm ${sol.moves}`);
+    const plain = Logic.buildLevel({ ...def, couples: def.couples.map(([a, b]) => [a, b]) });
+    const ps = Logic.solve(plain, plain.startAngles, 0, 200000);
+    if (ps && ps.moves <= sol.moves) problems.push(`kural fark etmiyor (normal eşle de ${ps.moves} hamle)`);
+  }
+  if (!Levels.features(def).some(f => Levels.INTRO[f] === Number(src))) problems.push('INTRO tablosunda yok');
+  console.log(`Tanıtım #${src} ${def.title.padEnd(12)} par ${sol ? sol.moves : '-'}` + (problems.length ? '  <-- ' + problems.join(', ') : ''));
+  failed += problems.length;
+}
 console.log(failed ? `\n${failed} sorun var` : '\nTüm seviyeler geçerli, kapılar kolaydan zora gidiyor');
 process.exit(failed ? 1 : 0);

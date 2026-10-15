@@ -484,12 +484,29 @@
     return def;
   }
 
-  // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9) tanıtılmadan onu kullanan bölüm gelemez.
-  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9 };
+  // Yeni mekaniklerin tanıtım bölümleri. Kaynak numaraları 1000'den başlar ki 61-200 arasında
+  // üretilecek bölümlerle çakışmasın (kaynak numarası oyuncu kaydında kimliktir, değiştirilmez).
+  // Kapılara Görev 13'te yerleşir; o zamana dek yalnızca ?src=1001 ile açılır.
+  // Yerleşim: eşli iki halka (0 ve 2) birbirini keser, böylece dönüş yönü sonucu doğrudan belirler.
+  // Kural doğru anlaşılınca 2 hamle; normal eş gibi düşünülürse en az 3 hamle (tools/check_levels.js).
+  const CROSSED = [{ x: 145, y: 280, r: 66 }, { x: 200, y: 375, r: 60 }, { x: 255, y: 280, r: 66 }, { x: 200, y: 185, r: 60 }];
+  const MECH_LEVELS = {
+    1001: { title: 'Ters dişli', world: 'atolye', tip: 'Ters dişli: biri sağa dönerse eşi sola döner',
+      rings: CROSSED.map((r, i) => ({ ...r, a: [150, 240, 330, 210][i] })), couples: [[0, 2, -1]] },
+    1002: { title: 'Hızlı dişli', world: 'fabrika', tip: '×2 yazan halka, eşinin iki katı döner',
+      rings: CROSSED.map((r, i) => ({ ...r, a: [180, 120, 30, 270][i] })), couples: [[0, 2, 2]] },
+  };
+
+  // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002)
+  // tanıtılmadan onu kullanan bölüm gelemez.
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002 };
   function features(def) {
     const f = [];
+    const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
     if (def.rings.some(r => r.fixed)) f.push('fixed');
-    if ((def.couples || []).length) f.push('couple');
+    if (ratios.includes(1)) f.push('couple');
+    if (ratios.includes(-1)) f.push('reverse');
+    if (ratios.some(r => Math.abs(r) === 2 || Math.abs(r) === 0.5)) f.push('fast');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -553,7 +570,14 @@
     if (cache[levelNo]) return cache[levelNo];
     let def;
     const pre = root.RING_LEVEL_DATA && root.RING_LEVEL_DATA[levelNo];
-    if (levelNo > MAIN_LEVELS) {
+    if (MECH_LEVELS[levelNo]) {
+      def = MECH_LEVELS[levelNo];
+      if (def.par == null) {
+        const L = Logic.buildLevel(def);
+        const sol = Logic.solve(L, L.startAngles, 0, 200000);
+        def.par = sol ? sol.moves : null;
+      }
+    } else if (levelNo > MAIN_LEVELS) {
       def = pre || finishAnimal(levelNo);
     } else if (levelNo <= HAND_LEVELS.length) {
       def = HAND_LEVELS[levelNo - 1];
@@ -574,7 +598,7 @@
 
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
-    difficultyScore, gateOrder, features, INTRO, MAX_PAR,
+    difficultyScore, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS,
     connected, noRingFreeAtStart, difficulty, barVsRing,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
