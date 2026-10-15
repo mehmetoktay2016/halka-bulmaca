@@ -22,6 +22,8 @@
   const COIN_MS = 650;
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
   const BULB_PRICE = 20;      // altın
+  const EXTRA_PRICE = 20;     // "+3 hamle": altın
+  const EXTRA_MOVES = 3;      // ek hamleyle bitirilen bölüm en fazla 1 yıldız alır
   const GOLD_GATE_BULBS = 3;  // bir kapının 10 bölümü de 3 yıldız olunca
   const BULB_MS = 750;        // ampulün ipucu düğmesine uçuşu
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -719,7 +721,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0, history: [],
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5) : Infinity,
-      auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false,
+      auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
@@ -732,7 +734,6 @@
     shocks = [];
     floaters = [];
     lightWaves = [];
-    clearTimeout(failTimer);
     $('win').classList.add('hidden');
     $('fail').classList.add('hidden');
     $('game').classList.toggle('tutorial', tut != null);
@@ -787,7 +788,7 @@
 
   function renderMeter(reset) {
     const par = S.def.par ?? 99;
-    const stars = starsFor(S.moves, par);
+    const stars = S.extra ? 1 : starsFor(S.moves, par);
     const meter = $('starMeter');
     if (reset || meter.children.length !== 3) {
       meter.innerHTML = '<span class="star-ico"></span><span class="star-ico"></span><span class="star-ico"></span>';
@@ -1010,7 +1011,7 @@
   function showWin() {
     if (S.tut != null) { showTutorialWin(); return; }
     const par = S.def.par ?? S.moves;
-    const stars = starsFor(S.moves, par);
+    const stars = S.extra ? 1 : starsFor(S.moves, par);
     const key = idOf(S.levelNo);
     const firstClear = !progress.stars[key];
     if (stars > (progress.stars[key] || 0)) lastWon = S.levelNo;
@@ -1033,7 +1034,7 @@
       progress.hints += GOLD_GATE_BULBS;
     }
     saveProgress();
-    $('winNote').textContent = '';
+    $('winNote').textContent = S.extra ? 'Ek hamleyle bitti: bu bölüm en fazla 1 yıldız verir.' : '';
     $('winRewards').innerHTML = (firstClear && S.def.name ? `<span class="chip album-chip">Albüme eklendi: <b>${S.def.name}</b></span>` : '') +
       (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '');
     if (goldGate) {
@@ -1091,16 +1092,45 @@
     updateHud();
   }
 
-  let failTimer = 0;
+  // Hamle bitti: oyuncu ya altınla 3 hamle daha alır ya da baştan başlar
   function showFail() {
     S.failed = true;
     failedLevel = S.levelNo;
     S.hint = null;
+    closeHintMenu();
+    const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
+    const can = progress.coins >= EXTRA_PRICE;
+    $('failNote').textContent = left === 1 ? 'Tek halka kaldı!' : `${left} halka kaldı.`;
+    $('extraPrice').textContent = EXTRA_PRICE;
+    $('extraMoves').disabled = !can;
+    $('extraNote').hidden = can;
+    $('extraNote').textContent = `${EXTRA_PRICE - progress.coins} altın daha gerekir (sende ${progress.coins}).`;
+    // Ek hamle alınamıyorsa öne çıkan düğme "Baştan başla" olur
+    $('failRetry').className = can ? 'btn-ghost' : 'btn-primary';
     $('fail').classList.remove('hidden');
     Sound.fail();
     if (navigator.vibrate) { try { navigator.vibrate([30, 60, 30]); } catch (e) { /* yok say */ } }
-    failTimer = setTimeout(() => loadLevel(S.levelNo), 2200);
     updateHud();
+  }
+
+  function buyExtraMoves() {
+    if (!S.failed || progress.coins < EXTRA_PRICE) { Sound.deny(); return; }
+    progress.coins -= EXTRA_PRICE;
+    stat('extraMoves');
+    saveProgress();
+    S.limit += EXTRA_MOVES;
+    S.extra++;
+    S.failed = false;
+    S.help.lastAct = performance.now();
+    $('fail').classList.add('hidden');
+    Sound.coin();
+    renderMeter(false);
+    updateHud();
+    const el = $('movesNum');
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    const pill = $('coinPill');
+    pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+    showTip(`+${EXTRA_MOVES} hamle. Bu bölüm en fazla 1 yıldız verir`, 3000);
   }
 
   // Skor sayacı yukarı doğru sayar
@@ -1261,7 +1291,8 @@
   const restart = () => (S.tut != null ? loadTutorial(S.tut) : loadLevel(S.levelNo));
   $('reset').onclick = () => { Sound.tap(); restart(); };
   $('again').onclick = () => { Sound.tap(); restart(); };
-  $('failRetry').onclick = () => { Sound.tap(); clearTimeout(failTimer); loadLevel(S.levelNo); };
+  $('failRetry').onclick = () => { Sound.tap(); loadLevel(S.levelNo); };
+  $('extraMoves').onclick = buyExtraMoves;
   $('howBtn').onclick = () => { Sound.tap(); loadTutorial(0); showScreen('game'); };
   $('coachSkip').onclick = () => { Sound.tap(); finishTutorial(); };
   function finishTutorial() {

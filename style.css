@@ -934,6 +934,14 @@ svg { display: block; }
 .win-stats b.gold { color: var(--coin); }
 .win-stats span { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .card .row { display: flex; gap: 10px; }
+/* Hamle bitti: +3 hamle ya da baştan başla */
+.fail-actions { display: flex; flex-direction: column; gap: 10px; }
+.extra-btn { width: 100%; }
+.extra-btn small { display: inline-flex; align-items: center; gap: 5px; }
+.extra-btn .coin-ico { font-size: 15px; }
+.extra-btn:disabled { filter: grayscale(.8); opacity: .55; transform: none; box-shadow: 0 5px 0 var(--gold-deep); }
+.extra-note { margin: -2px 0 2px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.fail-actions .btn-primary + .btn-ghost { margin-top: 2px; }
 .card .row .btn-primary { flex: 1; }
 
 #fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; }

@@ -223,8 +223,14 @@
       <div class="card">
         <div class="eyebrow">Hamle sınırı doldu</div>
         <h2 id="failTitle">Hamlen bitti!</h2>
-        <p class="win-note">Seviyenin başına dönülüyor. Bu sefer daha az hamleyle dene.</p>
-        <div class="row"><button id="failRetry" class="btn-primary">Hemen başla</button></div>
+        <p id="failNote" class="win-note"></p>
+        <div class="fail-actions">
+          <button id="extraMoves" class="btn-primary extra-btn">
+            <span>+3 hamle</span><small><i class="coin-ico"></i><b id="extraPrice">20</b> altın</small>
+          </button>
+          <p id="extraNote" class="extra-note" hidden></p>
+          <button id="failRetry" class="btn-ghost">Baştan başla</button>
+        </div>
       </div>
     </div>
 
