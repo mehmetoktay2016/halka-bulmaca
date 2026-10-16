@@ -19,6 +19,13 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
 - İpucu: ücretsiz dürtme, 1 ampulle ipucu ya da hamleyi yaptırma. Ampul kapı açılışı, altın kapı,
   altınla alma (20 altın) ve günlük hediyeyle kazanılır. 1. kapıda ipuçları ücretsiz.
 - Skor: yıldız başına 100, altın başına 25 (her bölümün en iyi sonucu sayılır). 25 rozet ve şekil albümü var.
+- Bölüm altınları yalnızca ilk bitirişte verilir (2.1); tekrar oynayarak altın toplanmaz.
+- Halka ödülleri (2.1): bazı halkaların içinde sandık (sıradan, nadir, efsane), altın halka (bölümün
+  altınları ×2) ya da ampul halkası var; halka kurtulunca açılır, her bölümde bir kez. Haritada köşede görünür.
+- Çıkartmalar: her dünyanın 5 parçalı çıkartması; parça, haritada yapboz işaretli bölüm bitince verilir.
+- Günlük sandık: her gün ilk açılışta 7 günlük şerit, büyüyen ödül; gün kaçırılırsa seri o kadar geri gider.
+- Mağaza: altınla kurtulma efekti, kurtulma sesi ve zafer kutlaması alınır (halka renkleri değişmez).
+- Ödül miktarları ve fiyatlar tek yerde: `rewards.js`. Ekonomi ölçümü: `npm run economy`.
 
 200 bölüm 20 kapıya, kapılar 8 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
 Fabrika, Uzay, Büyük Usta). Her kapının 5. bölümü bir ara şekil, 10. bölümü bir şekil finalidir; her
@@ -54,6 +61,9 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `worlds.js` | Yolculuk: dünyalar, kapılar, unvanlar, dünya temaları |
 | `save.js` | Oyuncu kaydı: yükleme, eski sürümden taşıma, kilit sınırı |
 | `achievements.js` | 25 rozet: kurallar ve ödüller |
+| `rewards.js` | Ödül ekonomisi: fiyatlar, sandık/altın halka/ampul halkası yerleri ve içerikleri, çıkartma parçaları, günlük sandık, mağaza ürünleri |
+| `loot_data.js` | Her bölümde ödül taşıyabilecek halkalar ve konumları (`tools/build_loot.js` üretir, elle düzenlenmez) |
+| `stickers.js` | 8 dünyanın çıkartma çizimleri ve parça işareti |
 | `deco.js` | Şekil süsleri: hayvan yüzleri, ayarlanabilir yüz, eşyalar (tekerlek, saat, dişli...) |
 | `scenery.js` | Dünyaların tahta dokuları ve arka plan parçacıkları |
 | `ambience.js` | Dünyaların ortam sesleri (WebAudio ile üretilir) |
@@ -62,7 +72,10 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `tools/check_levels.js` | `npm run check` içinde: bütün bölümleri, kapıların zorluk sırasını ve tanıtımları doğrular |
 | `tools/check_shapes.js` | `npm run check` içinde: şekillerin geometrisini ve süslerini doğrular |
 | `tools/check_themes.js` | `npm run check` içinde: her dünyanın zemininde halkaların okunaklı olduğunu (kontrast) doğrular |
-| `tools/test_save.js`, `test_badges.js`, `test_logic.js` | `npm test`: kayıt, rozet ve kural (dişli, tık, kilit, çerçeve) testleri |
+| `tools/test_save.js`, `test_badges.js`, `test_logic.js`, `test_loot.js` | `npm test`: kayıt, rozet, kural (dişli, tık, kilit, çerçeve) ve ödül (yerler, sandık, çıkartma, seri, mağaza) testleri |
+| `tools/build_loot.js` | Bölümler değişince ödül yerlerini yeniden hesaplar (`loot_data.js`) |
+| `tools/browser_levels.js` | Bölümleri tarayıcıdakiyle aynı (ortalanmış) yükler; ekrandaki konuma bakan araçlar bunu kullanır |
+| `tools/economy.js` | `npm run economy`: kapı kapı altın ve ampul kazancı, mağaza toplamı |
 | `tools/balance.js` | Denge testi: 200 bölümü yalnızca ipucuyla oynar, ipucu hızını ve ekonomiyi ölçer |
 | `tools/build_levels.js` | `node tools/build_levels.js 90 195` → bölümleri yeniden üretir |
 | `tools/build_range.js` | Zor tek bir bölümü aday aralığında üretir (paralel arama için) |

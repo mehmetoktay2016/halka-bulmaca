@@ -1031,7 +1031,9 @@
     S.angles = S.L.startAngles.slice();
     const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
     if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
-    S.coins = tut == null ? placeCoins() : [];
+    // Bölüm altınları yalnız ilk bitirişte: tekrar oynayarak altın toplanmasın (alınmamış altın halka hariç)
+    const replay = levelNo && !preview && !!progress.stars[idOf(levelNo)];
+    S.coins = tut == null && (!replay || (S.loot && S.loot.type === 'gold')) ? placeCoins() : [];
     coinFly = [];
     landBulbs();
     particles = [];

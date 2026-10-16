@@ -25,8 +25,8 @@
     goldPerGate: 1,      // altın halka: o bölümün altınları 2 kat sayılır (bölüm bitince)
     goldCoins: 3,        // altın halkalı bölümde tahtaya konan altın (yer varsa)
     goldMult: 2,
-    // Ampul halkası (+1 ampul): zor kapılarda ve arada birkaç kapıda, kapı başına bir
-    bulbGates: [4, 6, 9, 10, 11, 12, 15, 18],
+    // Ampul halkası (+1 ampul): yalnız en zor kapılarda (hata payı en düşük), kapı başına bir
+    bulbGates: [6, 9, 10, 11, 12],
     introPos: 3,         // 1. kapıda tek tanıtım sandığı: kapının kaçıncı bölümünde
     introCoins: 5,
     // Zor kapılarda (hata payı en düşük olanlar, tools/economy.js) nadir sandık daha sık
@@ -37,7 +37,7 @@
     },
     chest: {
       common: { coins: [3, 5] },
-      rare: { coins: [7, 11], bulbChance: 0.3 },
+      rare: { coins: [7, 11], bulbChance: 0.2 },
       epic: { coins: [14, 22], bulbs: 1 },
     },
   };

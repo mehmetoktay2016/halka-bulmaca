@@ -108,6 +108,5 @@ const chest = rows.reduce((s, r) => s + r.chestCoins, 0), chestB = rows.reduce((
 console.log(`\nYolculuk sonunda: ~${Math.round(last.coinsTotal)} altın (${Math.round(lvl)} bölümlerden, ${Math.round(last.coinsTotal - lvl - chest)} rozetlerden, ${chest} sandıklardan)` +
   ` = ${Math.floor(last.coinsTotal / E.bulbPrice)} ampul; garanti ampul ${last.bulbs} (${chestB} tanesi sandık ve ampul halkalarından; tabloda "a" = ampul).`);
 console.log(`Beceriye bağlı ek kaynaklar: rozetler en çok ${skillCoins} altın, altın kapılar en çok ${G * E.goldGateBulbs} ampul, günlük ampul (ampulü bitene, günde ${E.dailyBulbs}).`);
-console.log(`Not: bölüm altınları tekrar oynayınca yeniden toplanabiliyor (bölüm başına ~${expectedCoins(9).toFixed(0)}); bu hesapta yok.`);
 const shopTotal = Object.values(R.SHOP).reduce((s, c) => s + c.items.reduce((t, i) => t + i.price, 0), 0);
 console.log(`Harcama yeri: süs mağazasının tamamı ${shopTotal} altın; günlük sandık haftada ${R.STREAK.days.reduce((s, d) => s + d.coins, 0)} altın + 1 ampul (hesapta yok).`);

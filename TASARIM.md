@@ -37,6 +37,31 @@ bağı açıksa halka serbest kalır ve uçar. Hedef hamle sayısı çözücüyl
 - Tek seferlik "reklamları kaldır" satın alımı.
 - İnternetsiz oynanabilir.
 
+## Ödül ekonomisi ve reklam anları (2.1)
+
+Amaç: oyuncuyu oyunda tutan ödüller, ama oyunu bilerek zorlaştırmadan. Reklam (ileride) bir zorunluluk değil,
+oyuncunun seçtiği bir hızlandırıcı olacak (yukarıdaki şikayet 1 ve 7).
+
+- **Kaynaklar:** bölüm altını (yalnızca ilk bitiriş), rozetler, sandıklar (kapı başına 3; zor kapılarda nadir/efsane
+  daha sık), altın halka (×2), ampul halkası (yalnızca en zor kapılar: 6, 9-12), çıkartma setleri (dünya başına 25),
+  günlük sandık (haftada 100 altın + 1 ampul).
+- **Harcama:** ampul (20 altın), +3 hamle (20 altın), süs mağazası (9 ürün, toplam 1.350 altın).
+- **Ölçüm:** `npm run economy`. 2.1'de tipik oyuncu yolculuk boyunca ~1.490 altın ve 39 garanti ampul kazanır
+  (2.0'da 770 altın, 22 ampul). Bütün miktarlar `rewards.js`'te.
+
+**İleride reklam düğmesi eklenebilecek anlar** (bugün hepsi altınla ya da bedava çalışır; reklam yalnızca
+yanına "veya reklam izle" seçeneği olarak gelir, hiçbiri zorunlu olmaz):
+
+| An | Bugün | Reklamla |
+|---|---|---|
+| Hamle bitti | 20 altınla +3 hamle | +3 hamle (bölüm başına bir) |
+| İpucu menüsü | 20 altınla ampul | +1 ampul (günde birkaç) |
+| Sandık açıldı | — | içindeki altını 2 katla |
+| Günlük sandık açıldı | — | ödülü 2 katla; kaçırılan günü kurtar |
+| Çıkartmanın son parçası eksik | parçalı bölümü bitir | — (parça hep oyunla kazanılır) |
+
+1. kapıda reklam olmaz. Ödüllü reklamın ödülü cömert ve net yazılır.
+
 ## Yol Haritası
 
 1. [x] Prototip: halka döndürme, boşluk hizalama, halka çıkışı
