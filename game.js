@@ -24,10 +24,12 @@
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
-  const BULB_PRICE = 20;      // altın
-  const EXTRA_PRICE = 20;     // "+3 hamle": altın
-  const EXTRA_MOVES = 3;      // ek hamleyle bitirilen bölüm en fazla 1 yıldız alır
-  const GOLD_GATE_BULBS = 3;  // bir kapının 10 bölümü de 3 yıldız olunca
+  // Fiyatlar ve ödül miktarları rewards.js'te
+  const ECO = window.RingRewards.ECONOMY;
+  const BULB_PRICE = ECO.bulbPrice;
+  const EXTRA_PRICE = ECO.extraPrice;
+  const EXTRA_MOVES = ECO.extraMoves;
+  const GOLD_GATE_BULBS = ECO.goldGateBulbs;
   const BULB_MS = 750;        // ampulün ipucu düğmesine uçuşu
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Süs efektleri (arka plan parçacıkları, büyük patlama, ışık dalgası): ayarlardan kapanabilir
@@ -200,7 +202,7 @@
     for (let g = 2; g < fg; g++) {
       if (progress.rewards['gate:' + g]) continue;
       progress.rewards['gate:' + g] = true;
-      progress.hints++;
+      progress.hints += ECO.gateBulbs;
     }
     for (let g = 1; g <= GATE_COUNT; g++) {
       if (gateGold(g) && !progress.rewards['gold:' + g]) {
@@ -606,8 +608,8 @@
       const rewards = [];
       if (p.gate) {
         progress.rewards['gate:' + p.gate] = true;
-        progress.hints++;
-        rewards.push('<span class="chip bulb">+1 ampul</span>');
+        progress.hints += ECO.gateBulbs;
+        rewards.push(`<span class="chip bulb">+${ECO.gateBulbs} ampul</span>`);
       }
       if (p.newTitle) {
         progress.title = p.newTitle;
@@ -901,7 +903,7 @@
   function placeCoins() {
     const L = S.L;
     const order = L.links.map((_, i) => i).sort(() => Math.random() - 0.5);
-    const want = Math.min(L.links.length, 1 + Math.floor(Math.random() * 3));
+    const want = Math.min(L.links.length, ECO.levelCoins[0] + Math.floor(Math.random() * (ECO.levelCoins[1] - ECO.levelCoins[0] + 1)));
     const out = [];
     // Dişli işaretlerinin (ters dişli oku, "×2" etiketi) üstüne altın konmaz
     const marks = L.couples.filter(c => c.ratio !== 1).map(c => {
@@ -1571,13 +1573,13 @@
   function dailyGift() {
     if (hintsFree() || progress.hints > 0 || progress.hintGiftDay === today()) return false;
     progress.hintGiftDay = today();
-    progress.hints++;
+    progress.hints += ECO.dailyBulbs;
     saveProgress();
-    bulbsInAir++;
-    showTip('Günün hediyesi: 1 ampul', 3500);
+    bulbsInAir += ECO.dailyBulbs;
+    showTip(`Günün hediyesi: ${ECO.dailyBulbs} ampul`, 3500);
     setTimeout(() => {
       const ar = $('app').getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
-      flyBulbs(1, sr.left - ar.left + sr.width / 2, sr.top - ar.top + sr.height / 2, true);
+      flyBulbs(ECO.dailyBulbs, sr.left - ar.left + sr.width / 2, sr.top - ar.top + sr.height / 2, true);
     }, 500);
     return true;
   }

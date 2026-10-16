@@ -8,6 +8,7 @@
     "android:sync": "node tools/build_www.js && npx cap sync android",
     "android:open": "npx cap open android",
     "check": "node tools/check_levels.js && node tools/check_shapes.js && node tools/check_themes.js",
+    "economy": "node tools/economy.js",
     "test": "node tools/test_save.js && node tools/test_badges.js && node tools/test_logic.js"
   },
   "dependencies": {

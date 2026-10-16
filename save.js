@@ -33,6 +33,9 @@
       seenBadges: {},     // koleksiyon ekranında görülmüş rozetler (kırmızı nokta için)
       stats: {},          // başarım sayaçları: chains, bestChain, comebacks, hintsUsed, coinsTotal
       rewards: {},        // verilmiş tek seferlik ödüller (kapı, final, altın kapı)
+      loot: {},           // halka ödülü alınmış bölümler (bölüm kimliği -> ödül türü); her bölümde bir kez
+      stickers: {},       // toplanan çıkartma parçaları (parça kimliği -> kazanıldığı gün)
+      streak: null,       // günlük seri: { day: 'YYYY-AA-GG', count }
     };
   }
 
