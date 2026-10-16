@@ -988,7 +988,7 @@ svg { display: block; }
 .trophy-screen { padding-bottom: 0; }
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
   padding: 4px;
   border-radius: 16px;
@@ -1209,3 +1209,46 @@ svg { display: block; }
 .loot-ico.bulb { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)) drop-shadow(0 0 5px rgba(255, 228, 138, .9)); }
 .chip.loot-chip.gold { --loot: #ffc94a; border-color: rgba(255, 201, 74, .6); }
 .chip.loot-chip.gold::before { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff3b0, #ffd54a 55%, #b9770e); box-shadow: none; }
+
+/* Çıkartmalar: haritada parça işareti, koleksiyonda setler, bölüm sonunda yeni parça */
+.node > svg.piece-ico { position: absolute; top: -10px; left: -10px; width: 24px; height: 23px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)); pointer-events: none; }
+.node.locked > svg.piece-ico { opacity: .55; }
+.sticker-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.sticker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 14px 8px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--line);
+  text-align: center;
+  min-width: 0;
+}
+.sticker-card svg { width: 96px; height: 96px; margin-bottom: 4px; }
+.sticker-card b { font-family: var(--font-display); font-size: 15px; font-weight: 800; line-height: 1.15; }
+.sticker-card small { font-size: 11.5px; font-weight: 800; color: var(--muted); }
+.sticker-card span { font-size: 12.5px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sticker-card span.got { color: var(--gold); }
+.sticker-card.done { border-color: rgba(255, 201, 74, .45); }
+.sticker-win {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid color-mix(in srgb, var(--wa) 55%, transparent);
+  text-align: left;
+}
+.sticker-win svg { width: 58px; height: 58px; flex: none; }
+.sticker-win span { display: flex; flex-direction: column; line-height: 1.2; }
+.sticker-win small { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--wa); }
+.sticker-win b { font-family: var(--font-display); font-size: 16px; font-weight: 800; }
+.sticker-win em { font-style: normal; font-size: 13px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+.sticker .piece.fresh { transform-box: view-box; transform-origin: 50% 50%; animation: piece-in .55s .7s cubic-bezier(.2, 1.5, .4, 1) both; }
+.sticker-win.complete svg { animation: sticker-done .7s .7s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes piece-in { from { opacity: 0; transform: scale(1.35); } to { opacity: 1; transform: scale(1); } }
+@keyframes sticker-done { 0% { transform: scale(.6) rotate(-20deg); } 100% { transform: scale(1) rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .sticker .piece.fresh, .sticker-win.complete svg { animation: none; } }

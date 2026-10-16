@@ -5,6 +5,7 @@
 //   Oyun bazı kesişimleri yerleşim yüzünden eler, gerçek değer biraz daha düşük olabilir.
 // - Rozet altını: yalnızca ilerlemeyle kesin gelen rozetler (bölüm, kapı, dünya, yıldız, şekil, toplam altın).
 //   Beceriye ya da davranışa bağlı rozetler (3 yıldız, ipucusuz, zincir...) ayrıca toplanır.
+// - Çıkartma setleri: dünyanın son bölümünde setCoins altın (sandık sütununa eklenir).
 // - Halka ödülleri: rewards.js'teki yer ve içerik kurallarıyla (her bölümde bir kez). Altın halkanın katı
 //   bölüm altınına, ampul halkası sandık ampullerine eklenir.
 // - Talep: ortalama en iyi çözüm (par), hata payı (hamle hakkı - par), payı 2 ya da daha az olan "dar" bölüm.
@@ -71,6 +72,8 @@ for (let g = 1; g <= G; g++) {
     const pad = moveLimit(def.par, src) - def.par;
     parSum += def.par; padSum += pad;
     if (pad <= 2) tight++;
+    // Dünyanın son bölümü: çıkartma seti tamamlanır
+    if (n === order.length || W.worldOfGate(W.gateOf(n + 1)).id !== W.worldOfGate(g).id) { chestCoins += R.STICKERS.setCoins; coinsTotal += R.STICKERS.setCoins; }
     wins++; stars += STARS;
     if (def.name) shapes++;
     const gatesDone = n % W.GATE_SIZE === 0 ? g : g - 1;

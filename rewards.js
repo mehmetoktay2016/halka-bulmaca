@@ -41,6 +41,21 @@
       epic: { coins: [14, 22], bulbs: 1 },
     },
   };
+  // Çıkartma parçaları: her dünyanın 5 parçası, dünyanın bölümlerine yayılır; son parça dünyanın son bölümünde.
+  // Parça, bölüm bitince verilir (her parça bir kez). Set tamamlanınca setCoins altın.
+  const STICKERS = {
+    at: [0.1, 0.3, 0.55, 0.8, 1], // dünyanın bölümlerinde parçaların yeri (oran)
+    setCoins: 25,
+  };
+  // Dünyanın bölüm numaraları (sırayla) -> k. parçanın bölümü. Kapının ilk bölümü (yeni mekaniğin tanıtımı) atlanır.
+  function stickerLevels(levels, gateSize = 10) {
+    return STICKERS.at.map(f => {
+      let i = Math.max(0, Math.ceil(f * levels.length) - 1);
+      if ((levels[i] - 1) % gateSize === 0 && i + 1 < levels.length) i++;
+      return levels[i];
+    });
+  }
+
   const RARITY_NAMES = { common: 'Sandık', rare: 'Nadir sandık', epic: 'Efsane sandık' };
 
   // Tohumlu rastgele sayı (mulberry32): aynı tohum, aynı dizi
@@ -94,7 +109,7 @@
     return { rarity, name: RARITY_NAMES[rarity], coins, bulbs };
   }
 
-  const api = { ECONOMY, LOOT, rng, gatePlan, spotFor, chestFor };
+  const api = { ECONOMY, LOOT, STICKERS, rng, gatePlan, spotFor, chestFor, stickerLevels };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingRewards = api;
 })(this);

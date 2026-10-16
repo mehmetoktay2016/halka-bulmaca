@@ -31,6 +31,7 @@
   const EXTRA_MOVES = ECO.extraMoves;
   const GOLD_GATE_BULBS = ECO.goldGateBulbs;
   const R = window.RingRewards;
+  const STK = window.RingStickers;
   const LOOT_DATA = window.RING_LOOT_DATA || {}; // bölüm kimliği -> ödül taşıyabilecek [halka, x, y]
   const CHEST_SHAKE_MS = 520; // halka kurtulunca sandık titrer...
   const CHEST_OPEN_MS = 900;  // ...sonra kapağı açılır, ışık saçar ve söner
@@ -148,6 +149,12 @@
       },
       // Ampul halkası: cam çan sesi
       bulbRing: () => { tone(1568, 0.5, 'sine', 0.09); tone(2349, 0.6, 'sine', 0.05, null, 0.08); tone(3136, 0.5, 'sine', 0.03, null, 0.16); },
+      // Çıkartma parçası yerine oturdu: yumuşak çıt ve parıltı; set tamamlanınca yükselen akor
+      piece: done => {
+        tone(660, 0.08, 'triangle', 0.08, 990);
+        [1319, 1760].forEach((f, k) => tone(f, 0.3, 'sine', 0.05, null, 0.08 + k * 0.07));
+        if (done) [523, 659, 784, 1047, 1319].forEach((f, k) => tone(f, 0.45, 'triangle', 0.09, null, 0.3 + k * 0.1));
+      },
       context: audio,
     };
   })();
@@ -269,6 +276,23 @@
     gold: { flag: 'goldTip', text: 'Altın halkayı kurtar: bu bölümün altınları 2 kat sayılır' },
     bulb: { flag: 'bulbTip', text: 'Ampul halkasını kurtar: +1 ampul' },
   };
+  // ---- Çıkartma parçaları: dünyanın bölümlerine yayılır, bölüm bitince verilir (rewards.js STICKERS) ----
+  let pieceMap = null;
+  function pieceAt(n) {
+    if (!pieceMap) {
+      pieceMap = {};
+      for (const w of W.WORLDS) {
+        const levels = [];
+        for (let m = 1; m <= TOTAL; m++) if (W.worldOfGate(W.gateOf(m)).id === w.id) levels.push(m);
+        if (levels.length) R.stickerLevels(levels, W.GATE_SIZE).forEach((m, k) => { pieceMap[m] = { world: w.id, k, id: w.id + ':' + k }; });
+      }
+    }
+    return pieceMap[n] || null;
+  }
+  const pieceWaiting = n => { const p = pieceAt(n); return p && !progress.stickers[p.id] ? p : null; };
+  const piecesOf = world => Array.from({ length: STK.PIECES }, (_, k) => !!progress.stickers[world + ':' + k]);
+  const stickerSvg = (world, fresh = -1) => STK.svg(world, piecesOf(world), W.worldById(world).theme.accent, fresh);
+
   const lootWaiting = n => (progress.loot[idOf(n)] ? null : lootOf(n));
 
   // ---- Başarımlar (rozetler) ve şekil albümü ----
@@ -349,9 +373,11 @@
     const earned = B.BADGES.filter(b => progress.badges[b.id]).length;
     $('badgeCount').textContent = `${earned}/${B.BADGES.length}`;
     $('albumCount').textContent = `${ctx.shapes}/${ctx.shapesTotal}`;
+    $('stickerCount').textContent = `${W.WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${W.WORLDS.length}`;
     $('tabBadges').setAttribute('aria-selected', String(trophyTab === 'badges'));
     $('tabAlbum').setAttribute('aria-selected', String(trophyTab === 'album'));
-    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : albumHtml();
+    $('tabStickers').setAttribute('aria-selected', String(trophyTab === 'stickers'));
+    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : trophyTab === 'album' ? albumHtml() : stickersHtml();
     // Görülen rozetlerin kırmızı noktası söner
     for (const id of fresh) progress.seenBadges[id] = true;
     if (fresh.size) saveProgress();
@@ -387,10 +413,23 @@
       <p class="album-note">Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.</p>`;
   }
 
+  function stickersHtml() {
+    const cards = W.WORLDS.map(w => {
+      const have = piecesOf(w.id).filter(Boolean).length;
+      const done = have === STK.PIECES;
+      return `<div class="sticker-card${done ? ' done' : ''}">${stickerSvg(w.id)}
+        <b>${have ? STK.SETS[w.id].name : '???'}</b><small>${w.name}</small>
+        <span class="${done ? 'got' : ''}">${done ? `Tamam · +${R.STICKERS.setCoins} altın` : `${have} / ${STK.PIECES} parça`}</span></div>`;
+    });
+    return `<div class="sticker-grid">${cards.join('')}</div>
+      <p class="album-note">Her dünyanın 5 parçalı bir çıkartması var. Haritada yapboz işareti olan bölümleri bitirince parça kazanırsın. Çıkartmayı tamamlayınca ${R.STICKERS.setCoins} altın.</p>`;
+  }
+
   $('homeTrophies').onclick = () => { Sound.tap(); trophyTab = 'badges'; showScreen('trophies'); };
   $('trophiesBack').onclick = () => { Sound.tap(); showScreen('home'); };
   $('tabBadges').onclick = () => { Sound.tap(); trophyTab = 'badges'; renderTrophies(); };
   $('tabAlbum').onclick = () => { Sound.tap(); trophyTab = 'album'; renderTrophies(); };
+  $('tabStickers').onclick = () => { Sound.tap(); trophyTab = 'stickers'; renderTrophies(); };
 
   function renderHome() {
     const next = frontier();
@@ -554,13 +593,14 @@
       const state = starsOf(n) ? 'done' : isUnlocked(n) ? 'open' : 'locked';
       const fresh = n > seen && n <= front;
       const chest = lootWaiting(n); // alınmamış ödül: düğmenin köşesinde (sandık nadirlik renginde)
+      const piece = pieceWaiting(n); // alınmamış çıkartma parçası: sol köşede, dünyanın renginde
       const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
         n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
         state !== 'locked' && def.name ? 'colored' : ''].join(' ');
       const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ` +
         (state === 'locked' ? 'kilitli' : state === 'done' ? `${starsOf(n)} yıldız` : 'oynanmadı');
       html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
-        aria-label="${label}${chest ? ', ' + chest.name.toLowerCase() + ' var' : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}</button>`;
+        aria-label="${label}${chest ? ', ' + chest.name.toLowerCase() + ' var' : ''}${piece ? ', çıkartma parçası var' : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
     }
     const cur = geo.nodes[front];
     html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
@@ -865,6 +905,11 @@
     else if (S.loot && !progress[LOOT_TIPS[S.loot.type].flag]) {
       showTip(LOOT_TIPS[S.loot.type].text, 4500);
       progress[LOOT_TIPS[S.loot.type].flag] = true;
+      saveProgress();
+    }
+    else if (pieceWaiting(n) && !progress.pieceTip) {
+      showTip('Bu bölümü bitir, çıkartma parçası kazan', 4000);
+      progress.pieceTip = true;
       saveProgress();
     }
     else if (!progress.coinTip && S.coins.length) {
@@ -1417,6 +1462,15 @@
     awardBadges(false);
   }
 
+  // Bölüm sonunda kazanılan çıkartma parçası: yeni dilim yerine oturur
+  function stickerWinHtml(piece, setDone) {
+    const have = piecesOf(piece.world).filter(Boolean).length;
+    return `<div class="sticker-win${setDone ? ' complete' : ''}" style="--wa:${W.worldById(piece.world).theme.accent}">
+      ${stickerSvg(piece.world, piece.k)}
+      <span><small>${setDone ? 'Çıkartma tamamlandı!' : 'Çıkartma parçası'}</small><b>${STK.SETS[piece.world].name}</b>
+      <em>${setDone ? `+${R.STICKERS.setCoins} altın` : `${have} / ${STK.PIECES}`}</em></span></div>`;
+  }
+
   function showWin() {
     if (S.tut != null) { showTutorialWin(); return; }
     if (S.preview) { showPreviewWin(); return; }
@@ -1444,6 +1498,18 @@
       progress.rewards['gold:' + g] = true;
       progress.hints += GOLD_GATE_BULBS;
     }
+    // Çıkartma parçası; set tamamlandıysa bir kez altın
+    const piece = pieceWaiting(S.levelNo);
+    let setDone = false;
+    if (piece) {
+      progress.stickers[piece.id] = today();
+      if (piecesOf(piece.world).every(Boolean) && !progress.rewards['sticker:' + piece.world]) {
+        progress.rewards['sticker:' + piece.world] = true;
+        progress.coins += R.STICKERS.setCoins;
+        stat('coinsTotal', R.STICKERS.setCoins);
+        setDone = true;
+      }
+    }
     saveProgress();
     $('winNote').textContent = S.extra ? 'Ek hamleyle bitti: bu bölüm en fazla 1 yıldız verir.' : '';
     const opened = S.loot && S.loot.t0 != null ? S.loot : null;
@@ -1453,7 +1519,9 @@
       (ch && ch.bulbs ? `<span class="chip bulb"><b>+${ch.bulbs} ampul</b></span>` : '') +
       (S.coinMult > 1 ? `<span class="chip loot-chip gold">Altın halka: <b>altınlar ×${S.coinMult}</b></span>` : '') +
       (opened && opened.type === 'bulb' ? `<span class="chip bulb">Ampul halkası: <b>+${opened.bulbs} ampul</b></span>` : '') +
-      (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '');
+      (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '') +
+      (piece ? stickerWinHtml(piece, setDone) : '');
+    if (piece) setTimeout(() => Sound.piece(setDone), 900);
     if (goldGate) {
       bulbsInAir += GOLD_GATE_BULBS;
       setTimeout(() => {

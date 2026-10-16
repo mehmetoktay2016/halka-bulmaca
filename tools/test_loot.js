@@ -97,5 +97,30 @@ test('her nadirlikten en az bir sandık var; efsane, sıradandan az', () => {
   assert.ok(n.epic < n.common, JSON.stringify(n));
 });
 
+const STK = require('../stickers.js');
+const worldLevels = id => order.map((_, i) => i + 1).filter(n => W.worldOfGate(W.gateOf(n)).id === id);
+
+test('her dünyanın çıkartması ve 5 parçası var; parçalar farklı bölümlerde, sonuncusu dünyanın son bölümünde', () => {
+  for (const w of W.WORLDS) {
+    assert.ok(STK.SETS[w.id] && STK.SETS[w.id].name, w.id + ' çıkartması yok');
+    const levels = worldLevels(w.id);
+    const at = R.stickerLevels(levels);
+    assert.strictEqual(at.length, STK.PIECES, w.id);
+    assert.strictEqual(new Set(at).size, STK.PIECES, w.id + ' aynı bölümde iki parça');
+    assert.strictEqual(at[STK.PIECES - 1], levels[levels.length - 1], w.id + ' son parça');
+    for (const n of at) assert.ok(W.posInGate(n) !== 1, `${w.id}: parça kapının ilk bölümünde (${n})`);
+  }
+});
+
+test('çıkartma çizimi her durumda geçerli SVG', () => {
+  for (const id of Object.keys(STK.SETS)) {
+    for (const owned of [[0, 0, 0, 0, 0], [1, 0, 1, 0, 0], [1, 1, 1, 1, 1]]) {
+      const s = STK.svg(id, owned.map(Boolean), '#2dd4bf', 2);
+      assert.ok(s.startsWith('<svg') && s.endsWith('</svg>'), id);
+      assert.ok(!/undefined|NaN/.test(s), id + ' çiziminde boş değer');
+    }
+  }
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm ödül testleri geçti');
 process.exit(failed ? 1 : 0);
