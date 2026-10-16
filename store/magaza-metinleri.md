@@ -45,13 +45,25 @@ Kedi, ayıcık, ejderha, fil, robot, çalar saat, füze, gezegen... Halkalardan 
 YILDIZ, ROZET VE ALTIN
 Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 25 rozetle ilerlemeni taçlandır. Halkaların arasındaki altınları topla.
 
+SANDIKLAR VE ÇIKARTMALAR
+Bazı halkaların içinde sandık saklı. Halkayı kurtar, sandık açılsın: sıradan, nadir ya da efsane! Altın halka bölümün altınlarını ikiye katlar, ampul halkası sana ampul kazandırır. Her dünyanın 5 parçalı bir çıkartması var; parçaları topla, koleksiyonunu tamamla. Her gün oyunu açınca günlük sandığın seni bekler, yedinci gün efsane sandık!
+
+MAĞAZA
+Topladığın altınla halkalar kurtulurken saçılan efekti (yıldız tozu, baloncuk, kalpler, şimşek), kurtulma sesini (cam çan, ahşap, 8-bit) ve bölüm sonu kutlamasını (havai fişek, altın yağmuru) seç.
+
 TAKILINCA YARDIM
 İpucu üç basamaklı: ücretsiz dürtme hangi halkayı çevireceğini gösterir, ipucu yönü ve hedefi gösterir, istersen hamleyi senin yerine yapar. İpucu ve hamle için ampul kullanılır; ampulleri kapı açtıkça, rozet ve altınla kazanırsın, ampulün biterse her gün bir ampul hediye edilir. Hamle hakkın biterse altınla üç hamle daha alabilir ya da yeniden başlayabilirsin.
 
 Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda saklanır.
 ```
 
-## Bu sürümdeki yenilikler (2.0, en fazla 500 karakter)
+## Bu sürümdeki yenilikler (2.1, en fazla 500 karakter)
+
+```
+Ödül güncellemesi! Halkaların içinde sandıklar: sıradan, nadir ve efsane. Altın halka altınları ikiye katlar, ampul halkası ampul verir. Her dünyanın 5 parçalı çıkartmasını topla. Her gün açılan günlük sandık, yedinci gün efsane! Yeni mağazada altınla kurtulma efekti, ses ve zafer kutlaması seç. Eski bölümlerindeki sandık ve parçalar da seni bekliyor.
+```
+
+## Önceki sürümün yenilikleri (2.0)
 
 ```
 Büyük güncelleme! 60 bölüm 200 oldu: 8 dünya ve 20 kapı. Her dünyanın kendi kuralı var: ters ve hızlı dişliler, tıklı halkalar, kilit ve anahtar, çerçeveler. 29 yeni şekil, 25 rozet ve şekil albümü. Kademeli ipucu ve ampuller, takıldığında +3 hamle. Her dünyanın kendi görünüşü ve ortam sesi. Yolculuğun sonunda seni Büyük Makine bekliyor.

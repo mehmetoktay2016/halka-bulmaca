@@ -121,6 +121,21 @@ test('erişilemeyen depolama (gizli sekme) oyunu çökertmez', () => {
   Save.save(s, p);
 });
 
+test('2.0 kaydı ödül alanları olmadan açılır: hiçbir şey kaybolmaz, yeni alanlar boş', () => {
+  // 2.0 sürümünün yazdığı kayıt: loot, stickers, streak alanları yok
+  const old = { ...Save.fresh(), stars: { 1: 3, 52: 2 }, best: { 1: 350 }, coins: 140, hints: 7,
+    badges: { 'ilk-adim': '2026-10-01' }, rewards: { 'gate:2': true }, clean: { 1: true }, title: 'Gezgin' };
+  delete old.loot; delete old.stickers; delete old.streak;
+  const s = memStorage({ [Save.KEY]: JSON.stringify(old) });
+  const p = Save.load(s);
+  for (const k of ['stars', 'best', 'coins', 'hints', 'badges', 'rewards', 'clean', 'title']) {
+    assert.deepStrictEqual(p[k], old[k], k);
+  }
+  assert.deepStrictEqual(p.loot, {});
+  assert.deepStrictEqual(p.stickers, {});
+  assert.strictEqual(p.streak, null);
+});
+
 test('sıra değişince yıldızlar bölümle birlikte gider', () => {
   const p = Save.fresh();
   p.stars['52'] = 3; // Kedi
