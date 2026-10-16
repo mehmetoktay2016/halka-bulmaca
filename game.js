@@ -30,6 +30,12 @@
   const EXTRA_PRICE = ECO.extraPrice;
   const EXTRA_MOVES = ECO.extraMoves;
   const GOLD_GATE_BULBS = ECO.goldGateBulbs;
+  const R = window.RingRewards;
+  const LOOT_DATA = window.RING_LOOT_DATA || {}; // bölüm kimliği -> ödül taşıyabilecek [halka, x, y]
+  const CHEST_SHAKE_MS = 520; // halka kurtulunca sandık titrer...
+  const CHEST_OPEN_MS = 900;  // ...sonra kapağı açılır, ışık saçar ve söner
+  const RARITY_COLOR = { common: '#e9edf7', rare: '#b48cff', epic: '#ffc94a' };
+  const CHEST_SIZE = 1.35;
   const BULB_MS = 750;        // ampulün ipucu düğmesine uçuşu
   const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Süs efektleri (arka plan parçacıkları, büyük patlama, ışık dalgası): ayarlardan kapanabilir
@@ -96,7 +102,21 @@
       win: () => [523, 659, 784, 1047].forEach((f, k) => tone(f, 0.32, 'triangle', 0.13, null, k * 0.11)),
       fail: () => [392, 330, 262].forEach((f, k) => tone(f, 0.28, 'triangle', 0.12, null, k * 0.16)),
       star: k => tone(880 + k * 220, 0.18, 'sine', 0.12),
-      coin: () => { tone(1318, 0.08, 'triangle', 0.09); tone(1976, 0.22, 'triangle', 0.09, null, 0.07); },
+      // k: art arda toplanan altınlarda her biri iki yarım ses daha tiz
+      coin: (k = 0) => {
+        const m = Math.pow(2, Math.min(k, 8) * 2 / 12);
+        tone(1318 * m, 0.08, 'triangle', 0.09); tone(1976 * m, 0.22, 'triangle', 0.09, null, 0.07);
+      },
+      // Sandık titrerken: hızlanan, yükselen tıkırtı (açılış öncesi bekleyiş)
+      chestShake: () => [0, 1, 2, 3, 4].forEach(k => tone(520 * Math.pow(2, k * 2 / 12), 0.06, 'triangle', 0.05 + k * 0.012, null, k * 0.1 - k * k * 0.006)),
+      // Sandık açıldı: tahta tok sesi ve nadirliğe göre büyüyen akor; nadirde parıltı, efsanede derin gümleme
+      chestOpen: r => {
+        tone(220, 0.22, 'triangle', 0.12, 110);
+        const notes = r === 'epic' ? [784, 988, 1175, 1568, 1976, 2349] : r === 'rare' ? [659, 831, 988, 1319] : [880, 1319];
+        notes.forEach((f, k) => tone(f, 0.4, 'triangle', 0.08, null, 0.05 + k * 0.07));
+        if (r !== 'common') [2637, 3136, 3520].forEach((f, k) => tone(f, 0.5, 'sine', 0.035, null, 0.3 + k * 0.08));
+        if (r === 'epic') { tone(130, 0.9, 'sine', 0.22, 48); tone(65, 0.7, 'triangle', 0.1, 40, 0.02); }
+      },
       // Kapı açılışı: kilit halkaları dağılırken yükselen akor, ardından parıltı
       gate: () => {
         [392, 494, 587, 784, 988, 1175].forEach((f, k) => tone(f, 0.5, 'triangle', 0.1, null, k * 0.09));
@@ -217,6 +237,23 @@
     saveProgress();
     awardBadges(true);
   }
+
+  // ---- Halka ödülleri (sandık): yeri ve içeriği rewards.js'te, bölüm başına bir kez ----
+  const lootCache = {};
+  function lootOf(n) {
+    if (n in lootCache) return lootCache[n];
+    const g = W.gateOf(n), start = W.gateStart(g);
+    const spots = p => (start + p - 1 <= TOTAL ? LOOT_DATA[srcOf(start + p - 1)] : null);
+    const pos = R.chestPositions(g, p => !!spots(p), W.GATE_SIZE);
+    const p = W.posInGate(n);
+    let loot = null;
+    if (pos.has(p)) {
+      const [ring, x, y] = spots(p)[0];
+      loot = { ...R.chestFor(srcOf(n), g), ring, x, y };
+    }
+    return (lootCache[n] = loot);
+  }
+  const lootWaiting = n => (progress.loot[idOf(n)] ? null : lootOf(n));
 
   // ---- Başarımlar (rozetler) ve şekil albümü ----
   const B = window.RingBadges;
@@ -428,6 +465,10 @@
     return { width, height, cx, arches, nodes, pts, index, teaser };
   }
 
+  const chestSvg = rarity => `<svg class="loot-ico ${rarity}" viewBox="0 0 24 20" aria-hidden="true">
+    <path class="lid" d="M2 9V7.5C2 3 22 3 22 7.5V9z"/><rect class="box" x="2" y="9" width="20" height="9" rx="2"/>
+    <rect class="band" x="5" y="4" width="3" height="14"/><rect class="band" x="16" y="4" width="3" height="14"/></svg>`;
+
   function nodeHtml(n, state, def) {
     const got = starsOf(n);
     const stars = `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
@@ -492,13 +533,14 @@
       const def = getLevel(srcOf(n));
       const state = starsOf(n) ? 'done' : isUnlocked(n) ? 'open' : 'locked';
       const fresh = n > seen && n <= front;
+      const chest = lootWaiting(n); // alınmamış sandık: düğmenin köşesinde, nadirlik renginde
       const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
         n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
         state !== 'locked' && def.name ? 'colored' : ''].join(' ');
       const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ` +
         (state === 'locked' ? 'kilitli' : state === 'done' ? `${starsOf(n)} yıldız` : 'oynanmadı');
       html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
-        aria-label="${label}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}</button>`;
+        aria-label="${label}${chest ? ', ' + chest.name.toLowerCase() + ' var' : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? chestSvg(chest.rarity) : ''}</button>`;
     }
     const cur = geo.nodes[front];
     html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
@@ -738,13 +780,15 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null,
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
+    const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
+    if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
     S.coins = tut == null ? placeCoins() : [];
     coinFly = [];
     landBulbs();
@@ -798,6 +842,11 @@
       progress.shapeTip = true;
       saveProgress();
     }
+    else if (S.loot && !progress.lootTip) {
+      showTip('Sandık, içinde durduğu halka kurtulunca açılır', 4500);
+      progress.lootTip = true;
+      saveProgress();
+    }
     else if (!progress.coinTip && S.coins.length) {
       showTip('Altını almak için yanındaki halkayı serbest bırak', 4000);
       progress.coinTip = true;
@@ -832,7 +881,7 @@
     $('movesLbl').textContent = S.tut != null ? 'hamle' : 'hamle kaldı';
     $('movesNum').classList.toggle('warn', S.tut == null && left <= 2 && !S.won);
     $('scoreNum').textContent = fmt(shownScore);
-    $('coinNum').textContent = progress.coins + S.coinsTaken;
+    $('coinNum').textContent = progress.coins - S.lootInAir + S.coinsTaken;
     renderHintCount();
   }
 
@@ -890,10 +939,17 @@
       const w = waves.findIndex(wv => wv.includes(k.a) || wv.includes(k.b));
       collectCoin(c, Math.max(w, 0) * WAVE_MS);
     }
+    const chest = S.loot;
+    if (chest && chest.t0 == null && (mask & (1 << chest.ring))) {
+      const w = waves.findIndex(wv => wv.includes(chest.ring));
+      openChest(now + Math.max(w, 0) * WAVE_MS);
+    }
     if (waves.length && navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* yok say */ } }
     if (mask === S.L.full && !S.won) {
       S.won = true;
-      setTimeout(showWin, waves.length * WAVE_MS + FLY_MS + (fxOn() ? 350 : 0));
+      // Sandık açılıyorsa bölüm sonu ekranı onun ardından gelir
+      const chestEnd = chest && chest.t0 != null ? chest.t0 + CHEST_SHAKE_MS + 750 - now : 0;
+      setTimeout(showWin, Math.max(waves.length * WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), chestEnd));
     }
     updateHud();
   }
@@ -920,7 +976,8 @@
       const y = (k.pts[0].y + k.pts[1].y) / 2;
       const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
         (r.kind !== 'ring' ? pieceDist(x, y, r) > 18 : Math.abs(Math.hypot(x - r.x, y - r.y) - r.r) > 18));
-      const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30);
+      const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30) &&
+        (!S.loot || Math.hypot(S.loot.x - x, S.loot.y - y) > 46);
       if (clear && offMark && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
         out.push({ link: li, x, y, taken: false, phase: Math.random() * TAU });
       }
@@ -987,6 +1044,181 @@
       ctx.restore();
       drawCoin(ctx, c.x, c.y + bob, 11, spin);
     }
+  }
+
+  // ---- Sandık ----
+  // Halka kurtulunca: ödül hemen kayda yazılır (bölümden çıkılsa da kaybolmaz), sandık titrer,
+  // açılır, altınlar sayaca, ampul ipucu düğmesine uçar. Sayaçlar uçuşlar konunca artar.
+  function openChest(t0) {
+    const c = S.loot;
+    c.t0 = t0;
+    progress.loot[idOf(S.levelNo)] = c.rarity;
+    progress.coins += c.coins;
+    progress.hints += c.bulbs;
+    stat('coinsTotal', c.coins);
+    S.lootInAir = c.coins;
+    bulbsInAir += c.bulbs;
+    saveProgress();
+    const wait = Math.max(0, t0 - performance.now());
+    setTimeout(() => S.loot === c && Sound.chestShake(), wait);
+    setTimeout(() => {
+      if (S.loot !== c) return;
+      Sound.chestOpen(c.rarity);
+      chestBurst(c);
+      const p = boardToApp(c.x, c.y);
+      if (c.rarity !== 'common') {
+        const w = $('app').clientWidth;
+        floaters.push({ text: c.name + '!', x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), big: c.rarity === 'epic' });
+      }
+      if (c.rarity === 'epic' && navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch (e) { /* yok say */ } }
+      lootCoins(c, p);
+      if (c.bulbs) setTimeout(() => flyBulbs(c.bulbs, p.x, p.y, true), 650);
+      awardBadges(false);
+    }, wait + CHEST_SHAKE_MS);
+  }
+
+  // Sandığın altınları birkaç parça halinde sayaca uçar; her konan altın sesi biraz daha tiz
+  function lootCoins(c, p) {
+    const k = Math.min(c.coins, 6);
+    for (let j = 0; j < k; j++) {
+      const share = Math.floor(c.coins * (j + 1) / k) - Math.floor(c.coins * j / k);
+      const delay = 120 + j * 90;
+      coinFly.push({ x: p.x + (j - (k - 1) / 2) * 9, y: p.y - 8, t0: performance.now() + delay });
+      setTimeout(() => {
+        if (S.loot !== c) return;
+        S.lootInAir = Math.max(0, S.lootInAir - share);
+        Sound.coin(j);
+        updateHud();
+        const pill = $('coinPill');
+        pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+      }, delay + COIN_MS);
+    }
+  }
+
+  function chestBurst(c) {
+    if (REDUCED) return;
+    const color = RARITY_COLOR[c.rarity];
+    const n = c.rarity === 'epic' ? 60 : c.rarity === 'rare' ? 38 : 22;
+    for (let k = 0; k < n; k++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
+      const sp = 1.5 + Math.random() * (c.rarity === 'epic' ? 5 : 3.5);
+      particles.push({ x: c.x, y: c.y - 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 1, size: 1.5 + Math.random() * 3, color: k % 3 ? color : '#fff6c4' });
+    }
+  }
+
+  // Sandık simgesi: tahta gövde, nadirlik renginde kuşaklar ve kilit; open (0-1) kapağı kaldırır
+  function drawChestIcon(g, x, y, s, open, rarity) {
+    const band = RARITY_COLOR[rarity];
+    const rr = (x0, y0, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(x0, y0, w, h, r); else g.rect(x0, y0, w, h); };
+    g.save();
+    g.translate(x, y);
+    g.scale(s, s);
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.beginPath(); g.ellipse(0, 13, 15, 3.5, 0, 0, TAU); g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = '#3d2210';
+    rr(-15, -3, 30, 15, 3);
+    g.fillStyle = '#8a5527'; g.fill(); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.28)';
+    g.beginPath(); g.moveTo(-14, 4.5); g.lineTo(14, 4.5); g.stroke();
+    g.fillStyle = band;
+    g.fillRect(-11, -3, 4, 15); g.fillRect(7, -3, 4, 15);
+    if (open > 0) {
+      g.fillStyle = `rgba(255, 240, 180, ${Math.min(1, open * 1.5)})`;
+      g.fillRect(-13, -5, 26, 3);
+    }
+    // Kapak arka menteşeden döner
+    g.save();
+    g.translate(-15, -3); g.rotate(-1.15 * open); g.translate(15, 3);
+    g.beginPath(); g.moveTo(-15, -3); g.lineTo(-15, -8); g.bezierCurveTo(-15, -15, 15, -15, 15, -8); g.lineTo(15, -3); g.closePath();
+    g.fillStyle = '#9c6230'; g.fill();
+    g.strokeStyle = '#3d2210'; g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = band;
+    g.fillRect(-11, -12.4, 4, 9.4); g.fillRect(7, -12.4, 4, 9.4);
+    g.fillStyle = 'rgba(255,255,255,.22)';
+    g.beginPath(); g.ellipse(-4, -10, 7, 1.6, 0, 0, TAU); g.fill();
+    g.restore();
+    if (open < 0.3) {
+      g.fillStyle = band;
+      rr(-3.5, -6, 7, 8, 1.5); g.fill();
+      g.fillStyle = '#3d2210';
+      g.beginPath(); g.arc(0, -3, 1.4, 0, TAU); g.fill();
+      g.fillRect(-0.6, -3, 1.2, 3);
+    }
+    g.restore();
+  }
+
+  function drawChest(now) {
+    const c = S.loot;
+    if (!c || c.done) return;
+    let shakeX = 0, lift = 0, open = 0, alpha = 1, k = 0;
+    if (c.t0 != null && now >= c.t0) {
+      const t = now - c.t0;
+      if (t < CHEST_SHAKE_MS) {
+        const q = t / CHEST_SHAKE_MS;
+        shakeX = REDUCED ? 0 : Math.sin(t / 16) * (1 + 3.5 * q);
+        lift = -4 * q;
+      } else {
+        k = (t - CHEST_SHAKE_MS) / CHEST_OPEN_MS;
+        if (k >= 1) { c.done = true; return; }
+        open = Math.min(1, k * 3);
+        alpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+        lift = -4 - 8 * k;
+      }
+    }
+    const bob = REDUCED || c.t0 != null ? 0 : Math.sin(now / 500 + c.phase) * 1.5;
+    const x = c.x + shakeX, y = c.y + bob + lift;
+    const color = RARITY_COLOR[c.rarity];
+    const pulse = 0.5 + 0.5 * Math.sin(now / 380 + c.phase);
+    ctx.save();
+    // Taban: sandığın ait olduğu halkanın renginde; halka kurtulunca söner
+    const base = c.t0 == null ? 1 : Math.max(0, 1 - (now - c.t0) / 300);
+    if (base > 0) {
+      const rc = ringColor(c.ring);
+      ctx.globalAlpha = base;
+      ctx.fillStyle = rc + '30';
+      ctx.strokeStyle = rc;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(c.x, c.y + 2, 25, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+    ctx.globalAlpha = alpha;
+    // Nadirlik ışığı: açılırken büyür
+    const glow = (c.rarity === 'epic' ? 34 : c.rarity === 'rare' ? 31 : 27) + pulse * 3 + open * 40;
+    const grd = ctx.createRadialGradient(x, y, 2, x, y, glow);
+    grd.addColorStop(0, color + (c.rarity === 'common' ? '55' : '88'));
+    grd.addColorStop(1, color + '00');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(x, y, glow, 0, TAU); ctx.fill();
+    // Açılınca içinden ışık huzmeleri
+    if (open > 0 && fxOn()) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(x, y - 6);
+      ctx.rotate(now / 900);
+      const len = 30 + 40 * k;
+      for (let j = 0; j < 8; j++) {
+        ctx.rotate(TAU / 8);
+        ctx.fillStyle = `rgba(255, 236, 170, ${0.35 * (1 - k)})`;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-4, -len); ctx.lineTo(4, -len); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+    drawChestIcon(ctx, x, y, CHEST_SIZE, open, c.rarity);
+    // Efsane sandığın çevresinde parıltılar
+    if (c.rarity === 'epic' && !open && !REDUCED) {
+      for (let j = 0; j < 3; j++) {
+        const a = now / 700 + j * TAU / 3 + c.phase;
+        const tw = Math.max(0, Math.sin(now / 260 + j * 2));
+        const sx = x + Math.cos(a) * 30, sy = y - 2 + Math.sin(a) * 20;
+        ctx.fillStyle = `rgba(255, 246, 196, ${tw})`;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - 4 * tw); ctx.lineTo(sx + 1.2, sy); ctx.lineTo(sx, sy + 4 * tw); ctx.lineTo(sx - 1.2, sy); ctx.closePath();
+        ctx.moveTo(sx - 4 * tw, sy); ctx.lineTo(sx, sy + 1.2); ctx.lineTo(sx + 4 * tw, sy); ctx.lineTo(sx, sy - 1.2); ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   // big: bölümün son halkası, daha çok ve daha hızlı parça saçar
@@ -1074,7 +1306,10 @@
     }
     saveProgress();
     $('winNote').textContent = S.extra ? 'Ek hamleyle bitti: bu bölüm en fazla 1 yıldız verir.' : '';
+    const ch = S.loot && S.loot.t0 != null ? S.loot : null;
     $('winRewards').innerHTML = (firstClear && S.def.name ? `<span class="chip album-chip">Albüme eklendi: <b>${S.def.name}</b></span>` : '') +
+      (ch ? `<span class="chip loot-chip ${ch.rarity}">${ch.name}: <b>+${ch.coins} altın</b></span>` : '') +
+      (ch && ch.bulbs ? `<span class="chip bulb"><b>+${ch.bulbs} ampul</b></span>` : '') +
       (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '');
     if (goldGate) {
       bulbsInAir += GOLD_GATE_BULBS;
@@ -2338,6 +2573,7 @@
         drawWeave();
         drawOpenPoints(now);
         drawCoins(now);
+        drawChest(now);
         drawKeys(now);
         drawHint(now);
         drawFinger(now);
@@ -2489,7 +2725,7 @@
   if (params.has('gallery')) showGallery();
 
   if (params.has('debug')) {
-    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, ambience, settle, badgeCtx, awardBadges, showScreen,
+    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, badgeCtx, awardBadges, showScreen,
       fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
   }
   requestAnimationFrame(frame);

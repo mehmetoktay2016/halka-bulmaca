@@ -1168,3 +1168,34 @@ svg { display: block; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Sandık: haritada alınmamış sandığın işareti (nadirlik renginde) ve bölüm sonu çipi */
+.node > svg.loot-ico {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  width: 22px;
+  height: 18px;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45));
+  pointer-events: none;
+}
+.loot-ico .box { fill: #8a5527; stroke: #3d2210; stroke-width: 1.4; }
+.loot-ico .lid { fill: #9c6230; stroke: #3d2210; stroke-width: 1.4; }
+.loot-ico .band { fill: var(--loot); }
+.loot-ico { --loot: #e9edf7; }
+.loot-ico.rare { --loot: #b48cff; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)) drop-shadow(0 0 4px rgba(180, 140, 255, .8)); }
+.loot-ico.epic { --loot: #ffc94a; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)) drop-shadow(0 0 5px rgba(255, 201, 74, .9)); animation: loot-glint 2.2s ease-in-out infinite; }
+.node.locked .loot-ico { opacity: .55; }
+@keyframes loot-glint { 0%, 100% { transform: rotate(0); } 8% { transform: rotate(-10deg); } 16% { transform: rotate(8deg); } 24% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .loot-ico.epic { animation: none; } }
+.chip.loot-chip::before {
+  content: "";
+  width: 14px;
+  height: 11px;
+  border-radius: 3px 3px 2px 2px;
+  background: linear-gradient(90deg, #8a5527 0 25%, var(--loot) 25% 40%, #8a5527 40% 60%, var(--loot) 60% 75%, #8a5527 75%);
+  box-shadow: 0 0 0 1px #3d2210;
+}
+.chip.loot-chip { --loot: #e9edf7; white-space: nowrap; }
+.chip.loot-chip.rare { --loot: #b48cff; border-color: rgba(180, 140, 255, .5); }
+.chip.loot-chip.epic { --loot: #ffc94a; border-color: rgba(255, 201, 74, .6); }
