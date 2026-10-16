@@ -4,22 +4,21 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const Logic = require('../logic.js');
-const Levels = require('../levels.js');
 const W = require('../worlds.js');
 const R = require('../rewards.js');
 
 const root = path.join(__dirname, '..');
-const pre = new Function(fs.readFileSync(path.join(root, 'levels_data.js'), 'utf8') + '; return RING_LEVEL_DATA;')();
 const LOOT = new Function(fs.readFileSync(path.join(root, 'loot_data.js'), 'utf8') + '; return RING_LOOT_DATA;')();
-const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s);
-const order = Levels.gateOrder(get);
+// Konumlar tarayıcıdaki gibi (ortalanmış) denetlenir
+const { getLevel: get, order } = require('./browser_levels.js')();
 const G = order.length / W.GATE_SIZE;
 
 let failed = 0;
 function test(name, fn) {
   try { fn(); console.log('  ok   ' + name); } catch (e) { failed++; console.log('  HATA ' + name + '\n       ' + e.message); }
 }
-const chestsOf = g => R.chestPositions(g, p => !!LOOT[order[W.gateStart(g) + p - 2]], W.GATE_SIZE);
+const planOf = g => R.gatePlan(g, p => LOOT[order[W.gateStart(g) + p - 2]], W.GATE_SIZE);
+const chestsOf = g => new Set([...planOf(g)].filter(([, t]) => t === 'chest').map(([p]) => p));
 
 test('loot_data.js bugünkü bölümlerle uyumlu (değilse: node tools/build_loot.js)', () => {
   for (const [src, cands] of Object.entries(LOOT)) {
@@ -30,6 +29,10 @@ test('loot_data.js bugünkü bölümlerle uyumlu (değilse: node tools/build_loo
       const r = L.rings[i];
       assert.ok(r && r.kind === 'ring', `bölüm ${src}: ${i} halka değil`);
       assert.ok(Math.hypot(x - r.x, y - r.y) < r.r - 20, `bölüm ${src}: ödül halka ${i}'nin içinde değil`);
+      // Başka hiçbir halkanın çizgisine yakın değil
+      L.rings.forEach((o, j) => {
+        if (j !== i && o.kind === 'ring') assert.ok(Math.abs(Math.hypot(x - o.x, y - o.y) - o.r) > 20, `bölüm ${src}: ödül halka ${j}'nin çizgisinde`);
+      });
       assert.ok(!(def.deco || []).some(d => d.ring === i), `bölüm ${src}: halka ${i} süslü`);
     }
   }
@@ -44,11 +47,34 @@ test('1. kapıda tek tanıtım sandığı, diğer kapılarda kural kadar; kapın
   }
 });
 
+test('altın halka kapı başına en çok bir (altın sığmayan kapıda yok), ampul halkası yalnız listedeki kapılarda', () => {
+  let golds = 0;
+  for (let g = 1; g <= G; g++) {
+    const types = [...planOf(g).values()];
+    const n = t => types.filter(x => x === t).length;
+    golds += n('gold');
+    assert.ok(n('gold') <= (g === 1 ? 0 : R.LOOT.goldPerGate), `kapı ${g} altın`);
+    assert.strictEqual(n('bulb'), R.LOOT.bulbGates.includes(g) ? 1 : 0, `kapı ${g} ampul`);
+    assert.ok(!planOf(g).has(1), `kapı ${g}: 1. bölümde ödül`);
+  }
+  assert.ok(golds >= (G - 1) * 0.8, `yalnız ${golds} altın halka`);
+});
+
+test('altın halkalı bölümlere en az goldCoins altın sığıyor', () => {
+  for (let g = 2; g <= G; g++) {
+    for (const [p, t] of planOf(g)) {
+      if (t !== 'gold') continue;
+      const spot = R.spotFor('gold', LOOT[order[W.gateStart(g) + p - 2]]);
+      assert.ok(spot && spot[3] >= R.LOOT.goldCoins, `kapı ${g} bölüm ${p}`);
+    }
+  }
+});
+
 test('aynı bölüm her zaman aynı sandığı verir (tohumlu)', () => {
   for (const src of order.slice(0, 40)) {
     assert.deepStrictEqual(R.chestFor(src, 5), R.chestFor(src, 5));
   }
-  assert.deepStrictEqual([...chestsOf(7)], [...chestsOf(7)]);
+  assert.deepStrictEqual([...planOf(7)], [...planOf(7)]);
 });
 
 test('sandık içerikleri tablodaki aralıkta', () => {

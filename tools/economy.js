@@ -5,7 +5,8 @@
 //   Oyun bazı kesişimleri yerleşim yüzünden eler, gerçek değer biraz daha düşük olabilir.
 // - Rozet altını: yalnızca ilerlemeyle kesin gelen rozetler (bölüm, kapı, dünya, yıldız, şekil, toplam altın).
 //   Beceriye ya da davranışa bağlı rozetler (3 yıldız, ipucusuz, zincir...) ayrıca toplanır.
-// - Sandık: rewards.js'teki yer ve içerik kurallarıyla (her bölümde bir kez).
+// - Halka ödülleri: rewards.js'teki yer ve içerik kurallarıyla (her bölümde bir kez). Altın halkanın katı
+//   bölüm altınına, ampul halkası sandık ampullerine eklenir.
 // - Talep: ortalama en iyi çözüm (par), hata payı (hamle hakkı - par), payı 2 ya da daha az olan "dar" bölüm.
 const fs = require('fs');
 const path = require('path');
@@ -54,13 +55,16 @@ for (let g = 1; g <= G; g++) {
   worlds.add(W.worldOfGate(g).id);
   if (g >= 2) bulbs += E.gateBulbs;
   let levelCoins = 0, badgeCoins = 0, parSum = 0, padSum = 0, tight = 0, chestCoins = 0, chestBulbs = 0;
-  const chests = R.chestPositions(g, p => !!LOOT[order[W.gateStart(g) + p - 2]], W.GATE_SIZE);
+  const plan = R.gatePlan(g, p => LOOT[order[W.gateStart(g) + p - 2]], W.GATE_SIZE);
   for (let n = W.gateStart(g); n < W.gateStart(g) + W.GATE_SIZE; n++) {
     const src = order[n - 1], def = get(src), L = Logic.buildLevel(def);
     const links = L.links.filter(k => L.rings[k.a].kind === 'ring' && L.rings[k.b].kind === 'ring').length;
-    const c = expectedCoins(links);
+    const type = plan.get(W.posInGate(n));
+    // Altın halkalı bölüm: tahtada goldCoins kadar altın, hepsi goldMult kat
+    const c = type === 'gold' ? Math.min(R.spotFor('gold', LOOT[src])[3], R.LOOT.goldCoins) * R.LOOT.goldMult : expectedCoins(links);
     levelCoins += c; coinsTotal += c;
-    if (chests.has(W.posInGate(n))) {
+    if (type === 'bulb') { chestBulbs++; bulbs++; }
+    if (type === 'chest') {
       const ch = R.chestFor(src, g);
       chestCoins += ch.coins; coinsTotal += ch.coins; chestBulbs += ch.bulbs; bulbs += ch.bulbs;
     }
@@ -99,6 +103,6 @@ const last = rows[rows.length - 1];
 const lvl = rows.reduce((s, r) => s + r.levelCoins, 0);
 const chest = rows.reduce((s, r) => s + r.chestCoins, 0), chestB = rows.reduce((s, r) => s + r.chestBulbs, 0);
 console.log(`\nYolculuk sonunda: ~${Math.round(last.coinsTotal)} altın (${Math.round(lvl)} bölümlerden, ${Math.round(last.coinsTotal - lvl - chest)} rozetlerden, ${chest} sandıklardan)` +
-  ` = ${Math.floor(last.coinsTotal / E.bulbPrice)} ampul; garanti ampul ${last.bulbs} (${chestB} tanesi sandıklardan; tabloda "a" = ampul).`);
+  ` = ${Math.floor(last.coinsTotal / E.bulbPrice)} ampul; garanti ampul ${last.bulbs} (${chestB} tanesi sandık ve ampul halkalarından; tabloda "a" = ampul).`);
 console.log(`Beceriye bağlı ek kaynaklar: rozetler en çok ${skillCoins} altın, altın kapılar en çok ${G * E.goldGateBulbs} ampul, günlük ampul (ampulü bitene, günde ${E.dailyBulbs}).`);
 console.log(`Not: bölüm altınları tekrar oynayınca yeniden toplanabiliyor (bölüm başına ~${expectedCoins(9).toFixed(0)}); bu hesapta yok.`);

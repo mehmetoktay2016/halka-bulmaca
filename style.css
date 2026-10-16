@@ -1199,3 +1199,13 @@ svg { display: block; }
 .chip.loot-chip { --loot: #e9edf7; white-space: nowrap; }
 .chip.loot-chip.rare { --loot: #b48cff; border-color: rgba(180, 140, 255, .5); }
 .chip.loot-chip.epic { --loot: #ffc94a; border-color: rgba(255, 201, 74, .6); }
+/* Altın halka ve ampul halkası işaretleri */
+.node > svg.loot-ico.token { width: 20px; height: 20px; top: -8px; right: -8px; }
+.loot-ico.gold .coin { fill: #ffd54a; stroke: #b9770e; stroke-width: 1.6; }
+.loot-ico.gold text { font: 900 8.5px "Baloo 2", "Nunito", sans-serif; fill: #7a4a00; text-anchor: middle; }
+.loot-ico.gold { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)) drop-shadow(0 0 4px rgba(255, 201, 74, .8)); }
+.loot-ico.bulb .glass { fill: #ffe48a; stroke: #c9851a; stroke-width: 1.4; }
+.loot-ico.bulb .base { fill: #9aa3bd; stroke: #4b5270; stroke-width: 1.2; }
+.loot-ico.bulb { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .45)) drop-shadow(0 0 5px rgba(255, 228, 138, .9)); }
+.chip.loot-chip.gold { --loot: #ffc94a; border-color: rgba(255, 201, 74, .6); }
+.chip.loot-chip.gold::before { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff3b0, #ffd54a 55%, #b9770e); box-shadow: none; }

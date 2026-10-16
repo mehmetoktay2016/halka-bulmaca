@@ -22,6 +22,11 @@
   // Ödülü taşıyabilecek halkalar loot_data.js'te (tools/build_loot.js).
   const LOOT = {
     chestsPerGate: 3,    // 2. kapıdan itibaren her kapıda kaç sandık (kapının 1. bölümünde olmaz)
+    goldPerGate: 1,      // altın halka: o bölümün altınları 2 kat sayılır (bölüm bitince)
+    goldCoins: 3,        // altın halkalı bölümde tahtaya konan altın (yer varsa)
+    goldMult: 2,
+    // Ampul halkası (+1 ampul): zor kapılarda ve arada birkaç kapıda, kapı başına bir
+    bulbGates: [4, 6, 9, 10, 11, 12, 15, 18],
     introPos: 3,         // 1. kapıda tek tanıtım sandığı: kapının kaçıncı bölümünde
     introCoins: 5,
     // Zor kapılarda (hata payı en düşük olanlar, tools/economy.js) nadir sandık daha sık
@@ -51,16 +56,30 @@
   }
   const between = (r, [lo, hi]) => lo + Math.floor(r() * (hi - lo + 1));
 
-  // Kapının hangi bölümlerinde sandık var: bölüm sırası (1-10) kümesi.
-  // hasSpot(pos): o bölümde ödül taşıyabilecek halka var mı
-  function chestPositions(gate, hasSpot, gateSize = 10) {
-    if (gate === 1) return new Set(hasSpot(LOOT.introPos) ? [LOOT.introPos] : []);
+  // Kapının ödül planı: bölüm sırası (1-10) -> 'chest' | 'gold' | 'bulb'. Bir bölümde en çok bir halka ödülü.
+  // spots(pos): o bölümde ödül taşıyabilecek [halka, x, y, sığan altın] adayları (loot_data.js) ya da boş.
+  // Karışık sıradan önce sandıklar, sonra altın halka, sonra ampul halkası alınır.
+  // Altın halka yalnız en az goldCoins altın sığan bölüme konur (yoksa 2 kat anlamsız kalır).
+  function gatePlan(gate, spots, gateSize = 10) {
+    const plan = new Map();
+    const has = p => (spots(p) || []).length > 0;
+    if (gate === 1) { if (has(LOOT.introPos)) plan.set(LOOT.introPos, 'chest'); return plan; }
     const r = rng(7919 * gate);
     const pool = [];
-    for (let p = 2; p <= gateSize; p++) if (hasSpot(p)) pool.push(p);
+    for (let p = 2; p <= gateSize; p++) if (has(p)) pool.push(p);
     for (let k = pool.length - 1; k > 0; k--) { const j = Math.floor(r() * (k + 1)); [pool[k], pool[j]] = [pool[j], pool[k]]; }
-    return new Set(pool.slice(0, LOOT.chestsPerGate));
+    const take = (type, ok = () => true) => {
+      const k = pool.findIndex(ok);
+      if (k >= 0) plan.set(pool.splice(k, 1)[0], type);
+    };
+    for (let k = 0; k < LOOT.chestsPerGate; k++) take('chest');
+    for (let k = 0; k < LOOT.goldPerGate; k++) take('gold', p => !!goldSpot(spots(p)));
+    if (LOOT.bulbGates.includes(gate)) take('bulb');
+    return plan;
   }
+  // Bir bölümde ödülün duracağı aday: altın halka için yeterince altın sığan ilk aday, diğerleri için ilk aday
+  const goldSpot = cands => (cands || []).find(c => c[3] >= LOOT.goldCoins) || null;
+  const spotFor = (type, cands) => (type === 'gold' ? goldSpot(cands) : (cands || [])[0] || null);
 
   // Bölümün sandığı: { rarity, name, coins, bulbs }
   function chestFor(src, gate) {
@@ -75,7 +94,7 @@
     return { rarity, name: RARITY_NAMES[rarity], coins, bulbs };
   }
 
-  const api = { ECONOMY, LOOT, rng, chestPositions, chestFor };
+  const api = { ECONOMY, LOOT, rng, gatePlan, spotFor, chestFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingRewards = api;
 })(this);
