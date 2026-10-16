@@ -49,8 +49,20 @@
   // Seviye tanımı (derece cinsinden) -> hesaplamaya hazır yapı.
   // Parçalar halka ya da düz çubuktur ({ type: 'bar', x1, y1, x2, y2 }).
   // Çubuk dönmez ve boşluğu yoktur; içinden geçtiği halkalar ondan kurtulunca çıkar.
+  // Çerçeve ({ type: 'frame', points: [[x, y], ...] }) kapalı bir çokgendir: hiç oynamaz ve tahtadan
+  // hiç çıkmaz; her kenarı ayrı bir çubuk gibi davranır. Bölüm, halkalar çerçeveden kurtulunca biter.
   function buildLevel(def) {
-    const rings = def.rings.map((r, i) => (r.type === 'bar' ? {
+    const rings = def.rings.map((r, i) => (r.type === 'frame' ? {
+      id: i, kind: 'frame',
+      x: r.points.reduce((s, q) => s + q[0], 0) / r.points.length,
+      y: r.points.reduce((s, q) => s + q[1], 0) / r.points.length, r: 0,
+      points: r.points.map(q => ({ x: q[0], y: q[1] })),
+      segs: r.points.map((q, k) => {
+        const q2 = r.points[(k + 1) % r.points.length];
+        return { x1: q[0], y1: q[1], x2: q2[0], y2: q2[1] };
+      }),
+      fixed: true, gaps: [], lockedBy: -1, step: 0,
+    } : r.type === 'bar' ? {
       id: i, kind: 'bar',
       x: (r.x1 + r.x2) / 2, y: (r.y1 + r.y2) / 2, r: 0,
       x1: r.x1, y1: r.y1, x2: r.x2, y2: r.y2,
@@ -59,16 +71,43 @@
       id: i, kind: 'ring', x: r.x, y: r.y, r: r.r,
       fixed: !!r.fixed,
       gaps: (r.gaps || [0]).map(g => g * DEG),
+      // Tıklı halka: yalnızca başlangıç açısından step'in katları kadar döner (derece; 360'ı tam bölmeli)
+      step: r.step ? r.step * DEG : 0,
+      // Anahtarlı kilit: lockedBy numaralı halka tahtadan çıkana kadar bu halka dönmez
+      lockedBy: r.lockedBy == null ? -1 : r.lockedBy,
     }));
+    for (const [i, r] of def.rings.entries()) {
+      if (r.lockedBy == null) continue;
+      const k = def.rings[r.lockedBy];
+      if (!k || r.lockedBy === i || k.type === 'bar' || k.type === 'frame') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
+      if (r.fixed) throw new Error(`Halka ${i}: hem sabit hem anahtarlı olamaz`);
+    }
+    for (const [i, r] of def.rings.entries()) {
+      if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
+    }
     const n = rings.length;
     const links = [];
     const ringLinks = rings.map(() => []);
-    const angOn = (P, p) => (P.kind === 'bar' ? 0 : norm(Math.atan2(p.y - P.y, p.x - P.x)));
+    const angOn = (P, p) => (P.kind !== 'ring' ? 0 : norm(Math.atan2(p.y - P.y, p.x - P.x)));
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
+        const A = rings[i], B = rings[j];
+        if (A.kind === 'frame' || B.kind === 'frame') {
+          // Çerçeve ile halka: her kenar ayrı bir bağ (kenarın çizgisi `seg` çizim için saklanır)
+          if (A.kind !== 'ring' && B.kind !== 'ring') continue;
+          const [F, R] = A.kind === 'frame' ? [A, B] : [B, A];
+          for (const seg of F.segs) {
+            const pts = segmentCircle(seg, R);
+            if (!pts) continue;
+            if (pts.length !== 2) throw new Error(`Halka ${R.id}: çerçevenin köşesi halkanın içinde kalmamalı`);
+            ringLinks[i].push(links.length);
+            ringLinks[j].push(links.length);
+            links.push({ a: i, b: j, seg, pts: pts.map(p => ({ x: p.x, y: p.y, angA: angOn(A, p), angB: angOn(B, p) })) });
+          }
+          continue;
+        }
         const pts = crossings(rings[i], rings[j]);
         if (!pts) continue;
-        const A = rings[i], B = rings[j];
         const link = {
           a: i, b: j,
           pts: pts.map(p => ({ x: p.x, y: p.y, angA: angOn(A, p), angB: angOn(B, p) })),
@@ -78,19 +117,51 @@
         links.push(link);
       }
     }
-    // Birlikte dönen halka grupları (union-find)
-    const parent = rings.map((_, i) => i);
-    const find = i => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-    for (const [a, b] of def.couples || []) parent[find(a)] = find(b);
-    const group = rings.map((_, i) => rings.filter((_, k) => find(k) === find(i)).map(r => r.id));
-    const groupId = rings.map((_, i) => find(i));
+    // Birlikte dönen halka grupları. Eş tanımı [a, b] ya da [a, b, oran]:
+    // a δ kadar dönünce b oran·δ kadar döner (1: aynı yöne, -1: ters dişli, 2: hızlı dişli).
+    // factor[i]: halkanın grubundaki dönüş katsayısı; i döndürülünce k, δ·factor[k]/factor[i] döner.
+    const couples = (def.couples || []).map(([a, b, ratio]) => ({ a, b, ratio: ratio == null ? 1 : ratio }));
+    const adj = rings.map(() => []);
+    for (const c of couples) {
+      if (!c.ratio) throw new Error('Eş oranı sıfır olamaz');
+      adj[c.a].push([c.b, c.ratio]);
+      adj[c.b].push([c.a, 1 / c.ratio]);
+    }
+    const factor = rings.map(() => 0);
+    const groupId = rings.map((_, i) => i);
+    for (let i = 0; i < n; i++) {
+      if (factor[i]) continue;
+      factor[i] = 1;
+      const stack = [i];
+      while (stack.length) {
+        const u = stack.pop();
+        for (const [v, r] of adj[u]) {
+          const f = factor[u] * r;
+          if (!factor[v]) { factor[v] = f; groupId[v] = i; stack.push(v); }
+          else if (Math.abs(factor[v] - f) > 1e-9) throw new Error(`Eş oranları çelişiyor (halka ${v})`);
+        }
+      }
+    }
+    const group = rings.map((_, i) => rings.filter((_, k) => groupId[k] === groupId[i]).map(r => r.id));
+    // Tıklı halka eşli olamaz: eşi farklı oranla dönünce halka tık yerlerinin dışına düşerdi
+    for (const r of rings) if (r.step && group[r.id].length > 1) throw new Error(`Halka ${r.id}: tıklı halka eşli olamaz`);
+    // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
+    for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
 
     return {
-      rings, links, ringLinks, group, groupId, rotatable,
-      full: (1 << n) - 1,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples,
+      // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
+      full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
     };
+  }
+
+  // Halka i şu an döndürülebilir mi? Sabit değil ve (anahtarlıysa) anahtarı tahtadan çıkmış olmalı.
+  function canRotate(L, i, mask) {
+    if (!L.rotatable[i]) return false;
+    const key = L.rings[i].lockedBy;
+    return key < 0 || !!(mask & (1 << key));
   }
 
   function gapCovers(ring, angle, target) {
@@ -124,7 +195,7 @@
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (!(mask & (1 << i)) && isFree(L, i, angles, mask)) wave.push(i);
+        if (!(mask & (1 << i)) && L.rings[i].kind !== 'frame' && isFree(L, i, angles, mask)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
@@ -133,13 +204,23 @@
     return { mask, waves };
   }
 
+  // Halka i'yi delta kadar döndürür; eşleri kendi oranlarıyla döner
   function rotate(L, angles, i, delta) {
     const out = angles.slice();
-    for (const k of L.group[i]) out[k] = norm(out[k] + delta);
+    for (const k of L.group[i]) out[k] = norm(out[k] + delta * L.factor[k] / L.factor[i]);
     return out;
   }
 
-  // Halka i için anlamlı hedef açılar: boşluğu henüz açık olmayan bir kesişime getirmek
+  // Tıklı halkanın t açısına en yakın tık yeri (tık yerleri başlangıç açısından ölçülür)
+  function snapStep(L, i, t) {
+    const ring = L.rings[i];
+    if (!ring.step) return t;
+    const base = L.startAngles[i];
+    return norm(base + Math.round(signedDelta(base, t) / ring.step) * ring.step);
+  }
+
+  // Halka i için anlamlı hedef açılar: boşluğu henüz açık olmayan bir kesişime getirmek.
+  // Tıklı halkada hedef en yakın tık yerine çekilir; boşluk orada kesişimi açmıyorsa hedef sayılmaz.
   function candidates(L, angles, mask, i) {
     const ring = L.rings[i];
     const out = [];
@@ -151,7 +232,9 @@
         if (pointOpen(L, k, p, angles)) continue;
         const angI = k.a === i ? p.angA : p.angB;
         for (const g of ring.gaps) {
-          const t = norm(angI - g);
+          const t = snapStep(L, i, norm(angI - g));
+          if (ring.step && !gapCovers(ring, t, angI)) continue;
+          if (angDist(t, angles[i]) < DEG / 2) continue;
           if (!out.some(o => angDist(o, t) < DEG)) out.push(t);
         }
       }
@@ -181,7 +264,7 @@
       for (const node of frontier) {
         if (++expanded > maxNodes) return null;
         for (let i = 0; i < L.rings.length; i++) {
-          if ((node.mask & (1 << i)) || !L.rotatable[i]) continue;
+          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
           for (const target of candidates(L, node.angles, node.mask, i)) {
             const delta = signedDelta(node.angles[i], target);
             const na = rotate(L, node.angles, i, delta);
@@ -211,9 +294,12 @@
   }
 
   // Hızlı çözücü (ağırlıklı A*): her zaman en kısa yolu bulmaz ama milisaniyeler sürer.
-  // İpucu ve üretimde ön eleme için kullanılır.
-  function solveFast(L, angles, mask, maxNodes) {
+  // Üretimde ön eleme ve denemelerin rehber eli için kullanılır.
+  // weight: tahminin ağırlığı. 2 (varsayılan) en hızlısı; 0.8 neredeyse her zaman en kısa yolu bulur
+  // ama daha çok düğüm açar (ipucu bunu kullanır: ilk 50 bölümde 49'u en kısa yol).
+  function solveFast(L, angles, mask, maxNodes, weight) {
     maxNodes = maxNodes || 20000;
+    const W = weight == null ? 2 : weight;
     mask = cascade(L, angles, mask).mask;
     if (mask === L.full) return { moves: 0, first: null };
     const heap = [];
@@ -249,7 +335,7 @@
       const node = pop();
       if (++expanded > maxNodes) return null;
       for (let i = 0; i < L.rings.length; i++) {
-        if ((node.mask & (1 << i)) || !L.rotatable[i]) continue;
+        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
         for (const target of candidates(L, node.angles, node.mask, i)) {
           const delta = signedDelta(node.angles[i], target);
           const na = rotate(L, node.angles, i, delta);
@@ -260,7 +346,7 @@
           if (seen.has(key)) continue;
           seen.add(key);
           const g = node.g + 1;
-          push({ angles: na, mask: m2, g, f: g + 2 * closedLinks(L, na, m2), first });
+          push({ angles: na, mask: m2, g, f: g + W * closedLinks(L, na, m2), first });
         }
       }
     }
@@ -270,7 +356,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

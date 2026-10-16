@@ -24,26 +24,37 @@ Halka Bulmaca, sakin ama düşündüren bir zeka oyunu. Her halkanın bir boşlu
 NEDEN SEVECEKSİN
 • Reklam yok. Bölüm aralarında zorunlu reklam izlemezsin.
 • Süre yok. Kendi hızında düşün.
-• Sınırsız ve ücretsiz ipucu. Takıldığında hangi halkayı nereye çevireceğini gösterir.
-• Geri al ve yeniden başla her zaman ücretsiz.
 • İnternet gerekmez. Her yerde oynayabilirsin.
+• Kişisel veri toplanmaz. İlerlemen yalnızca telefonunda saklanır.
 
-KOLAYDAN ZORA 60 BÖLÜM
-Bölümler zorluk sırasına göre dizildi: her bölüm bir öncekinden biraz daha düşündürücü. Oyunu ilk açtığında kısa deneme bölümleri sana nasıl oynandığını adım adım gösterir.
+8 DÜNYA, 20 KAPI, 200 BÖLÜM
+Başlangıç Vadisi'nden Büyük Makine'ye uzanan bir yolculuk. Her kapı on bölümden oluşur ve kolaydan zora gider. Kapıyı geçtikçe yeni dünyalar açılır, unvanın yükselir: Çırak, Kalfa, Gezgin, Tamirci, Saatçi... ve sonunda Halka Ustası. Yolculuğun sonunda seni Büyük Makine bekliyor.
 
-YENİ PARÇALAR, YENİ FİKİRLER
-• Kilitli halkalar dönmez; onları diğer halkalarla kurtarırsın.
-• Noktalı çizgiyle bağlı halkalar birlikte döner.
-• Çift boşluklu halkalar yeni yollar açar.
-• Düz çubuklar dönmez; içinden geçtiği halkalar kurtulunca kayıp gider.
+HER DÜNYANIN KENDİ KURALI
+• Atölye: Ters dişliler. Biri sağa dönerse eşi sola döner.
+• Saat Kulesi: Tıklı halkalar tık tık döner, boşluk yalnızca belli yerlerde durur.
+• Zindan: Kilitli halkaların anahtarı başka bir halkada. Önce anahtarı kurtar.
+• Şehir: Çerçeveler yerinden oynamaz. Halkaları onların etrafından kurtar.
+• Fabrika: Hızlı dişliler eşlerini iki kat çevirir.
+• Uzay ve Büyük Usta: Öğrendiğin her şey bir arada.
+Her dünyanın kendi görünüşü, arka plan sesi ve parçacıkları var: ahşap tezgâhta kıvılcımlar, saat kulesinde tik-taklar, uzayda kayan yıldızlar.
 
-SEVİMLİ HAYVAN DOSTLARI
-Kedi, ayıcık, tavşan, panda, baykuş, kurbağa, tırtıl, domuzcuk, penguen ve aslan! Halkalardan oluşan bu dostları kurtar. İlerleyen bölümlerde kafeste olanlar seni bekliyor.
+39 ŞEKİL, BİR ALBÜM
+Kedi, ayıcık, ejderha, fil, robot, çalar saat, füze, gezegen... Halkalardan oluşan bu şekiller parmaklıkların arkasında seni bekliyor. Kurtardıkların albümünde toplanır.
 
-YILDIZ, ALTIN VE SKOR
-Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Halkaların arasındaki altınları topla, skorunu yükselt. Her bölümde en fazla 10 hamle hakkın var; hakkın biterse bölüm baştan başlar.
+YILDIZ, ROZET VE ALTIN
+Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 25 rozetle ilerlemeni taçlandır. Halkaların arasındaki altınları topla.
+
+TAKILINCA YARDIM
+İpucu üç basamaklı: ücretsiz dürtme hangi halkayı çevireceğini gösterir, ipucu yönü ve hedefi gösterir, istersen hamleyi senin yerine yapar. İpucu ve hamle için ampul kullanılır; ampulleri kapı açtıkça, rozet ve altınla kazanırsın, ampulün biterse her gün bir ampul hediye edilir. Hamle hakkın biterse altınla üç hamle daha alabilir ya da yeniden başlayabilirsin.
 
 Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda saklanır.
+```
+
+## Bu sürümdeki yenilikler (2.0, en fazla 500 karakter)
+
+```
+Büyük güncelleme! 60 bölüm 200 oldu: 8 dünya ve 20 kapı. Her dünyanın kendi kuralı var: ters ve hızlı dişliler, tıklı halkalar, kilit ve anahtar, çerçeveler. 29 yeni şekil, 25 rozet ve şekil albümü. Kademeli ipucu ve ampuller, takıldığında +3 hamle. Her dünyanın kendi görünüşü ve ortam sesi. Yolculuğun sonunda seni Büyük Makine bekliyor.
 ```
 
 ## Kategori ve etiketler
@@ -64,4 +75,4 @@ Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda 
 |---|---|
 | Uygulama simgesi (512×512) | `../icon-512.png` |
 | Öne çıkan görsel (1024×500) | `feature-graphic.png` |
-| Telefon ekran görüntüleri (2–8 adet, 1080×1920) | `screenshots/` klasöründeki 6 dosya |
+| Telefon ekran görüntüleri (2–8 adet, 1080×1920) | `screenshots/` klasöründeki 8 dosya (`node tools/store_shots.js` ile yeniden üretilir) |
