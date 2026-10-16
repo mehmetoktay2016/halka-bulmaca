@@ -1312,3 +1312,53 @@ svg { display: block; }
 @media (prefers-reduced-motion: reduce) { .big-chest.shake, .big-chest.open { animation: none; } .big-chest .lid { transition: none; } }
 .streak-got { display: block; font-size: 18px; margin-bottom: 2px; }
 .streak-got b { color: var(--gold); }
+
+/* Süs mağazası */
+.home-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.shop-coins { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: rgba(255, 213, 74, .12); color: var(--coin); font-weight: 800; font-variant-numeric: tabular-nums; }
+.shop-coins .coin-ico { font-size: 15px; }
+.shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 8px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--line);
+  text-align: center;
+  min-width: 0;
+}
+.shop-card.on { border-color: rgba(255, 201, 74, .55); background: rgba(255, 201, 74, .06); }
+.shop-card b { font-family: var(--font-display); font-size: 16px; font-weight: 800; line-height: 1.15; margin-top: 4px; }
+.shop-card > small { font-size: 12px; font-weight: 700; color: var(--muted); min-height: 2.5em; }
+.shop-try { width: 100%; aspect-ratio: 8 / 5; border-radius: 12px; background: rgba(0, 0, 0, .25); display: grid; place-items: center; overflow: hidden; }
+.shop-try canvas { width: 100%; height: 100%; }
+.shop-try.sound svg { width: 40px; height: 40px; fill: none; stroke: var(--text); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.shop-try.sound svg path:first-child { fill: var(--text); }
+.shop-try:focus-visible, .shop-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.shop-btn {
+  margin-top: 6px;
+  width: 100%;
+  min-height: 38px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid var(--line);
+}
+.shop-btn .coin-ico { font-size: 13px; }
+.shop-btn.buy { background: rgba(255, 213, 74, .14); color: var(--coin); border-color: rgba(255, 213, 74, .35); }
+.shop-btn.buy.confirm { background: var(--gold); color: #3a2400; }
+.shop-btn.on { color: var(--gold); background: transparent; border-color: transparent; }
+.shop-btn:disabled:not(.on) { opacity: .5; }
+.shop-card .need { font-size: 11.5px; font-weight: 800; color: var(--muted); margin-top: 2px; }
+.shop-try:not(.sound) > svg { width: 100%; height: 100%; }
+.shop-try { position: relative; }
+.shop-try .try { position: absolute; right: 8px; bottom: 6px; font-size: 11.5px; font-weight: 800; color: var(--muted); }

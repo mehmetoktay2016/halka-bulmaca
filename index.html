@@ -77,7 +77,10 @@
           <span>Oyna</span>
           <small id="playLevel">Seviye 1</small>
         </button>
-        <button id="levelsBtn" class="btn-ghost">Harita</button>
+        <div class="home-row">
+          <button id="levelsBtn" class="btn-ghost">Harita</button>
+          <button id="shopBtn" class="btn-ghost">Mağaza</button>
+        </div>
         <button id="howBtn" class="btn-link">Nasıl oynanır?</button>
       </div>
 
@@ -107,6 +110,23 @@
         <div id="map" class="map"><div id="mapInner" class="map-inner"></div></div>
         <nav id="gateStrip" class="gate-strip" aria-label="Kapılar"></nav>
       </div>
+    </section>
+
+    <!-- Süs mağazası -->
+    <section id="shop" class="screen trophy-screen" hidden>
+      <header class="bar">
+        <button id="shopBack" class="round" aria-label="Ana menü">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h2>Mağaza</h2>
+        <span class="shop-coins"><i class="coin-ico"></i><b id="shopCoins">0</b></span>
+      </header>
+      <div class="tabs" role="tablist">
+        <button id="shopTab-burst" role="tab" aria-selected="true" aria-controls="shopList">Efekt</button>
+        <button id="shopTab-pop" role="tab" aria-selected="false" aria-controls="shopList">Ses</button>
+        <button id="shopTab-win" role="tab" aria-selected="false" aria-controls="shopList">Kutlama</button>
+      </div>
+      <div id="shopList" class="trophy-list" role="tabpanel"></div>
     </section>
 
     <!-- Rozetler ve şekil albümü -->

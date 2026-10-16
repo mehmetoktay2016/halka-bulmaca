@@ -137,5 +137,15 @@ test('günlük seri: aynı gün ikinci kez yok, ertesi gün artar, kaçırılan 
   assert.strictEqual(last.reward.bulbs, 1);
 });
 
+test('mağaza: her bölümün ilki bedava, kimlikler tekil, fiyatlar pozitif', () => {
+  const ids = [];
+  for (const [cat, c] of Object.entries(R.SHOP)) {
+    assert.strictEqual(c.items[0].price, 0, cat + ' bedava ilk ürün');
+    for (const it of c.items.slice(1)) assert.ok(it.price > 0, it.id);
+    for (const it of c.items) { ids.push(it.id); assert.ok(it.name && it.desc, it.id); assert.strictEqual(R.shopItem(it.id), it); }
+  }
+  assert.strictEqual(new Set(ids).size, ids.length);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm ödül testleri geçti');
 process.exit(failed ? 1 : 0);

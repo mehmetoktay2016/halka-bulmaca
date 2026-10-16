@@ -75,6 +75,39 @@
     return { count, slot, missed, reward: { coins: 0, bulbs: 0, rarity: 'common', ...STREAK.days[slot] } };
   }
 
+  // Süs mağazası: altınla alınan görsel ve ses süsleri. Halka renklerine dokunmaz.
+  // Her bölümün ilk ürünü bedava ve varsayılan. Ürün kimlikleri kayıtta tutulur (owned, equip); değiştirilmez.
+  const SHOP = {
+    burst: {
+      title: 'Kurtulma efekti', tab: 'Efekt',
+      items: [
+        { id: 'burst-classic', name: 'Klasik', price: 0, desc: 'Halkanın renginde parçacıklar' },
+        { id: 'burst-stars', name: 'Yıldız tozu', price: 80, desc: 'Dört köşeli parıltılar' },
+        { id: 'burst-bubbles', name: 'Baloncuk', price: 120, desc: 'Yükselen sabun köpükleri' },
+        { id: 'burst-hearts', name: 'Kalpler', price: 150, desc: 'Halkanın renginde kalpler' },
+        { id: 'burst-bolts', name: 'Şimşek', price: 200, desc: 'Çatırdayan küçük şimşekler' },
+      ],
+    },
+    pop: {
+      title: 'Kurtulma sesi', tab: 'Ses',
+      items: [
+        { id: 'pop-classic', name: 'Klasik', price: 0, desc: 'Yumuşak bir yükseliş' },
+        { id: 'pop-glass', name: 'Cam çan', price: 100, desc: 'İnce, çınlayan cam' },
+        { id: 'pop-wood', name: 'Ahşap', price: 100, desc: 'Marimba gibi tok tahta' },
+        { id: 'pop-chip', name: '8-bit', price: 150, desc: 'Eski atari sesi' },
+      ],
+    },
+    win: {
+      title: 'Zafer kutlaması', tab: 'Kutlama',
+      items: [
+        { id: 'win-confetti', name: 'Konfeti', price: 0, desc: 'Renkli kâğıt yağmuru' },
+        { id: 'win-fireworks', name: 'Havai fişek', price: 200, desc: 'Gökyüzünde patlayan fişekler' },
+        { id: 'win-goldrain', name: 'Altın yağmuru', price: 250, desc: 'Yukarıdan altın yağar' },
+      ],
+    },
+  };
+  const shopItem = id => { for (const c of Object.values(SHOP)) { const it = c.items.find(i => i.id === id); if (it) return it; } return null; };
+
   const RARITY_NAMES = { common: 'Sandık', rare: 'Nadir sandık', epic: 'Efsane sandık' };
 
   // Tohumlu rastgele sayı (mulberry32): aynı tohum, aynı dizi
@@ -128,7 +161,7 @@
     return { rarity, name: RARITY_NAMES[rarity], coins, bulbs };
   }
 
-  const api = { ECONOMY, LOOT, STICKERS, STREAK, streakStep, rng, gatePlan, spotFor, chestFor, stickerLevels };
+  const api = { ECONOMY, LOOT, STICKERS, STREAK, SHOP, shopItem, streakStep, rng, gatePlan, spotFor, chestFor, stickerLevels };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingRewards = api;
 })(this);

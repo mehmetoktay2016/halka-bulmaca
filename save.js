@@ -36,6 +36,8 @@
       loot: {},           // halka ödülü alınmış bölümler (bölüm kimliği -> ödül türü); her bölümde bir kez
       stickers: {},       // toplanan çıkartma parçaları (parça kimliği -> kazanıldığı gün)
       streak: null,       // günlük seri: { day: 'YYYY-AA-GG', count }
+      owned: {},          // mağazadan alınan süsler (ürün kimliği -> true)
+      equip: {},          // kullanılan süs: { burst, pop, win } (yoksa her bölümün bedava ilki)
     };
   }
 

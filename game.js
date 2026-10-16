@@ -98,7 +98,14 @@
     }
     return {
       tick: () => tone(1400, 0.03, 'triangle', 0.035),
-      pop: k => tone(380 + k * 70, 0.25, 'sine', 0.2, 880 + k * 90),
+      // Halka kurtulma sesi: mağazadan seçilen pakete göre (k: zincirde kaçıncı dalga)
+      pop: (k, id = equipped('pop')) => {
+        const m = 1 + k * 0.12;
+        if (id === 'pop-glass') { tone(1046 * m, 0.5, 'sine', 0.12); tone(2093 * m, 0.4, 'sine', 0.05, null, 0.01); tone(3136 * m, 0.25, 'sine', 0.02, null, 0.02); }
+        else if (id === 'pop-wood') { tone(523 * m, 0.14, 'triangle', 0.24, 470 * m); tone(1569 * m, 0.05, 'sine', 0.05); }
+        else if (id === 'pop-chip') { tone(440 * m, 0.1, 'square', 0.06, 880 * m); tone(880 * m, 0.08, 'square', 0.04, 1320 * m, 0.08); }
+        else tone(380 + k * 70, 0.25, 'sine', 0.2, 880 + k * 90);
+      },
       deny: () => tone(150, 0.12, 'square', 0.04),
       tap: () => tone(660, 0.06, 'triangle', 0.06),
       win: () => [523, 659, 784, 1047].forEach((f, k) => tone(f, 0.32, 'triangle', 0.13, null, k * 0.11)),
@@ -191,7 +198,8 @@
 
   // ---- Ekran geçişleri ----
   function showScreen(name) {
-    for (const id of ['home', 'levels', 'game', 'trophies']) $(id).hidden = id !== name;
+    for (const id of ['home', 'levels', 'game', 'trophies', 'shop']) $(id).hidden = id !== name;
+    if (name === 'shop') renderShop();
     if (name === 'home') { renderHome(); maybeStreak(); }
     if (name === 'trophies') renderTrophies();
     if (name === 'levels') renderMap();
@@ -292,6 +300,11 @@
   const pieceWaiting = n => { const p = pieceAt(n); return p && !progress.stickers[p.id] ? p : null; };
   const piecesOf = world => Array.from({ length: STK.PIECES }, (_, k) => !!progress.stickers[world + ':' + k]);
   const stickerSvg = (world, fresh = -1) => STK.svg(world, piecesOf(world), W.worldById(world).theme.accent, fresh);
+
+  // ---- Süsler (mağaza): seçili ürün, yoksa bölümün bedava ilki ----
+  const equipped = cat => progress.equip[cat] || R.SHOP[cat].items[0].id;
+  const owns = id => !R.shopItem(id).price || !!progress.owned[id];
+  const BURST_SHAPE = { 'burst-classic': 'dot', 'burst-stars': 'star', 'burst-bubbles': 'bubble', 'burst-hearts': 'heart', 'burst-bolts': 'bolt' };
 
   const lootWaiting = n => (progress.loot[idOf(n)] ? null : lootOf(n));
 
@@ -423,6 +436,106 @@
     });
     return `<div class="sticker-grid">${cards.join('')}</div>
       <p class="album-note">Her dünyanın 5 parçalı bir çıkartması var. Haritada yapboz işareti olan bölümleri bitirince parça kazanırsın. Çıkartmayı tamamlayınca ${R.STICKERS.setCoins} altın.</p>`;
+  }
+
+  // ---- Mağaza ----
+  // Kutlama önizlemelerinin küçük resmi (dokununca ekranda oynar)
+  const WIN_ICONS = {
+    'win-confetti': '<svg viewBox="0 0 120 75" aria-hidden="true">' + [[22, 20, 20, '#ff6b6b'], [44, 44, -30, '#ffc94a'], [64, 16, 40, '#2dd4bf'], [86, 40, -15, '#4cc9f0'], [100, 18, 60, '#b388ff'], [34, 56, 70, '#ff8fab'], [76, 60, 10, '#ffc94a']]
+      .map(([x, y, r, c]) => `<rect x="${x}" y="${y}" width="10" height="5" rx="1" fill="${c}" transform="rotate(${r} ${x + 5} ${y + 2.5})"/>`).join('') + '</svg>',
+    'win-fireworks': '<svg viewBox="0 0 120 75" aria-hidden="true">' + [[42, 32, '#ff6b6b'], [82, 42, '#4cc9f0']].map(([cx, cy, c]) =>
+      Array.from({ length: 12 }, (_, k) => { const a = k * Math.PI / 6; return `<circle cx="${(cx + Math.cos(a) * 17).toFixed(1)}" cy="${(cy + Math.sin(a) * 17).toFixed(1)}" r="2.6" fill="${k % 3 ? c : '#fff6c4'}"/>`; }).join('')).join('') + '</svg>',
+    'win-goldrain': '<svg viewBox="0 0 120 75" aria-hidden="true">' + [[34, 20], [62, 40], [88, 18], [48, 58], [80, 60]].map(([x, y]) =>
+      `<circle cx="${x}" cy="${y}" r="9" fill="#d98f12"/><circle cx="${x}" cy="${y}" r="7" fill="#ffd54a"/><circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#d98f12" stroke-width="1.3"/>`).join('') + '</svg>',
+  };
+  let shopTab = 'burst';
+  let shopConfirm = null; // ilk dokunuşta "Onayla" sorulan ürün
+  function renderShop() {
+    $('shopCoins').textContent = progress.coins;
+    for (const cat of Object.keys(R.SHOP)) $('shopTab-' + cat).setAttribute('aria-selected', String(shopTab === cat));
+    const items = R.SHOP[shopTab].items.map(it => {
+      const on = equipped(shopTab) === it.id, own = owns(it.id);
+      const btn = on ? '<button class="shop-btn on" disabled>Kullanılıyor</button>'
+        : own ? `<button class="shop-btn" data-act="use" data-id="${it.id}">Kullan</button>`
+        : shopConfirm === it.id ? `<button class="shop-btn buy confirm" data-act="buy" data-id="${it.id}">Onayla · <i class="coin-ico"></i>${it.price}</button>`
+        : progress.coins >= it.price ? `<button class="shop-btn buy" data-act="ask" data-id="${it.id}"><i class="coin-ico"></i>${it.price}</button>`
+        : `<button class="shop-btn buy" disabled><i class="coin-ico"></i>${it.price}</button><small class="need">${it.price - progress.coins} altın daha</small>`;
+      const preview = shopTab === 'win'
+        ? `<button class="shop-try" data-try="${it.id}" aria-label="${it.name} önizle">${WIN_ICONS[it.id]}<span class="try">Dene</span></button>`
+        : shopTab === 'pop'
+        ? `<button class="shop-try sound" data-try="${it.id}" aria-label="${it.name} sesini dinle"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>`
+        : `<button class="shop-try" data-try="${it.id}" aria-label="${it.name} önizle"><canvas width="240" height="150" data-prev="${it.id}"></canvas></button>`;
+      return `<div class="shop-card${on ? ' on' : ''}">${preview}<b>${it.name}</b><small>${it.desc}</small>${btn}</div>`;
+    });
+    $('shopList').innerHTML = `<div class="shop-grid">${items.join('')}</div>
+      <p class="album-note">Önizlemeye dokunup dene. Süsler yalnızca görünüş ve ses içindir; bulmacayı kolaylaştırmaz.</p>`;
+    $('shopList').querySelectorAll('[data-act]').forEach(b => { b.onclick = () => shopAct(b.dataset.act, b.dataset.id); });
+    $('shopList').querySelectorAll('[data-try]').forEach(b => { b.onclick = () => shopTry(b.dataset.try); });
+    previews = [...$('shopList').querySelectorAll('canvas[data-prev]')].map(c => ({ c, id: c.dataset.prev, parts: [], t0: performance.now() - 900 }));
+  }
+
+  function shopAct(act, id) {
+    const it = R.shopItem(id);
+    const cat = Object.keys(R.SHOP).find(c => R.SHOP[c].items.includes(it));
+    if (act === 'ask') { Sound.tap(); shopConfirm = id; renderShop(); return; }
+    if (act === 'buy') {
+      if (progress.coins < it.price) { Sound.deny(); return; }
+      progress.coins -= it.price;
+      progress.owned[id] = true;
+      Sound.coin(); setTimeout(() => Sound.gift(), 120);
+    } else Sound.tap();
+    progress.equip[cat] = id;
+    shopConfirm = null;
+    saveProgress();
+    renderShop();
+    shopTry(id);
+  }
+
+  // Önizleme: ses çalar, kutlamayı ekranda oynatır, efekti kendi kutusunda patlatır
+  function shopTry(id) {
+    if (id.startsWith('pop-')) { [0, 1, 2].forEach(k => setTimeout(() => Sound.pop(k, id), k * 230)); return; }
+    if (id.startsWith('win-')) { confetti = []; launchConfetti(3, id); return; }
+    const p = previews.find(v => v.id === id);
+    if (p) p.t0 = performance.now() - 900;
+  }
+
+  // Efekt önizlemeleri: her 1,8 saniyede bir halka belirir ve seçilen şekille patlar
+  let previews = [];
+  function drawPreviews(now) {
+    if ($('shop').hidden || !previews.length) return;
+    for (const v of previews) {
+      const g = v.c.getContext('2d');
+      const t = (now - v.t0) % 1800;
+      g.clearRect(0, 0, v.c.width, v.c.height);
+      g.save();
+      g.scale(2, 2);
+      if (t < 900) {
+        g.globalAlpha = Math.min(1, t / 300);
+        g.strokeStyle = COLORS[0];
+        g.lineWidth = 7;
+        g.lineCap = 'round';
+        g.beginPath(); g.arc(60, 38, 22, 0.5, TAU - 0.2); g.stroke();
+        g.globalAlpha = 1;
+      } else if (!v.burst) {
+        v.burst = true;
+        const shape = BURST_SHAPE[v.id];
+        for (let k = 0; k < 22; k++) {
+          const a = Math.random() * TAU, sp = 0.8 + Math.random() * 1.8;
+          v.parts.push({ x: 60 + Math.cos(a) * 22, y: 38 + Math.sin(a) * 22, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+            life: 1, size: 1.4 + Math.random() * 1.8, color: COLORS[k % 3 ? 0 : 1], shape });
+        }
+      }
+      if (t < 900) v.burst = false;
+      v.parts = v.parts.filter(p => p.life > 0);
+      for (const p of v.parts) stepParticle(g, p);
+      g.restore();
+    }
+  }
+
+  $('shopBtn').onclick = () => { Sound.tap(); shopConfirm = null; showScreen('shop'); };
+  $('shopBack').onclick = () => { Sound.tap(); shopConfirm = null; showScreen('home'); };
+  for (const cat of Object.keys(R.SHOP)) {
+    $('shopTab-' + cat).onclick = () => { Sound.tap(); shopTab = cat; shopConfirm = null; renderShop(); };
   }
 
   $('homeTrophies').onclick = () => { Sound.tap(); trophyTab = 'badges'; showScreen('trophies'); };
@@ -1488,7 +1601,7 @@
         x: r.kind === 'bar' ? r.x1 + (r.x2 - r.x1) * t : r.x + Math.cos(a) * r.r,
         y: r.kind === 'bar' ? r.y1 + (r.y2 - r.y1) * t : r.y + Math.sin(a) * r.r,
         vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        life: 1, size: 2 + Math.random() * 3, color,
+        life: 1, size: 2 + Math.random() * 3, color, shape: BURST_SHAPE[equipped('burst')],
       });
     }
   }
@@ -1733,9 +1846,34 @@
     requestAnimationFrame(step);
   }
 
-  function launchConfetti(stars) {
+  // Zafer kutlaması: mağazadan seçilen gösteri (konfeti, havai fişek, altın yağmuru)
+  function launchConfetti(stars, id = equipped('win')) {
     if (REDUCED) return;
     const w = $('app').clientWidth;
+    if (id === 'win-fireworks') {
+      const shells = 2 + stars;
+      for (let s = 0; s < shells; s++) {
+        setTimeout(() => {
+          const x = w * (0.2 + Math.random() * 0.6), y = 110 + Math.random() * 160;
+          const color = COLORS[(s * 3) % COLORS.length];
+          Sound.tick();
+          for (let k = 0; k < 46; k++) {
+            const a = (k / 46) * TAU, sp = 2.2 + Math.random() * 2.2;
+            confetti.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 0.05, drag: 0.97,
+              rot: 0, vr: 0, w: 2.6, h: 2.6, color: k % 4 ? color : '#fff6c4', life: 1, fade: 0.012 });
+          }
+        }, s * 320);
+      }
+      return;
+    }
+    if (id === 'win-goldrain') {
+      const count = 14 + stars * 8;
+      for (let k = 0; k < count; k++) {
+        confetti.push({ kind: 'coin', x: Math.random() * w, y: -20 - Math.random() * 380, vx: (Math.random() - 0.5) * 1.2, vy: 2 + Math.random() * 2.5,
+          g: 0.12, drag: 0.995, rot: Math.random() * TAU, vr: 0.08 + Math.random() * 0.1, w: 0, h: 0, color: '', life: 1, size: 6 + Math.random() * 3.5 });
+      }
+      return;
+    }
     const count = 40 + stars * 30;
     for (let k = 0; k < count; k++) {
       confetti.push({
@@ -2703,15 +2841,47 @@
 
   function drawParticles() {
     particles = particles.filter(p => p.life > 0);
-    for (const p of particles) {
-      p.x += p.vx; p.y += p.vy;
-      p.vx *= 0.96; p.vy *= 0.96;
-      p.life -= 0.025;
-      ctx.globalAlpha = Math.max(p.life, 0);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * Math.max(p.life, 0), 0, TAU); ctx.fill();
-    }
+    for (const p of particles) stepParticle(ctx, p);
     ctx.globalAlpha = 1;
+  }
+
+  // Bir parçacığı ilerletip çizer; şekli mağazadaki kurtulma efektine göre
+  function stepParticle(g, p) {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.96; p.vy *= 0.96;
+    if (p.shape === 'bubble') p.vy -= 0.06;
+    p.life -= p.shape === 'bubble' ? 0.018 : 0.025;
+    const a = Math.max(p.life, 0), s = p.size * (p.shape === 'dot' || !p.shape ? a : 0.6 + 0.6 * a);
+    g.globalAlpha = a;
+    g.fillStyle = p.color;
+    g.strokeStyle = p.color;
+    if (p.shape === 'star') {
+      const r = s * 2;
+      g.beginPath();
+      g.moveTo(p.x, p.y - r); g.lineTo(p.x + r * 0.28, p.y - r * 0.28); g.lineTo(p.x + r, p.y); g.lineTo(p.x + r * 0.28, p.y + r * 0.28);
+      g.lineTo(p.x, p.y + r); g.lineTo(p.x - r * 0.28, p.y + r * 0.28); g.lineTo(p.x - r, p.y); g.lineTo(p.x - r * 0.28, p.y - r * 0.28);
+      g.closePath(); g.fill();
+    } else if (p.shape === 'bubble') {
+      g.lineWidth = 1.4;
+      g.beginPath(); g.arc(p.x, p.y, s * 1.6, 0, TAU); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.7)';
+      g.beginPath(); g.arc(p.x - s * 0.5, p.y - s * 0.5, s * 0.4, 0, TAU); g.fill();
+    } else if (p.shape === 'heart') {
+      const r = s * 1.1;
+      g.beginPath();
+      g.moveTo(p.x, p.y + r * 1.2);
+      g.bezierCurveTo(p.x - r * 2, p.y - r * 0.2, p.x - r * 0.9, p.y - r * 1.6, p.x, p.y - r * 0.5);
+      g.bezierCurveTo(p.x + r * 0.9, p.y - r * 1.6, p.x + r * 2, p.y - r * 0.2, p.x, p.y + r * 1.2);
+      g.fill();
+    } else if (p.shape === 'bolt') {
+      const ang = Math.atan2(p.vy, p.vx), r = s * 2.2;
+      g.save(); g.translate(p.x, p.y); g.rotate(ang);
+      g.lineWidth = 1.8; g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(-r, 0); g.lineTo(-r * 0.2, -r * 0.45); g.lineTo(r * 0.2, r * 0.45); g.lineTo(r, 0); g.stroke();
+      g.restore();
+    } else {
+      g.beginPath(); g.arc(p.x, p.y, s, 0, TAU); g.fill();
+    }
   }
 
   // Şok dalgası: iki genişleyen halka (beyaz, sonra dünyanın rengi) ve kısa bir parlama.
@@ -2823,9 +2993,18 @@
     confetti = confetti.filter(c => c.y < h + 20 && c.life > 0);
     for (const c of confetti) {
       c.x += c.vx; c.y += c.vy;
-      c.vx *= 0.985; c.vy += 0.28;
+      c.vx *= c.drag || 0.985; c.vy += c.g == null ? 0.28 : c.g;
+      if (c.drag) c.vy *= c.drag;
       c.rot += c.vr;
-      c.life -= 0.004;
+      c.life -= c.fade || 0.004;
+      if (c.kind === 'coin') { drawCoin(fctx, c.x, c.y, c.size, c.rot); continue; }
+      if (c.kind === 'spark') {
+        fctx.globalAlpha = Math.max(0, c.life);
+        fctx.fillStyle = c.color;
+        fctx.beginPath(); fctx.arc(c.x, c.y, c.w * (0.5 + c.life), 0, TAU); fctx.fill();
+        fctx.globalAlpha = 1;
+        continue;
+      }
       fctx.save();
       fctx.translate(c.x, c.y);
       fctx.rotate(c.rot);
@@ -2861,6 +3040,7 @@
       }
       backdrop.draw(now, fxOn() && $('levels').hidden);
       if (!$('levels').hidden) drawMapFx(now);
+      drawPreviews(now);
       drawFx(now);
     } catch (err) {
       console.error(err);
