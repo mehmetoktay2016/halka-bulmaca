@@ -56,6 +56,25 @@
     });
   }
 
+  // Günlük seri sandığı: oyunu her gün açana büyüyen ödül; 7. gün efsane sandık, sonra şerit baştan.
+  // Gün kaçırılırsa seri sıfırlanmaz, kaçırılan gün kadar geri düşer.
+  const STREAK = {
+    days: [
+      { coins: 5 }, { coins: 8 }, { coins: 10 }, { coins: 12, rarity: 'rare' },
+      { coins: 15, rarity: 'rare' }, { coins: 20, rarity: 'rare' }, { coins: 30, bulbs: 1, rarity: 'epic' },
+    ],
+  };
+  const dayNo = d => { const [y, m, g] = d.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, g) / 86400000); };
+  // Bugünün seri adımı: { count, slot (0-6), missed, reward } ya da bugün alındıysa null.
+  // streak: kayıttaki { day, count } ya da null; day: 'YYYY-AA-GG'
+  function streakStep(streak, day) {
+    if (streak && streak.day === day) return null;
+    const missed = streak ? Math.max(0, dayNo(day) - dayNo(streak.day) - 1) : 0;
+    const count = (streak ? Math.max(0, streak.count - missed) : 0) + 1;
+    const slot = (count - 1) % STREAK.days.length;
+    return { count, slot, missed, reward: { coins: 0, bulbs: 0, rarity: 'common', ...STREAK.days[slot] } };
+  }
+
   const RARITY_NAMES = { common: 'Sandık', rare: 'Nadir sandık', epic: 'Efsane sandık' };
 
   // Tohumlu rastgele sayı (mulberry32): aynı tohum, aynı dizi
@@ -109,7 +128,7 @@
     return { rarity, name: RARITY_NAMES[rarity], coins, bulbs };
   }
 
-  const api = { ECONOMY, LOOT, STICKERS, rng, gatePlan, spotFor, chestFor, stickerLevels };
+  const api = { ECONOMY, LOOT, STICKERS, STREAK, streakStep, rng, gatePlan, spotFor, chestFor, stickerLevels };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingRewards = api;
 })(this);

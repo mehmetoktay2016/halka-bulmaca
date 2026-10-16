@@ -122,5 +122,20 @@ test('çıkartma çizimi her durumda geçerli SVG', () => {
   }
 });
 
+test('günlük seri: aynı gün ikinci kez yok, ertesi gün artar, kaçırılan gün kadar geri düşer, 7 günde bir başa döner', () => {
+  assert.strictEqual(R.streakStep({ day: '2026-10-16', count: 3 }, '2026-10-16'), null);
+  const first = R.streakStep(null, '2026-10-16');
+  assert.deepStrictEqual([first.count, first.slot, first.missed], [1, 0, 0]);
+  assert.strictEqual(R.streakStep({ day: '2026-10-15', count: 3 }, '2026-10-16').count, 4);
+  assert.strictEqual(R.streakStep({ day: '2026-10-13', count: 5 }, '2026-10-16').count, 4);
+  assert.strictEqual(R.streakStep({ day: '2026-10-01', count: 3 }, '2026-10-16').count, 1, 'uzun aradan sonra en az 1');
+  assert.strictEqual(R.streakStep({ day: '2026-10-15', count: 7 }, '2026-10-16').slot, 0);
+  assert.strictEqual(R.streakStep({ day: '2026-12-31', count: 2 }, '2027-01-01').count, 3, 'yıl dönümü');
+  assert.strictEqual(R.streakStep({ day: '2026-10-17', count: 2 }, '2026-10-16').count, 3, 'saat geri alınsa da çökmez');
+  const last = R.streakStep({ day: '2026-10-15', count: 6 }, '2026-10-16');
+  assert.strictEqual(last.reward.rarity, 'epic');
+  assert.strictEqual(last.reward.bulbs, 1);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm ödül testleri geçti');
 process.exit(failed ? 1 : 0);

@@ -192,7 +192,7 @@
   // ---- Ekran geçişleri ----
   function showScreen(name) {
     for (const id of ['home', 'levels', 'game', 'trophies']) $(id).hidden = id !== name;
-    if (name === 'home') renderHome();
+    if (name === 'home') { renderHome(); maybeStreak(); }
     if (name === 'trophies') renderTrophies();
     if (name === 'levels') renderMap();
     if (name === 'game') requestAnimationFrame(resize);
@@ -781,6 +781,75 @@
     if (progress.rewards['world:' + world.id]) return;
     showWorldCard(world);
   }
+  // ---- Günlük seri sandığı: her gün ilk açılışta, ana ekranda (rewards.js STREAK) ----
+  const bigChestSvg = rarity => `<svg class="big-chest ${rarity}" viewBox="0 0 120 100" aria-hidden="true">
+    <ellipse class="shade" cx="60" cy="92" rx="44" ry="6"/>
+    <rect class="box" x="16" y="46" width="88" height="42" rx="6"/>
+    <path class="plank" d="M18 67h84"/>
+    <rect class="band" x="28" y="46" width="10" height="42"/><rect class="band" x="82" y="46" width="10" height="42"/>
+    <g class="lid"><path class="lidp" d="M16 48V38C16 12 104 12 104 38V48Z"/>
+      <rect class="band" x="28" y="20" width="10" height="28"/><rect class="band" x="82" y="20" width="10" height="28"/></g>
+    <g class="lock"><rect class="band" x="52" y="38" width="16" height="18" rx="3"/><circle cx="60" cy="45" r="2.6"/><rect x="58.8" y="45" width="2.4" height="6"/></g>
+  </svg>`;
+
+  function maybeStreak() {
+    if (!progress.tutorialDone || !$('streakCard').classList.contains('hidden')) return;
+    const step = R.streakStep(progress.streak, today());
+    if (step) showStreakCard(step);
+  }
+
+  function streakDaysHtml(slot, opened) {
+    const days = R.STREAK.days;
+    return days.map((d, k) => {
+      const state = k < slot || (k === slot && opened) ? 'done' : k === slot ? 'today' : '';
+      return `<li class="${state}${k === days.length - 1 ? ' last' : ''}"><small>${k + 1}. gün</small>
+        <b><i class="coin-ico"></i>${d.coins}</b>${d.bulbs ? '<em>+1 <i class="bulb-ico"></i></em>' : ''}</li>`;
+    }).join('');
+  }
+
+  function showStreakCard(step) {
+    const days = R.STREAK.days, r = step.reward;
+    const next = days[(step.slot + 1) % days.length];
+    $('streakTitle').textContent = `${step.slot + 1}. gün`;
+    $('streakDays').innerHTML = streakDaysHtml(step.slot, false);
+    $('streakChest').innerHTML = bigChestSvg(r.rarity);
+    $('streakNote').textContent = step.missed
+      ? `${step.missed} gün ara verdin, seri ${step.missed} gün geri gitti. Sıfırlanmadı!`
+      : step.slot === days.length - 1 ? 'Serinin son günü: efsane sandık!' : 'Her gün gel, sandık her gün büyüsün.';
+    const btn = $('streakGo');
+    btn.textContent = 'Sandığı aç';
+    btn.disabled = false;
+    $('streakCard').classList.remove('hidden');
+    let opened = false;
+    btn.onclick = () => {
+      if (opened) { Sound.tap(); $('streakCard').classList.add('hidden'); renderHome(); return; }
+      opened = true;
+      btn.disabled = true;
+      // Ödül hemen kayda yazılır; kart kapanmadan uygulama kapansa da kaybolmaz
+      progress.streak = { day: today(), count: step.count };
+      progress.coins += r.coins;
+      progress.hints += r.bulbs;
+      stat('coinsTotal', r.coins);
+      saveProgress();
+      const chest = $('streakChest').firstElementChild;
+      chest.classList.add('shake');
+      Sound.chestShake();
+      setTimeout(() => {
+        chest.classList.remove('shake');
+        chest.classList.add('open');
+        Sound.chestOpen(r.rarity);
+        if (navigator.vibrate && r.rarity === 'epic') { try { navigator.vibrate([20, 40, 30]); } catch (e) { /* yok say */ } }
+        $('streakDays').innerHTML = streakDaysHtml(step.slot, true);
+        $('streakNote').innerHTML = `<span class="streak-got"><b>+${r.coins} altın</b>${r.bulbs ? ` · <b>+${r.bulbs} ampul</b>` : ''}</span>
+          Yarın gel: <b>${next.coins} altın${next.bulbs ? ' ve ampul' : ''}</b>`;
+        btn.textContent = 'Devam';
+        btn.disabled = false;
+        renderHome();
+        awardBadges(false);
+      }, CHEST_SHAKE_MS);
+    };
+  }
+
   function showWorldCard(world) {
     $('worldTitle').textContent = world.name;
     $('worldIntro').textContent = world.intro;
