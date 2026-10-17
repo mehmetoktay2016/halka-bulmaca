@@ -13,18 +13,20 @@ const out = fs.existsSync(file)
 for (const k of Object.keys(out)) if (Number(k) <= Levels.HAND_LEVELS.length) delete out[k];
 const first = process.argv[3] ? Number(process.argv[2]) : Levels.HAND_LEVELS.length + 1;
 const last = Number(process.argv[3] || process.argv[2] || 60);
+const made = new Set(); // bu çalıştırmada üretilenler (bulunamayanın eskisi parçaya yazılmasın)
 for (let n = first; n <= last; n++) {
   const t0 = Date.now();
   const def = Levels.SHAPE_PLAN[n] ? Levels.finishAnimal(n)
     : Levels.NORMAL_PLAN[n] ? Levels.generateFor(n) : Levels.generate(n);
   if (!def) { console.log(`#${n}: üretilemedi`); continue; }
   out[n] = def;
+  made.add(n);
   console.log(`#${n}: ${def.rings.length} halka, hedef=${def.par}, ${Date.now() - t0} ms`);
 }
 
 if (process.argv[4]) {
   const part = {};
-  for (let n = first; n <= last; n++) if (out[n]) part[n] = out[n];
+  for (const n of made) part[n] = out[n];
   fs.writeFileSync(process.argv[4], JSON.stringify(part));
   console.log(`${Object.keys(part).length} seviye yazıldı: ${process.argv[4]}`);
   process.exit(0);

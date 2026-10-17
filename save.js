@@ -19,6 +19,7 @@
   function fresh() {
     return {
       version: 3,
+      layout: 4,          // bölüm düzeni: 4 = kapı içi zorluk yakınlığa göre (2.2); eskiler relayout ile taşınır
       stars: {},          // bölüm kimliği -> en iyi yıldız (kayıt varsa bölüm bitirilmiştir)
       best: {},           // bölüm kimliği -> en iyi skor
       sound: true,        // oyun sesleri
@@ -67,10 +68,11 @@
   function load(storage) {
     try {
       const p3 = readJSON(storage, KEY);
-      if (p3 && p3.version === 3) return { ...fresh(), ...p3 };
+      // layout alanı olmayan kayıt 2.2'den önceki düzendedir (relayout taşır)
+      if (p3 && p3.version === 3) return { ...fresh(), layout: 3, ...p3 };
       const p2 = readJSON(storage, V2_KEY);
       const p1 = p2 ? null : readJSON(storage, V1_KEY);
-      const p = p2 && p2.unlocked ? fromV2(p2) : p1 ? fromV1(p1) : fresh();
+      const p = p2 && p2.unlocked ? { ...fromV2(p2), layout: 3 } : p1 ? fromV1(p1) : fresh();
       if (p2 || p1) save(storage, p);
       return p;
     } catch (e) {
@@ -82,6 +84,24 @@
     try { storage.setItem(KEY, JSON.stringify(progress)); } catch (e) { /* yok say */ }
   }
 
+  // 2.2'de bölümler yeniden üretildi ve kapı içi sırası değişti. Oyuncu ekrandaki yerini korusun diye
+  // bölüm kimliğine bağlı kayıtlar sıra numarası üzerinden taşınır: eski düzende n. sıradaki bölümün
+  // kaydı yeni düzende n. sıradaki bölüme geçer. Taşıma yapıldıysa true döner (bir kez çalışır).
+  function relayout(progress, oldOrder, newOrder) {
+    if (progress.layout === 4) return false;
+    const pos = new Map(oldOrder.map((src, i) => [String(src), i]));
+    for (const field of ['stars', 'best', 'clean', 'loot']) {
+      const out = {};
+      for (const [id, v] of Object.entries(progress[field] || {})) {
+        const i = pos.get(id);
+        out[i == null || newOrder[i] == null ? id : String(newOrder[i])] = v;
+      }
+      progress[field] = out;
+    }
+    progress.layout = 4;
+    return true;
+  }
+
   // Açık olan son sıra numarası: bitirilmiş en ileri bölümün bir sonrası.
   // order[n-1] = n. sıradaki bölümün kimliği.
   function frontier(progress, order) {
@@ -90,7 +110,7 @@
     return Math.min(f, order.length);
   }
 
-  const api = { KEY, V2_KEY, V1_KEY, V2_ORDER, START_HINTS, fresh, fromV2, fromV1, load, save, frontier };
+  const api = { KEY, V2_KEY, V1_KEY, V2_ORDER, START_HINTS, fresh, fromV2, fromV1, load, save, relayout, frontier };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingSave = api;
 })(this);

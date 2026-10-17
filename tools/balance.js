@@ -14,7 +14,7 @@ const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s)
 const order = Levels.gateOrder(get);
 
 // game.js ile aynı kurallar
-const moveCap = src => ((Levels.gateOfSource(src) || 1) >= 17 ? 14 : 10);
+const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10; // game.js ile aynı
 const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 // İpucu arama bütçesi (game.js ile aynı olmalı); farklı bütçeleri denemek için HINT_NODES verilebilir
 const HINT_NODES = Number(process.env.HINT_NODES || 2000);

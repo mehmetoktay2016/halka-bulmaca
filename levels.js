@@ -211,14 +211,16 @@
     };
   }
 
-  function placeRings(rnd, count) {
+  // near: istenen yakınlık (bkz. closeness); verilirse halka komşusundan bu orana yakın uzaklığa konur
+  function placeRings(rnd, count, near) {
     const rand = (a, b) => a + rnd() * (b - a);
     const rings = [{ x: 200, y: 280, r: rand(58, 72) }];
     let tries = 0;
     while (rings.length < count && tries++ < 400) {
       const parent = rings[Math.floor(rnd() * rings.length)];
       const r = rand(52, 70);
-      const d = rand(72, parent.r + r - 30);
+      const d = near == null ? rand(72, parent.r + r - 30)
+        : Math.max(72, Math.min(parent.r + r - 27, (near + (rnd() - 0.5) * 0.08) * (parent.r + r)));
       const ang = rnd() * Math.PI * 2;
       const c = { x: parent.x + Math.cos(ang) * d, y: parent.y + Math.sin(ang) * d, r };
       if (c.x - r < 12 || c.x + r > BOARD.w - 12 || c.y - r < 12 || c.y + r > BOARD.h - 12) continue;
@@ -258,6 +260,17 @@
 
   function generate(levelNo) {
     const base = difficulty(levelNo);
+    // Kapı 1-6'nın üretilmiş bölümleri: hamle sayısı korunur, yakınlık kapıdaki yerinden gelir
+    // (kapının başında ferah, sonunda sıkışık). Bulunamazsa hamle ±1 ve yakınlık bandı genişler.
+    if (KEEP_PAR[levelNo]) {
+      const par = KEEP_PAR[levelNo], near = nearOf(levelNo);
+      for (let relax = 0; relax <= 3; relax++) {
+        const def = generateWith(levelNo, { ...base, minPar: par - (relax >= 2 ? 1 : 0), maxPar: par + (relax >= 1 ? 1 : 0),
+          near, band: 0.03 + 0.01 * relax, tries: 1500 }, 10 + relax);
+        if (def) return def;
+      }
+      return null;
+    }
     for (let relax = 0; relax <= 4; relax++) {
       const def = generateWith(levelNo, { ...base, minPar: Math.max(3, base.minPar - relax) }, relax);
       if (def) return def;
@@ -267,10 +280,11 @@
 
   function generateWith(levelNo, p, relax) {
     const exactCap = p.count >= 9 ? 60000 : 150000;
-    for (let attempt = 0; attempt < (relax ? 80 : 150); attempt++) {
+    for (let attempt = 0; attempt < (p.tries || (relax ? 80 : 150)); attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + relax * 15485863);
-      const pos = placeRings(rnd, p.count);
+      const pos = placeRings(rnd, p.count, p.near);
       if (!pos) continue;
+      if (p.near != null && Math.abs(closeness({ rings: pos }) - p.near) > p.band) continue;
       const order = pos.map((_, i) => i).sort(() => rnd() - 0.5);
       const fixedSet = new Set(order.slice(0, p.fixed));
       const movable = order.filter(i => !fixedSet.has(i));
@@ -302,7 +316,7 @@
       const exact = Logic.solve(L, L.startAngles, 0, exactCap);
       if (exact && exact.moves < p.minPar) continue;
       def.par = exact ? exact.moves : quick.moves;
-      if (def.par > MAX_PAR) continue;
+      if (def.par > (p.maxPar || MAX_PAR)) continue;
       return def;
     }
     return null;
@@ -759,9 +773,31 @@
       deco: [{ring: 0, type: 'gear'}, {ring: 1, type: 'gear', dir: -1}, {ring: 2, type: 'gear', dir: -1}, {ring: 3, type: 'gear', dir: -1}, {ring: 4, type: 'gear', dir: -1}] },
   );
 
-  // Zorluk puanı: en az hamle esas; parça, eş, kilit, çubuk ve çift boşluk ek yük getirir.
-  // Yeni mekanikler (ters/hızlı dişli, tıklı halka, kilit, çerçeve) daha çok düşündürür.
+  // Yakınlık: her halkanın en yakın komşusuna uzaklığı / iki yarıçapın toplamı, ortalaması.
+  // Küçük değer sıkışık (0,60 civarı: halkalar üst üste), büyük değer ferah (0,77 civarı).
+  function closeness(def) {
+    const R = def.rings.filter(r => !r.type);
+    let sum = 0;
+    for (const a of R) {
+      let m = Infinity;
+      for (const b of R) if (a !== b) m = Math.min(m, Math.hypot(a.x - b.x, a.y - b.y) / (a.r + b.r));
+      sum += m;
+    }
+    return sum / R.length;
+  }
+
+  // Zorluk puanı: hamle puanı + yakınlık katkısı. Sıkışık halkalar zorlaştırır, ferah halkalar
+  // kolaylaştırır; katkı en çok ±1 (bir hamle kadar), yani hamle sayısı ağır basar.
+  const NEAR_MID = 0.69;
+  const NEAR_EASY = 0.76, NEAR_HARD = 0.61; // kapının ilk / son normal bölümünde istenen yakınlık
   function difficultyScore(def) {
+    return parScore(def) + Math.max(-1, Math.min(1, 8 * (NEAR_MID - closeness(def))));
+  }
+
+  // Hamle puanı: en az hamle esas; parça, eş, kilit, çubuk ve çift boşluk ek yük getirir.
+  // Yeni mekanikler (ters/hızlı dişli, tıklı halka, kilit, çerçeve) daha çok düşündürür.
+  // Üreticiler hedefi bununla tutturur (kapı içindeki hamle eğrisi), yakınlığı ayrıca seçer.
+  function parScore(def) {
     const n = t => def.rings.filter(t).length;
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
     return def.par + 0.15 * def.rings.length + 0.3 * (def.couples || []).length +
@@ -795,13 +831,13 @@
       const quick = Logic.solveFast(L, L.startAngles, 0, 20000);
       if (!quick) continue;
       def.par = quick.moves;
-      if (difficultyScore(def) < spec.target - 1.2) continue; // üst sınır bile hedefin çok altında
+      if (parScore(def) < spec.target - 1.2) continue; // üst sınır bile hedefin çok altında
       const exact = Logic.solve(L, L.startAngles, 0, 150000);
       if (exact) def.par = exact.moves;
       if (def.par > (plan.maxPar || MAX_PAR)) continue;
       // İpucu (hızlı arama) bu bölümü çözebilmeli
       if (exact && !Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) continue;
-      const err = Math.abs(difficultyScore(def) - spec.target);
+      const err = Math.abs(parScore(def) - spec.target);
       if (err < bestErr) { best = def; bestErr = err; }
     }
     return best;
@@ -891,11 +927,9 @@
   // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar.
   // - Her kapının 10. bölümü bir şekil finalidir; bazı kapılarda 5. bölüm de ara şekildir (SHAPE_PLAN).
   // - Kapının içinde zorluk artar; yeni kapı bir öncekinin zirvesinin biraz altından başlar
-  //   (testere dişi). Bunun için her yuvaya bir hedef sıra verilir ve bölümler zorluk sırasıyla
-  //   bu yuvalara dağıtılır.
+  //   (testere dişi). Hangi bölümün hangi kapıda olduğu LAYOUT'ta sabittir, kapı içi sıra gateOrder'da.
   const GATE_LEN = 10;
   const MID_POS = 4;    // ara şeklin kapı içindeki yeri (0'dan sayılır)
-  const GATE_STEP = 6;  // yeni kapı, önceki kapının 7. bölümü kadar zor başlar
 
   // ---- Kapı 7-20: dünyaların yeni bölümleri (Görev 13) ----
   // Kapı 1-6 eskisi gibi kalır; yalnızca 6. kapıya ara şekil (Kaplumbağa) girer ve o kapının en zor
@@ -907,34 +941,76 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002 };
-  // Kapının en zor normal bölümünün hedefi: kapıdan kapıya yükselir (17'den sonra en iyi çözüm 10'a çıkar)
-  // Zirveler hiç düşmez: 6. kapının zirvesi (11,6) en az aşılır, en iyi çözüm sınırı 8 olduğu için
-  // 16. kapıya kadar yavaş, 17'den sonra (sınır 10) daha hızlı yükselir.
-  const GATE_PEAK = { 7: 11.7, 8: 11.75, 9: 11.6, 10: 11.85, 11: 11.6, 12: 12.0, 13: 12.1, 14: 12.2,
-    15: 11.8, 16: 12.4, 17: 12.8, 18: 13.3, 19: 13.8, 20: 14.3 };
-  const OLD_PEAK = 11.6; // 6. kapının zirvesi (en zor bölümü 12. kapıya taşındıktan sonra)
-  const maxParOfGate = g => (g >= 17 ? 10 : MAX_PAR);
+  // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
+  // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
+  // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
+  const GATE_PEAK = { 7: 12.6, 8: 12.75, 9: 12.9, 10: 13.05, 11: 13.2, 12: 13.5, 13: 13.75, 14: 14.0,
+    15: 14.25, 16: 14.5, 17: 14.8, 18: 15.1, 19: 15.4, 20: 15.7 };
+  const OLD_PEAK = 12.5; // 6. kapının zirvesi
+  const GATE_DROP = 2.5; // yeni kapının ilk normal bölümü önceki zirvenin bu kadar altından başlar
+  const maxParOfGate = g => (g >= 17 ? 10 : g >= 12 ? 9 : MAX_PAR);
   const shapeOf = (g, role) => Number(Object.keys(SHAPE_PLAN).find(k => SHAPE_PLAN[k].gate === g && SHAPE_PLAN[k].role === role));
 
-  // Yeni normal bölümlerin planı: kaynak -> { gate, target }. Kapı içinde hedef, başlangıçtan zirveye
-  // doğrusal artar. Başlangıç, önceki kapının zirvesinin altında (testere dişi; yeni dünyada daha da
-  // aşağıda) ve kapının finalinden kolay olmalı (final kapının en kolay bölümünden kolay olamaz).
+  // Yeni normal bölümlerin planı: kaynak -> { gate, target, peak, top, near }. Kapı içinde hedef,
+  // başlangıçtan zirveye doğrusal artar; başlangıç önceki zirveyle birlikte yükselir (testere dişi),
+  // böylece kapının ortalaması da her kapıda artar. near: istenen yakınlık (baş ferah, son sıkışık).
   const NORMAL_PLAN = {};
   (function () {
     let src = NEW_FIRST, prevPeak = OLD_PEAK;
     for (let g = OLD_GATES + 1; g <= LAST_GATE; g++) {
       const slots = GATE_LEN - 2 - (WORLD_INTRO[g] ? 1 : 0) - (g === MOVED_GATE ? 1 : 0);
-      const finalT = SHAPE_PLAN[shapeOf(g, 'final')].target;
-      const start = Math.min(prevPeak - (WORLD_INTRO[g] ? 1.4 : 0.8), finalT - 0.3);
+      const start = prevPeak - GATE_DROP;
       const peak = GATE_PEAK[g];
       for (let j = 0; j < slots; j++) {
-        // Kapının en zor bölümü (peak) zirve hedefinin altında kalamaz
-        NORMAL_PLAN[src++] = { gate: g, target: Math.round((start + (peak - start) * j / (slots - 1)) * 100) / 100, peak: j === slots - 1 };
+        const f = j / (slots - 1);
+        NORMAL_PLAN[src++] = { gate: g, target: Math.round((start + (peak - start) * f) * 100) / 100, peak: j === slots - 1,
+          top: GATE_PEAK[g + 1] || peak + 0.3, near: NEAR_EASY + (NEAR_HARD - NEAR_EASY) * f };
       }
       prevPeak = peak;
     }
   })();
   const NEW_LAST = NEW_FIRST + Object.keys(NORMAL_PLAN).length - 1;
+
+  // Kapıların bölümleri (kaynak numaraları), 2.1 sürümündeki sırayla. Oyuncu kaydı bu sıradan
+  // yeni sıraya taşınır (save.js relayout); değiştirmeyin, yeni kapılar sona eklenir.
+  const LAYOUT = [
+    1, 2, 4, 5, 9, 7, 8, 11, 13, 52,
+    3, 10, 12, 14, 51, 6, 15, 21, 19, 53,
+    17, 16, 18, 20, 58, 23, 24, 27, 26, 55,
+    22, 29, 33, 31, 54, 25, 32, 35, 41, 57,
+    28, 39, 45, 47, 56, 38, 42, 50, 37, 59,
+    48, 34, 49, 43, 61, 30, 36, 44, 46, 60,
+    1001, 90, 91, 92, 62, 93, 94, 95, 96, 63,
+    97, 98, 99, 100, 64, 101, 102, 103, 104, 65,
+    1003, 105, 106, 107, 67, 108, 109, 110, 111, 66,
+    112, 114, 113, 115, 68, 116, 118, 117, 119, 69,
+    1004, 120, 121, 122, 70, 123, 124, 125, 126, 71,
+    127, 128, 129, 130, 72, 131, 132, 40, 133, 73,
+    1005, 134, 135, 136, 74, 137, 138, 139, 140, 75,
+    141, 142, 143, 144, 76, 145, 146, 147, 148, 77,
+    1002, 149, 150, 151, 78, 152, 153, 154, 155, 79,
+    156, 157, 158, 159, 80, 160, 161, 162, 163, 81,
+    164, 165, 166, 167, 82, 168, 169, 170, 171, 83,
+    172, 173, 174, 175, 84, 176, 177, 178, 179, 85,
+    180, 181, 182, 183, 86, 184, 185, 186, 187, 87,
+    188, 189, 190, 191, 88, 192, 193, 194, 195, 89,
+  ];
+  // Kapının normal bölümleri (şekiller ve dünya tanıtımı hariç), LAYOUT'taki sırayla
+  const gateNormals = g => LAYOUT.slice((g - 1) * GATE_LEN, g * GATE_LEN)
+    .filter(s => !SHAPE_PLAN[s] && s !== WORLD_INTRO[g]);
+  const gateOfLayout = src => Math.floor(LAYOUT.indexOf(src) / GATE_LEN) + 1;
+
+  // Kapı 1-6'nın üretilmiş bölümlerinin en az hamlesi (2.1'deki hâli); yeniden üretimde korunur
+  const KEEP_PAR = { 11: 3, 12: 3, 13: 3, 14: 3, 15: 4, 16: 4, 17: 4, 18: 5, 19: 4, 20: 5, 21: 4, 22: 5,
+    23: 5, 24: 5, 25: 7, 26: 6, 27: 6, 28: 6, 29: 6, 30: 8, 31: 6, 32: 6, 33: 6, 34: 7, 35: 7, 36: 8, 37: 7,
+    38: 7, 39: 7, 40: 8, 41: 7, 42: 7, 43: 7, 44: 8, 45: 7, 46: 8, 47: 7, 48: 7, 49: 7, 50: 7 };
+
+  // İstenen yakınlık: kapının ilk normal bölümünde ferah, sonuncusunda sıkışık (NEAR_EASY/HARD)
+  function nearOf(src) {
+    const list = gateNormals(gateOfLayout(src));
+    const k = list.indexOf(src);
+    return NEAR_EASY + (NEAR_HARD - NEAR_EASY) * k / Math.max(1, list.length - 1);
+  }
 
   // Bir kaynağın kapısı (bilinmiyorsa null): en iyi çözüm sınırı ve hamle hakkı buna göre
   function gateOfSource(src) {
@@ -1015,14 +1091,16 @@
     return out;
   }
 
-  // Yeni normal bölüm: kapısının dünyasına göre mekanikli, hedef zorluğa en yakın aday seçilir
+  // Yeni normal bölüm: kapısının dünyasına göre mekanikli. Hamle puanı hedefe en yakın aday seçilir;
+  // halkaların yakınlığı bölümün kapıdaki yerinden gelir (nearOf), band içinde kalmayan aday elenir.
   // first/count: denenecek aday aralığı (aynı bölüm için aralıklar paralel işlere bölünebilir)
-  function generateFor(levelNo, first = 0, count = NORMAL_PLAN[levelNo] && NORMAL_PLAN[levelNo].peak ? 900 : 500) {
+  function generateFor(levelNo, first = 0, count = NORMAL_PLAN[levelNo] && NORMAL_PLAN[levelNo].peak ? 3000 : 2000, band = 0.03) {
     const plan = NORMAL_PLAN[levelNo];
     if (!plan) return null;
     const maxPar = maxParOfGate(plan.gate);
+    const near = plan.near;
     let best = null, bestErr = Infinity;
-    for (let attempt = first; attempt < first + count && bestErr > 0.3; attempt++) {
+    for (let attempt = first; attempt < first + count && bestErr > (plan.peak ? 0 : 0.15); attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 77);
       const mech = mechanicsFor(plan.gate, rnd);
       // Çerçeve çok halkalı zor yerleşimlerde kenarlarına yer bulamayabilir: uzun süre olmazsa
@@ -1034,9 +1112,11 @@
         if (!mech.includes(extra)) mech.push(extra);
       }
       const t = plan.target;
-      const count = t < 9 ? 6 : t < 10.5 ? 7 : t < 12 ? 8 : 9;
-      const pos = placeRings(rnd, count);
+      const tp = t - Math.max(-1, Math.min(1, 8 * (NEAR_MID - near))); // hedefin hamle puanı karşılığı
+      const count = tp < 9 ? 6 : tp < 10.5 ? 7 : tp < 12 ? 8 : 9;
+      const pos = placeRings(rnd, count, near);
       if (!pos) continue;
+      if (Math.abs(closeness({ rings: pos }) - near) > band) continue;
       const idx = pos.map((_, i) => i).sort(() => rnd() - 0.5);
       const take = () => idx.shift();
       const rings = pos.map(c => ({ x: Math.round(c.x * 10) / 10, y: Math.round(c.y * 10) / 10, r: Math.round(c.r), a: Math.round(rnd() * 360) }));
@@ -1083,6 +1163,8 @@
       if (!noRingFreeAtStart(L)) continue;
       const quick = Logic.solveFast(L, L.startAngles, 0, 20000);
       if (!quick || quick.moves < 3) continue;
+      // Kapısına kadar tanıtılmamış mekanik olamaz (tanıtım kuralı bölümü başka kapıya taşırdı)
+      if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) continue;
       def.par = quick.moves;
       if (difficultyScore(def) < t - 1.0) continue; // en iyi çözüm bundan da kısa olabilir: zaten kolay
       const exact = Logic.solve(L, L.startAngles, 0, count >= 9 ? 60000 : 150000);
@@ -1090,64 +1172,30 @@
       if (def.par > maxPar || def.par < 3) continue;
       if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) continue; // ipucu çözebilmeli
       const sc = difficultyScore(def);
-      if (plan.peak && sc < t - 0.05) continue;
-      const err = Math.abs(sc - t);
+      // Zirve: bu kapının hedefi ile sonraki kapının hedefi arasında (zirveler kesin artar)
+      if (plan.peak && (sc < t || sc >= plan.top)) continue;
+      const err = plan.peak ? 0 : Math.abs(sc - t);
       if (err < bestErr) { best = def; bestErr = err; }
     }
     return best;
   }
 
+  // Kapı içi sıra: kapının bölümleri LAYOUT'tan gelir; dünya tanıtımı başta, normal bölümler zorluk
+  // puanına göre kolaydan zora (ferah ve kısa olandan sıkışık ve uzun olana), ara şekil 5. sırada,
+  // final sonda. Bir bölüm mekaniğinin tanıtımından önce gelirse tanıtımla yer değiştirir.
   function gateOrder(get) {
-    const order = oldGateOrder(get);
-    const D = s => difficultyScore(get(s));
-    // Kapı 6: en zor normal bölüm MOVED_GATE'e taşınır, yerine ara şekil girer
-    const g6 = order.slice((OLD_GATES - 1) * GATE_LEN, OLD_GATES * GATE_LEN);
-    const normals6 = g6.slice(0, GATE_LEN - 1);
-    const moved = normals6.reduce((a, b) => (D(b) > D(a) ? b : a));
-    const own6 = normals6.filter(s => s !== moved);
-    own6.splice(MID_POS, 0, shapeOf(OLD_GATES, 'mid'));
-    order.splice((OLD_GATES - 1) * GATE_LEN, GATE_LEN, ...own6, g6[GATE_LEN - 1]);
-    // Kapı 7-20
-    for (let g = OLD_GATES + 1; g <= LAST_GATE; g++) {
-      const normals = Object.keys(NORMAL_PLAN).map(Number).filter(s => NORMAL_PLAN[s].gate === g);
-      if (g === MOVED_GATE) normals.push(moved);
-      normals.sort((a, b) => D(a) - D(b) || a - b);
-      const own = WORLD_INTRO[g] ? [WORLD_INTRO[g], ...normals] : normals;
-      own.splice(MID_POS, 0, shapeOf(g, 'mid'));
+    const D = new Map();
+    const score = s => (D.has(s) ? D.get(s) : D.set(s, difficultyScore(get(s))).get(s));
+    const order = [];
+    for (let g = 1; g <= LAST_GATE; g++) {
+      const intro = WORLD_INTRO[g];
+      const normals = gateNormals(g).sort((a, b) => score(a) - score(b) || a - b);
+      const own = intro ? [intro, ...normals] : normals;
+      const mid = shapeOf(g, 'mid');
+      if (mid) own.splice(MID_POS, 0, mid);
       own.push(shapeOf(g, 'final'));
       order.push(...own);
     }
-    return order;
-  }
-
-  // Kapı 1-6'nın sırası (Görev 13'ten önceki hâli; değiştirilmez)
-  function oldGateOrder(get) {
-    const all = Array.from({ length: MAIN_LEVELS + ANIMAL_LEVELS }, (_, i) => i + 1);
-    const D = new Map(all.map(s => [s, difficultyScore(get(s))]));
-    const byD = (a, b) => D.get(a) - D.get(b) || a - b;
-    const mains = all.filter(s => s <= MAIN_LEVELS).sort(byD);
-    const shapes = all.filter(s => s > MAIN_LEVELS);
-    const gates = all.length / GATE_LEN;
-    // Şekillerin yeri şekil planından gelir: her kapının bir finali, bazılarının bir ara şekli var
-    const finals = [], mids = [];
-    for (const s of shapes) (SHAPE_PLAN[s].role === 'final' ? finals : mids)[SHAPE_PLAN[s].gate - 1] = s;
-    const midGate = g => mids[g] != null;
-    // Normal bölümlerin yuvaları ve hedef sıraları
-    const slots = [];
-    for (let g = 0; g < gates; g++) {
-      const count = GATE_LEN - 1 - (midGate(g) ? 1 : 0);
-      for (let j = 0; j < count; j++) slots.push({ g, j, t: g * GATE_STEP + j * 8 / (count - 1) });
-    }
-    slots.sort((a, b) => a.t - b.t || a.g - b.g);
-    slots.forEach((s, k) => { s.src = mains[k]; });
-    const order = [];
-    for (let g = 0; g < gates; g++) {
-      const own = slots.filter(s => s.g === g).sort((a, b) => a.j - b.j).map(s => s.src);
-      if (midGate(g)) own.splice(MID_POS, 0, mids[g]);
-      own.push(finals[g]);
-      order.push(...own);
-    }
-    // Tanıtım kuralı: bir bölüm, mekaniğinin tanıtımından önce geliyorsa tanıtımla yer değiştirir
     for (let p = 0; p < order.length; p++) {
       for (const f of features(get(order[p]))) {
         const q = order.indexOf(INTRO[f]);
@@ -1201,7 +1249,7 @@
 
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
-    difficultyScore, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
+    difficultyScore, parScore, closeness, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars,
     NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO,
   };

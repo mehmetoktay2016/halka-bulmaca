@@ -55,19 +55,35 @@
   const memStore = { getItem: () => null, setItem: () => {} };
   const progress = window.RingSave.load(store || memStore);
   function saveProgress() { window.RingSave.save(store || memStore, progress); }
+  if (window.RingSave.relayout(progress, window.RingLevels.LAYOUT, ORDER)) saveProgress();
   const idOf = n => String(srcOf(n));
   const starsOf = n => progress.stars[idOf(n)] || 0;
   const frontier = () => window.RingSave.frontier(progress, ORDER);
   const isUnlocked = n => n <= frontier();
   const totalStars = () => Object.values(progress.stars).reduce((a, b) => a + b, 0);
+  // Zorluk etiketi (haritada durağın üstünde renkli nokta): bölüm, kapısındaki 10 bölüm arasında zorluk
+  // puanına göre sıralanır; en kolay 3'ü Kolay, en zor 3'ü Zor, kalanlar Orta (puan: hamle + halkaların yakınlığı).
+  const TIERS = [{ id: 'easy', name: 'Kolay' }, { id: 'mid', name: 'Orta' }, { id: 'hard', name: 'Zor' }];
+  const tierRank = {};
+  function tierOf(n) {
+    const g = W.gateOf(n);
+    if (!tierRank[g]) {
+      const score = k => window.RingLevels.difficultyScore(getLevel(srcOf(k)));
+      const ns = Array.from({ length: W.GATE_SIZE }, (_, i) => W.gateStart(g) + i).filter(k => k <= TOTAL);
+      tierRank[g] = {};
+      ns.sort((a, b) => score(a) - score(b) || a - b)
+        .forEach((k, i) => { tierRank[g][k] = i < 3 ? 0 : i < ns.length - 3 ? 1 : 2; });
+    }
+    return TIERS[tierRank[g][n]];
+  }
   const starsFor = (moves, par) => (moves <= par ? 3 : moves <= par + 2 ? 2 : 1);
   // Skor: her seviyenin en iyi sonucu sayılır (yıldız başına 100, altın başına 25)
   const levelScore = (stars, coins) => stars * 100 + coins * 25;
   const totalScore = () => Object.values(progress.best || {}).reduce((a, b) => a + b, 0);
   const fmt = n => n.toLocaleString('tr-TR');
-  // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10 (17. kapıdan sonra 14; orada en iyi çözüm 10'a çıkar).
-  // Aşılırsa "Hamlen bitti" penceresi açılır.
-  const moveCap = src => ((window.RingLevels.gateOfSource(src) || 1) >= 17 ? 14 : 10);
+  // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10. En iyi çözüm sınırı 9 olan kapılarda (12-16) 12,
+  // 10 olanlarda (17-20) 14. Aşılırsa "Hamlen bitti" penceresi açılır.
+  const moveCap = src => ({ 9: 12, 10: 14 })[window.RingLevels.maxParOf(src)] || 10;
   const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 
   // ---- Ses (WebAudio ile sentez; dosya gerekmez) ----
@@ -140,6 +156,15 @@
       },
       // Zincir: halka sayısı arttıkça yükselen üçlü
       chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
+      // Övgü: kademe yükseldikçe uzayan ve parlayan arpej (1: Güzel, 2: Harika, 3: Muhteşem, 4: bölüm sonu)
+      praise: tier => {
+        const notes = [[784, 988, 1175], [784, 988, 1175, 1568], [659, 784, 988, 1319, 1568, 1976], [1047, 1319, 1568, 2093]][tier - 1];
+        const gap = tier === 3 ? 0.05 : 0.07;
+        notes.forEach((f, k) => tone(f, 0.26, 'triangle', 0.09, null, k * gap));
+        if (tier >= 2) [2349, 3136].forEach((f, k) => tone(f, 0.4, 'sine', 0.035, null, notes.length * gap + k * 0.07));
+        if (tier === 3) tone(196, 0.6, 'sine', 0.12, 147);
+        if (tier === 4) [2637, 3136, 3520].forEach((f, k) => tone(f, 0.6, 'sine', 0.04, null, 0.3 + k * 0.08));
+      },
       // 3 yıldız ışık dalgası
       shine: () => [1568, 1976, 2349, 2637, 3136].forEach((f, k) => tone(f, 0.55, 'sine', 0.04, null, k * 0.07)),
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
@@ -193,7 +218,7 @@
   let particles = [];
   let confetti = [];
   let shocks = [];     // son halkanın şok dalgası { x, y, t0 } (uygulama koordinatı)
-  let floaters = [];   // yükselen yazılar, ör. "Zincir ×3" { text, x, y, t0 } (uygulama koordinatı)
+  let floaters = [];   // yükselen yazılar, ör. "Harika!" { text, x, y, t0, big?, size?, sub?, colors?, life? } (uygulama koordinatı)
   let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
   // ---- Ekran geçişleri ----
@@ -646,7 +671,7 @@
     const stars = `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
     if (def.name) return shapeSvg(def, state === 'done') + (state === 'done' ? stars : '');
     if (state === 'locked') return LOCK_SVG;
-    return `<span class="num">${n}</span>` + (state === 'done' ? stars : '');
+    return `<span class="num">${n}</span><span class="tier-dot ${tierOf(n).id}"></span>` + (state === 'done' ? stars : '');
   }
 
   function archHtml(g, geo) {
@@ -710,7 +735,7 @@
       const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
         n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
         state !== 'locked' && def.name ? 'colored' : ''].join(' ');
-      const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ` +
+      const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ${tierOf(n).name.toLowerCase()}, ` +
         (state === 'locked' ? 'kilitli' : state === 'done' ? `${starsOf(n)} yıldız` : 'oynanmadı');
       html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
         aria-label="${label}${chest ? ', ' + chest.name.toLowerCase() + ' var' : ''}${piece ? ', çıkartma parçası var' : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
@@ -1178,7 +1203,10 @@
       }
     });
     const freed = waves.flat();
-    if (freed.length >= 2) setTimeout(() => showChain(freed), (waves.length - 1) * WAVE_MS);
+    // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
+    const endWord = finale ? endPraise() : null;
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), (waves.length - 1) * WAVE_MS);
+    if (endWord) setTimeout(() => showEndPraise(endWord), (waves.length - 1) * WAVE_MS + 260);
     S.mask = mask;
     for (const c of S.coins) {
       if (c.taken) continue;
@@ -1630,20 +1658,55 @@
     wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
   }
 
-  // Bir hamlede birden çok halka açılırsa: "Zincir ×N" (N = açılan halka sayısı)
-  function showChain(freed) {
+  // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
+  // Tek halkada övgü yok; seyrek kaldıkça değerli hisseder.
+  const PRAISE = {
+    1: { words: ['Güzel!', 'Süper!'], size: 36, colors: ['#fff3b0', '#ffb52e'] },
+    2: { words: ['Harika!', 'Şahane!'], size: 42, colors: ['#d9fff6', '#2dd4bf'] },
+    3: { words: ['Muhteşem!', 'İnanılmaz!'], size: 48, colors: ['#ffe0f4', '#f72585'] },
+  };
+  let lastPraise = '';
+  function praiseWord(words) {
+    const pool = words.filter(x => x !== lastPraise);
+    lastPraise = pool[Math.floor(Math.random() * pool.length)];
+    return lastPraise;
+  }
+
+  // Bir hamlede birden çok halka açılırsa: övgü ve altında "Zincir ×N" (N = açılan halka sayısı).
+  // quiet: son hamlede bölüm sonu övgüsü gelecekse zincir yalnızca sayılır (yazı ve ses ona kalır).
+  function showChain(freed, quiet) {
     if (S.tut != null) return;
     const n = freed.length;
     const c = waveCenter(freed);
     const p = boardToApp(c.x, c.y);
     const w = $('app').clientWidth;
-    floaters.push({ text: `Zincir ×${n}`, x: Math.max(80, Math.min(w - 80, p.x)), y: p.y, t0: performance.now(), big: n >= 3 });
-    Sound.chain(n);
+    const x = Math.max(110, Math.min(w - 110, p.x));
+    if (!quiet) {
+      const tier = n >= 4 ? 3 : n === 3 ? 2 : 1;
+      const pr = PRAISE[tier];
+      floaters.push({ text: praiseWord(pr.words), sub: `Zincir ×${n}`, x, y: p.y, t0: performance.now(),
+        size: pr.size, colors: pr.colors, life: 1500 });
+      Sound.praise(tier);
+    }
     if (S.preview) return;
     stat('chains');
     progress.stats.bestChain = Math.max(progress.stats.bestChain || 0, n);
     saveProgress();
     awardBadges(false);
+  }
+
+  // Bölüm sonu övgüsü (son halkada, tahtanın ortasında): en az hamleyle bittiyse.
+  // İpucusuz "Kusursuz!", ipucuyla "Mükemmel!"; ek hamleyle bitende ya da daha uzun çözümde yok.
+  function endPraise() {
+    if (S.tut != null || S.extra) return null;
+    if (S.moves > (S.def.par ?? S.moves)) return null;
+    return S.usedHint ? 'Mükemmel!' : 'Kusursuz!';
+  }
+  function showEndPraise(word) {
+    const p = boardToApp(BOARD.w / 2, BOARD.h / 2);
+    floaters.push({ text: word, x: p.x, y: p.y + 40, t0: performance.now(), size: 54,
+      colors: ['#ffffff', '#ffc94a'], life: 1700 });
+    Sound.praise(4);
   }
 
   // Bölüm sonunda kazanılan çıkartma parçası: yeni dilim yerine oturur
@@ -2918,14 +2981,14 @@
     }
   }
 
-  // "Zincir ×N": büyüyerek belirir, yükselir ve söner
+  // Övgü ve "Zincir ×N" yazıları: büyüyerek belirir, yükselir ve söner (efektler kapalıysa büyümeden)
   const FLOAT_FONT = '"Baloo 2", "Trebuchet MS", sans-serif';
   function drawFloaters(now) {
-    floaters = floaters.filter(f => now < f.t0 + 1300);
+    floaters = floaters.filter(f => now < f.t0 + (f.life || 1300));
     for (const f of floaters) {
-      const t = (now - f.t0) / 1300;
+      const t = (now - f.t0) / (f.life || 1300);
       const pop = !fxOn() ? 1 : t < 0.12 ? 0.5 + (t / 0.12) * 0.7 : t < 0.25 ? 1.2 - ((t - 0.12) / 0.13) * 0.2 : 1;
-      const size = f.big ? 38 : 32;
+      const size = f.size || (f.big ? 38 : 32);
       fctx.save();
       fctx.globalAlpha = t > 0.65 ? (1 - t) / 0.35 : 1;
       fctx.translate(f.x, f.y - 46 - 50 * t);
@@ -2937,11 +3000,19 @@
       fctx.lineWidth = 7;
       fctx.strokeStyle = 'rgba(20, 12, 0, .75)';
       fctx.strokeText(f.text, 0, 0);
+      const [c0, c1] = f.colors || ['#fff3b0', '#ffb52e'];
       const grd = fctx.createLinearGradient(0, -size / 2, 0, size / 2);
-      grd.addColorStop(0, '#fff3b0');
-      grd.addColorStop(1, '#ffb52e');
+      grd.addColorStop(0, c0);
+      grd.addColorStop(1, c1);
       fctx.fillStyle = grd;
       fctx.fillText(f.text, 0, 0);
+      if (f.sub) {
+        fctx.font = `800 17px ${FLOAT_FONT}`;
+        fctx.lineWidth = 5;
+        fctx.strokeText(f.sub, 0, size * 0.72);
+        fctx.fillStyle = '#ffffff';
+        fctx.fillText(f.sub, 0, size * 0.72);
+      }
       fctx.restore();
     }
   }

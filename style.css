@@ -396,6 +396,8 @@ svg { display: block; }
 .node.done { background: var(--surface-2); }
 .node.locked { background: rgba(20, 24, 50, .85); color: rgba(255, 255, 255, .28); box-shadow: none; }
 .node.locked > svg { width: 16px; height: 16px; fill: currentColor; }
+.node .tier-dot { position: absolute; top: -6px; left: 50%; margin-left: -5.5px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--tier); border: 2px solid var(--night); }
 .node .mini { position: absolute; bottom: -9px; display: flex; gap: 1px; font-size: 11px; }
 .node .mini .star-ico { background: rgba(255, 255, 255, .18); }
 .node .mini .star-ico.on { background: var(--gold); }
@@ -611,6 +613,11 @@ svg { display: block; }
 /* ---------- Oyun ekranı ---------- */
 .hud { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; }
 .hud-center { text-align: center; margin-top: 6px; }
+
+/* Zorluk etiketi (Kolay / Orta / Zor): haritada durağın üstünde renkli nokta */
+.tier-dot.easy { --tier: #2dd4bf; }
+.tier-dot.mid { --tier: #ffc94a; }
+.tier-dot.hard { --tier: #ff6b6b; }
 
 .score-pill, .home-score {
   justify-self: center;
