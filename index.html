@@ -304,19 +304,23 @@
     <!-- Ayarlar -->
     <div id="settings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="card settings-card">
-        <h2 id="settingsTitle">Ayarlar</h2>
+        <h2 id="settingsTitle" data-t>Ayarlar</h2>
         <div class="toggles">
           <button class="toggle" role="switch" data-key="sound" aria-checked="true">
-            <span><b>Ses</b><small>Dönme, patlama ve ödül sesleri</small></span><i aria-hidden="true"></i>
+            <span><b data-t>Ses</b><small data-t>Dönme, patlama ve ödül sesleri</small></span><i aria-hidden="true"></i>
           </button>
           <button class="toggle" role="switch" data-key="ambient" aria-checked="true">
-            <span><b>Ortam sesi</b><small>Her dünyanın kendi arka plan sesi</small></span><i aria-hidden="true"></i>
+            <span><b data-t>Ortam sesi</b><small data-t>Her dünyanın kendi arka plan sesi</small></span><i aria-hidden="true"></i>
           </button>
           <button class="toggle" role="switch" data-key="effects" aria-checked="true">
-            <span><b>Efektler</b><small>Parçacıklar, ışık dalgası, büyük patlama</small></span><i aria-hidden="true"></i>
+            <span><b data-t>Efektler</b><small data-t>Parçacıklar, ışık dalgası, büyük patlama</small></span><i aria-hidden="true"></i>
           </button>
         </div>
-        <div class="row"><button id="settingsClose" class="btn-primary">Tamam</button></div>
+        <div class="lang-row">
+          <b data-t>Dil</b>
+          <div class="seg" role="radiogroup"><button data-lang="tr" role="radio">Türkçe</button><button data-lang="en" role="radio">English</button></div>
+        </div>
+        <div class="row"><button id="settingsClose" class="btn-primary" data-t>Tamam</button></div>
       </div>
     </div>
 
@@ -330,6 +334,8 @@
   </div>
   </div>
 
+  <script src="i18n_en.js"></script>
+  <script src="i18n.js"></script>
   <script src="logic.js"></script>
   <script src="levels_data.js"></script>
   <script src="levels.js"></script>

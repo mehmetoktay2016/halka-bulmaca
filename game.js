@@ -5,6 +5,9 @@
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
           pointOpen, cascade, rotate, solveFast, norm, canRotate } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
+  // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
+  const I18N = window.RingI18n, tr = I18N.t;
+  I18N.applyDom();
 
   // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (levels.js gateOrder).
   // ORDER[n-1] = levels.js'teki kaynak seviye (1-50 normal, 51-60 şekiller).
@@ -80,7 +83,8 @@
   // Skor: her seviyenin en iyi sonucu sayılır (yıldız başına 100, altın başına 25)
   const levelScore = (stars, coins) => stars * 100 + coins * 25;
   const totalScore = () => Object.values(progress.best || {}).reduce((a, b) => a + b, 0);
-  const fmt = n => n.toLocaleString('tr-TR');
+  const LOCALE = I18N.lang === 'en' ? 'en-US' : 'tr-TR';
+  const fmt = n => n.toLocaleString(LOCALE);
   // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10. En iyi çözüm sınırı 9 olan kapılarda (12-16) 12,
   // 10 olanlarda (17-20) 14. Aşılırsa "Hamlen bitti" penceresi açılır.
   const moveCap = src => ({ 9: 12, 10: 14 })[window.RingLevels.maxParOf(src)] || 10;
@@ -2058,10 +2062,22 @@
 
   // ---- Ayarlar ----
   const toggles = [...document.querySelectorAll('#settings .toggle')];
+  const langBtns = [...document.querySelectorAll('#settings [data-lang]')];
   function renderSettings() {
     for (const b of toggles) b.setAttribute('aria-checked', String(progress[b.dataset.key] !== false));
+    for (const b of langBtns) b.setAttribute('aria-checked', String(b.dataset.lang === I18N.lang));
   }
-  if (REDUCED) toggles.find(b => b.dataset.key === 'effects').querySelector('small').textContent = 'Cihazda hareketi azaltma açık, efektler kapalı';
+  if (REDUCED) toggles.find(b => b.dataset.key === 'effects').querySelector('small').textContent = tr('Cihazda hareketi azaltma açık, efektler kapalı');
+  // Dil seçilince kaydedilir ve oyun yeni dille baştan açılır (bütün ekranlar o dilde kurulur)
+  for (const b of langBtns) {
+    b.onclick = () => {
+      if (b.dataset.lang === I18N.lang) return;
+      Sound.tap();
+      progress.lang = b.dataset.lang;
+      saveProgress();
+      location.reload();
+    };
+  }
   for (const b of toggles) {
     b.onclick = () => {
       const key = b.dataset.key;
@@ -3139,7 +3155,7 @@
   // Telefon çerçevesindeki saat
   function tickClock() {
     const el = $('clock');
-    if (el) el.textContent = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    if (el) el.textContent = new Date().toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
   }
   tickClock();
   setInterval(tickClock, 15000);

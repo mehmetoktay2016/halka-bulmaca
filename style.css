@@ -1149,6 +1149,12 @@ svg { display: block; }
 .toggle span { display: flex; flex-direction: column; gap: 2px; }
 .toggle b { font-family: var(--font-display); font-size: 17px; font-weight: 800; }
 .toggle small { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+/* Dil seçimi: ayarlarda iki düğmeli seçici */
+.lang-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -6px 0 20px; padding: 0 4px; }
+.lang-row b { font-family: var(--font-display); font-size: 17px; font-weight: 800; }
+.seg { display: flex; background: var(--surface-2); border-radius: 99px; padding: 3px; }
+.seg button { font: inherit; font-weight: 800; font-size: 14px; color: var(--muted); background: none; border: 0; border-radius: 99px; padding: 7px 14px; cursor: pointer; }
+.seg button[aria-checked="true"] { background: var(--gold); color: var(--gold-ink); }
 .toggle i {
   position: relative;
   flex: 0 0 48px;
