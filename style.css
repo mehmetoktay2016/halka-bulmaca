@@ -18,7 +18,7 @@
   --frame: #07080f;
   --frame-edge: #3b4054;
 
-  --font-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-display: "Baloo F", "Baloo 2", "Trebuchet MS", system-ui, sans-serif; /* Baloo F: yalnız "f" (fonts.css) */
   --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --scene:

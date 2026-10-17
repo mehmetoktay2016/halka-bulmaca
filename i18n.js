@@ -1,6 +1,6 @@
 // Dil desteği: Türkçe (kaynak) ve İngilizce. Hem tarayıcıda (window.RingI18n) hem Node'da (require) çalışır.
 // Metnin Türkçesi aynı zamanda anahtarıdır: t('Ayarlar') İngilizcede 'Settings' döner; sözlükte yoksa Türkçe kalır.
-// Değişkenli metin: t('{n} hamle kaldı', { n: 3 }). Sözlük i18n_en.js'te (RING_LANG_EN).
+// Değişkenli metin: t('{n} hamle kaldı', { n: 3 }); çoğul için sözlükte [tekil, çoğul]. Sözlük i18n_en.js'te (RING_LANG_EN).
 // Dil: kayıtta seçilmiş dil (ayarlardan), yoksa telefonun dili (Türkçe değilse İngilizce).
 (function (root) {
   'use strict';
@@ -20,9 +20,11 @@
   let lang = root.localStorage ? detect() : 'tr';
   const dict = () => (lang === 'en' ? root.RING_LANG_EN || {} : null);
 
+  // Çoğul: sözlükte [tekil, çoğul] yazılırsa n === 1 iken tekil seçilir ('+{n} coin' / '+{n} coins')
   function t(src, vars) {
     const d = dict();
     let s = d && d[src] != null ? d[src] : src;
+    if (Array.isArray(s)) s = s[vars && Number(vars.n) === 1 ? 0 : 1];
     if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
     return s;
   }

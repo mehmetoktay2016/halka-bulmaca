@@ -53,13 +53,13 @@
 
     <!-- Ana menü -->
     <section id="home" class="screen home">
-      <button id="homeTrophies" class="round corner-left" aria-label="Rozetler ve albüm">
+      <button id="homeTrophies" class="round corner-left" aria-label="Rozetler ve albüm" data-t-aria="Rozetler ve albüm">
         <svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5v1.5A3.5 3.5 0 0 0 8 11M17 6h2.5v1.5A3.5 3.5 0 0 1 16 11M12 14v4M8.5 20.5h7"/></svg><span id="trophyDot" class="dot" hidden></span>
       </button>
-      <button id="homeSettings" class="round corner" aria-label="Ayarlar">
+      <button id="homeSettings" class="round corner" aria-label="Ayarlar" data-t-aria="Ayarlar">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
       </button>
-      <div class="home-score" aria-label="Toplam skor"><span>Skor</span><b id="homeScore">0</b></div>
+      <div class="home-score" aria-label="Toplam skor" data-t-aria="Toplam skor"><span data-t>Skor</span><b id="homeScore">0</b></div>
       <div class="logo-mark" aria-hidden="true">
         <svg viewBox="0 0 200 140">
           <circle cx="70" cy="62" r="40" class="lr lr1"/>
@@ -68,63 +68,63 @@
         </svg>
       </div>
       <h1 class="logo">Halka<span>Bulmaca</span></h1>
-      <p class="tagline">Döndür · Hizala · Serbest bırak</p>
+      <p class="tagline" data-t>Döndür · Hizala · Serbest bırak</p>
 
-      <p class="rank" aria-label="Unvan"><span>Unvan</span><b id="homeTitle">Çırak</b></p>
+      <p class="rank" aria-label="Unvan" data-t-aria="Unvan"><span data-t>Unvan</span><b id="homeTitle"></b></p>
 
       <div class="home-actions">
         <button id="playBtn" class="btn-primary big">
-          <span>Oyna</span>
-          <small id="playLevel">Seviye 1</small>
+          <span data-t>Oyna</span>
+          <small id="playLevel"></small>
         </button>
         <div class="home-row">
-          <button id="levelsBtn" class="btn-ghost">Harita</button>
-          <button id="shopBtn" class="btn-ghost">Mağaza</button>
+          <button id="levelsBtn" class="btn-ghost" data-t>Harita</button>
+          <button id="shopBtn" class="btn-ghost" data-t>Mağaza</button>
         </div>
-        <button id="howBtn" class="btn-link">Nasıl oynanır?</button>
+        <button id="howBtn" class="btn-link" data-t>Nasıl oynanır?</button>
       </div>
 
       <ul class="promises">
-        <li><b id="promiseBadges">25</b> rozet</li>
-        <li><b id="promiseWorlds">8</b> dünya</li>
-        <li><b id="promiseLevels">60</b> seviye</li>
+        <li><b id="promiseBadges">25</b> <span data-t>rozet</span></li>
+        <li><b id="promiseWorlds">8</b> <span data-t>dünya</span></li>
+        <li><b id="promiseLevels">60</b> <span data-t>seviye</span></li>
       </ul>
       <p class="home-stars">
-        <span><span class="star-ico"></span> <span id="homeStars">0</span> yıldız</span>
-        <span><span class="coin-ico"></span> <span id="homeCoins">0</span> altın</span>
-        <span><span class="bulb-ico"></span> <span id="homeBulbs">0</span> ampul</span>
+        <span><span class="star-ico"></span> <span id="homeStars">0</span> <span data-t>yıldız</span></span>
+        <span><span class="coin-ico"></span> <span id="homeCoins">0</span> <span data-t>altın</span></span>
+        <span><span class="bulb-ico"></span> <span id="homeBulbs">0</span> <span data-t>ampul</span></span>
       </p>
     </section>
 
     <!-- Yolculuk haritası: aşağıdan yukarı kıvrılan yol, kapılar kemer -->
     <section id="levels" class="screen map-screen" hidden>
       <header class="bar">
-        <button id="levelsBack" class="round" aria-label="Ana menü">
+        <button id="levelsBack" class="round" aria-label="Ana menü" data-t-aria="Ana menü">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <h2>Harita</h2>
+        <h2 data-t>Harita</h2>
         <div class="star-total"><span class="star-ico"></span><span id="starTotal">0</span></div>
       </header>
       <div class="map-wrap">
         <canvas id="mapFx" aria-hidden="true"></canvas>
         <div id="map" class="map"><div id="mapInner" class="map-inner"></div></div>
-        <nav id="gateStrip" class="gate-strip" aria-label="Kapılar"></nav>
+        <nav id="gateStrip" class="gate-strip" aria-label="Kapılar" data-t-aria="Kapılar"></nav>
       </div>
     </section>
 
     <!-- Süs mağazası -->
     <section id="shop" class="screen trophy-screen" hidden>
       <header class="bar">
-        <button id="shopBack" class="round" aria-label="Ana menü">
+        <button id="shopBack" class="round" aria-label="Ana menü" data-t-aria="Ana menü">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <h2>Mağaza</h2>
+        <h2 data-t>Mağaza</h2>
         <span class="shop-coins"><i class="coin-ico"></i><b id="shopCoins">0</b></span>
       </header>
       <div class="tabs" role="tablist">
-        <button id="shopTab-burst" role="tab" aria-selected="true" aria-controls="shopList">Efekt</button>
-        <button id="shopTab-pop" role="tab" aria-selected="false" aria-controls="shopList">Ses</button>
-        <button id="shopTab-win" role="tab" aria-selected="false" aria-controls="shopList">Kutlama</button>
+        <button id="shopTab-burst" role="tab" aria-selected="true" aria-controls="shopList" data-t>Efekt</button>
+        <button id="shopTab-pop" role="tab" aria-selected="false" aria-controls="shopList" data-t>Ses</button>
+        <button id="shopTab-win" role="tab" aria-selected="false" aria-controls="shopList" data-t>Kutlama</button>
       </div>
       <div id="shopList" class="trophy-list" role="tabpanel"></div>
     </section>
@@ -132,16 +132,16 @@
     <!-- Rozetler ve şekil albümü -->
     <section id="trophies" class="screen trophy-screen" hidden>
       <header class="bar">
-        <button id="trophiesBack" class="round" aria-label="Ana menü">
+        <button id="trophiesBack" class="round" aria-label="Ana menü" data-t-aria="Ana menü">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
-        <h2>Koleksiyon</h2>
+        <h2 data-t>Koleksiyon</h2>
         <span></span>
       </header>
       <div class="tabs" role="tablist">
-        <button id="tabBadges" role="tab" aria-selected="true" aria-controls="trophyList">Rozetler <b id="badgeCount">0</b></button>
-        <button id="tabAlbum" role="tab" aria-selected="false" aria-controls="trophyList">Albüm <b id="albumCount">0</b></button>
-        <button id="tabStickers" role="tab" aria-selected="false" aria-controls="trophyList">Çıkartma <b id="stickerCount">0</b></button>
+        <button id="tabBadges" role="tab" aria-selected="true" aria-controls="trophyList"><span data-t>Rozetler</span> <b id="badgeCount">0</b></button>
+        <button id="tabAlbum" role="tab" aria-selected="false" aria-controls="trophyList"><span data-t>Albüm</span> <b id="albumCount">0</b></button>
+        <button id="tabStickers" role="tab" aria-selected="false" aria-controls="trophyList"><span data-t>Çıkartma</span> <b id="stickerCount">0</b></button>
       </div>
       <div id="trophyList" class="trophy-list" role="tabpanel"></div>
     </section>
@@ -149,29 +149,29 @@
     <!-- Oyun -->
     <section id="game" class="screen" hidden>
       <header class="hud">
-        <button id="menuBtn" class="round" aria-label="Seviye haritası">
+        <button id="menuBtn" class="round" aria-label="Seviye haritası" data-t-aria="Seviye haritası">
           <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>
         </button>
-        <div id="scorePill" class="score-pill" aria-label="Toplam skor"><span>Skor</span><b id="scoreNum">0</b></div>
-        <button id="settingsBtn" class="round" aria-label="Ayarlar">
+        <div id="scorePill" class="score-pill" aria-label="Toplam skor" data-t-aria="Toplam skor"><span data-t>Skor</span><b id="scoreNum">0</b></div>
+        <button id="settingsBtn" class="round" aria-label="Ayarlar" data-t-aria="Ayarlar">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
         </button>
       </header>
 
       <div class="hud-center">
-        <div id="levelLabel" class="eyebrow">Seviye 1</div>
-        <div class="moves"><span id="movesNum">0</span><span id="movesLbl" class="par">hamle kaldı</span></div>
+        <div id="levelLabel" class="eyebrow"></div>
+        <div class="moves"><span id="movesNum">0</span><span id="movesLbl" class="par"></span></div>
       </div>
 
       <div class="meter-row">
         <span></span>
-        <div id="starMeter" class="meter" aria-label="Kazanılacak yıldız"></div>
-        <div id="coinPill" class="coin-pill" aria-label="Altın"><span class="coin-ico"></span><span id="coinNum">0</span></div>
+        <div id="starMeter" class="meter" aria-label="Kazanılacak yıldız" data-t-aria="Kazanılacak yıldız"></div>
+        <div id="coinPill" class="coin-pill" aria-label="Altın" data-t-aria="Altın"><span class="coin-ico"></span><span id="coinNum">0</span></div>
       </div>
 
       <div id="coach" class="coach">
-        <div class="coach-head"><span id="coachStep" class="eyebrow">Deneme 1 / 4</span><button id="coachSkip" class="coach-skip">Geç</button></div>
-        <b id="coachTitle">Halkayı çevir</b>
+        <div class="coach-head"><span id="coachStep" class="eyebrow"></span><button id="coachSkip" class="coach-skip" data-t>Geç</button></div>
+        <b id="coachTitle"></b>
         <p id="coachText"></p>
       </div>
 
@@ -184,18 +184,18 @@
       </main>
 
       <!-- Kademeli ipucu: ücretsiz dürtme, ipucu, hamleyi yap -->
-      <div id="hintMenu" class="hint-menu" hidden role="dialog" aria-label="İpucu seç">
+      <div id="hintMenu" class="hint-menu" hidden role="dialog" aria-label="İpucu seç" data-t-aria="İpucu seç">
         <button class="hint-opt" data-tier="nudge">
-          <span><b>Dürt</b><small>Hangi halkayı çevireceğini gösterir</small></span><em class="cost free">Ücretsiz</em>
+          <span><b data-t>Dürt</b><small data-t>Hangi halkayı çevireceğini gösterir</small></span><em class="cost free" data-t>Ücretsiz</em>
         </button>
         <button class="hint-opt" data-tier="hint">
-          <span><b>İpucu</b><small>Halkayı, yönü ve hedefi gösterir</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
+          <span><b data-t>İpucu</b><small data-t>Halkayı, yönü ve hedefi gösterir</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
         </button>
         <button class="hint-opt" data-tier="move">
-          <span><b>Hamleyi yap</b><small>Doğru hamleyi senin yerine yapar</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
+          <span><b data-t>Hamleyi yap</b><small data-t>Doğru hamleyi senin yerine yapar</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
         </button>
         <button id="buyBulb" class="buy-row">
-          <span><b>Ampul al</b><small id="buyNote">20 altın = 1 ampul</small></span><em class="cost coin"><i class="coin-ico"></i>20</em>
+          <span><b data-t>Ampul al</b><small id="buyNote" data-t>20 altın = 1 ampul</small></span><em class="cost coin"><i class="coin-ico"></i>20</em>
         </button>
         <p id="hintBank" class="hint-bank"></p>
       </div>
@@ -203,11 +203,11 @@
       <footer class="controls">
         <button id="reset" class="tool">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg></span>
-          <span class="lbl">Yeniden</span>
+          <span class="lbl" data-t>Yeniden</span>
         </button>
         <button id="hint" class="tool hint">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><em id="hintCount">3</em></span>
-          <span class="lbl">İpucu</span>
+          <span class="lbl" data-t>İpucu</span>
         </button>
       </footer>
     </section>
@@ -215,22 +215,22 @@
     <!-- Bölüm sonu -->
     <div id="win" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="winTitle">
       <div class="card">
-        <div id="winLevel" class="eyebrow">Seviye 1</div>
-        <h2 id="winTitle">Mükemmel!</h2>
+        <div id="winLevel" class="eyebrow"></div>
+        <h2 id="winTitle"></h2>
         <div id="stars" class="win-stars"></div>
         <div class="win-stats">
-          <div><b id="winMoves">0</b><span>hamle</span></div>
-          <div><b id="winPar">0</b><span>en iyi</span></div>
-          <div><b id="winCoins" class="gold">+0</b><span>altın</span></div>
-          <div><b id="winScore" class="gold">+0</b><span>skor</span></div>
+          <div><b id="winMoves">0</b><span data-t>hamle</span></div>
+          <div><b id="winPar">0</b><span data-t>en iyi</span></div>
+          <div><b id="winCoins" class="gold">+0</b><span data-t>altın</span></div>
+          <div><b id="winScore" class="gold">+0</b><span data-t>skor</span></div>
         </div>
         <p id="winNote" class="win-note"></p>
         <div id="winRewards" class="gate-rewards"></div>
         <div class="row">
-          <button id="again" class="round big" aria-label="Tekrar oyna">
+          <button id="again" class="round big" aria-label="Tekrar oyna" data-t-aria="Tekrar oyna">
             <svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg>
           </button>
-          <button id="continue" class="btn-primary">Sonraki seviye</button>
+          <button id="continue" class="btn-primary"></button>
         </div>
       </div>
     </div>
@@ -238,15 +238,15 @@
     <!-- Hamle bitti -->
     <div id="fail" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="failTitle">
       <div class="card">
-        <div class="eyebrow">Hamle sınırı doldu</div>
-        <h2 id="failTitle">Hamlen bitti!</h2>
+        <div class="eyebrow" data-t>Hamle sınırı doldu</div>
+        <h2 id="failTitle" data-t>Hamlen bitti!</h2>
         <p id="failNote" class="win-note"></p>
         <div class="fail-actions">
           <button id="extraMoves" class="btn-primary extra-btn">
-            <span>+3 hamle</span><small><i class="coin-ico"></i><b id="extraPrice">20</b> altın</small>
+            <span data-t>+3 hamle</span><small><i class="coin-ico"></i><b id="extraPrice">20</b> <span data-t>altın</span></small>
           </button>
           <p id="extraNote" class="extra-note" hidden></p>
-          <button id="failRetry" class="btn-ghost">Baştan başla</button>
+          <button id="failRetry" class="btn-ghost" data-t>Baştan başla</button>
         </div>
       </div>
     </div>
@@ -255,11 +255,11 @@
     <div id="ceremony" class="ceremony" hidden></div>
     <div id="gateCard" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
       <div class="card gate-card">
-        <div id="gateEyebrow" class="eyebrow">Kapı açıldı</div>
-        <h2 id="gateTitle">Kıvrımlar</h2>
+        <div id="gateEyebrow" class="eyebrow"></div>
+        <h2 id="gateTitle"></h2>
         <p id="gateWorld" class="win-note"></p>
         <div id="gateRewards" class="gate-rewards"></div>
-        <div class="row"><button id="gateGo" class="btn-primary">Yola devam</button></div>
+        <div class="row"><button id="gateGo" class="btn-primary" data-t>Yola devam</button></div>
       </div>
     </div>
 
@@ -267,24 +267,24 @@
     <div id="ending" class="ending" role="dialog" aria-modal="true" aria-labelledby="endingTitle" hidden>
       <canvas id="endingFx" aria-hidden="true"></canvas>
       <div class="ending-text">
-        <div class="eyebrow">Yolculuğun sonu</div>
-        <h2 id="endingTitle">Büyük Makine çalıştı!</h2>
-        <p id="endingLead">200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.</p>
+        <div class="eyebrow" data-t>Yolculuğun sonu</div>
+        <h2 id="endingTitle" data-t>Büyük Makine çalıştı!</h2>
+        <p id="endingLead" data-t>200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.</p>
         <div id="endingStats" class="ending-stats"></div>
         <p id="endingMore" class="ending-more"></p>
-        <button id="endingGo" class="btn-primary">Haritaya dön</button>
+        <button id="endingGo" class="btn-primary" data-t>Haritaya dön</button>
       </div>
     </div>
 
     <!-- Günlük seri sandığı -->
     <div id="streakCard" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="streakTitle">
       <div class="card streak-card">
-        <div class="eyebrow">Günlük sandık</div>
-        <h2 id="streakTitle">1. gün</h2>
+        <div class="eyebrow" data-t>Günlük sandık</div>
+        <h2 id="streakTitle"></h2>
         <ol id="streakDays" class="streak-days"></ol>
         <div id="streakChest" class="streak-chest"></div>
         <p id="streakNote" class="win-note"></p>
-        <div class="row"><button id="streakGo" class="btn-primary">Sandığı aç</button></div>
+        <div class="row"><button id="streakGo" class="btn-primary"></button></div>
       </div>
     </div>
 
@@ -294,10 +294,10 @@
         <div class="world-emblem" aria-hidden="true">
           <svg viewBox="0 0 120 90"><circle cx="44" cy="42" r="26"/><circle cx="76" cy="42" r="26"/><circle cx="60" cy="64" r="22"/></svg>
         </div>
-        <div class="eyebrow">Yeni dünya</div>
-        <h2 id="worldTitle">Atölye</h2>
+        <div class="eyebrow" data-t>Yeni dünya</div>
+        <h2 id="worldTitle"></h2>
         <p id="worldIntro" class="win-note"></p>
-        <div class="row"><button id="worldGo" class="btn-primary">Başla</button></div>
+        <div class="row"><button id="worldGo" class="btn-primary" data-t>Başla</button></div>
       </div>
     </div>
 

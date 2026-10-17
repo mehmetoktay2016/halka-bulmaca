@@ -8,6 +8,20 @@
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
   I18N.applyDom();
+  // Verideki metinlerden kayda yazılmayanlar (dünya, kapı, rozet, mağaza, çıkartma, öğretici, tanıtım) açılışta
+  // seçili dile çevrilir. Unvanlar ve şekil adları kayıtta/anahtar olarak Türkçe kalır, ekrana yazılırken çevrilir.
+  if (I18N.lang !== 'tr') {
+    for (const w of window.RingWorlds.WORLDS) { w.name = tr(w.name); w.intro = tr(w.intro); }
+    for (const g of window.RingWorlds.GATES) g.name = tr(g.name);
+    for (const b of window.RingBadges.BADGES) { b.name = tr(b.name); b.desc = tr(b.desc); b.group = tr(b.group); }
+    for (const c of Object.values(window.RingRewards.SHOP)) {
+      c.title = tr(c.title); c.tab = tr(c.tab);
+      for (const it of c.items) { it.name = tr(it.name); it.desc = tr(it.desc); }
+    }
+    for (const st of Object.values(window.RingStickers.SETS)) st.name = tr(st.name);
+    for (const d of window.RingLevels.TUTORIAL) { d.title = tr(d.title); d.text = tr(d.text); }
+    for (const d of Object.values(window.RingLevels.MECH_LEVELS)) { d.title = tr(d.title); if (d.tip) d.tip = tr(d.tip); }
+  }
 
   // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (levels.js gateOrder).
   // ORDER[n-1] = levels.js'teki kaynak seviye (1-50 normal, 51-60 şekiller).
@@ -66,7 +80,7 @@
   const totalStars = () => Object.values(progress.stars).reduce((a, b) => a + b, 0);
   // Zorluk etiketi (haritada durağın üstünde renkli nokta): bölüm, kapısındaki 10 bölüm arasında zorluk
   // puanına göre sıralanır; en kolay 3'ü Kolay, en zor 3'ü Zor, kalanlar Orta (puan: hamle + halkaların yakınlığı).
-  const TIERS = [{ id: 'easy', name: 'Kolay' }, { id: 'mid', name: 'Orta' }, { id: 'hard', name: 'Zor' }];
+  const TIERS = [{ id: 'easy', name: tr('Kolay') }, { id: 'mid', name: tr('Orta') }, { id: 'hard', name: tr('Zor') }];
   const tierRank = {};
   function tierOf(n) {
     const g = W.gateOf(n);
@@ -302,16 +316,16 @@
     if (type) {
       const [ring, x, y] = R.spotFor(type, spots(p));
       const what = type === 'chest' ? R.chestFor(srcOf(n), g)
-        : type === 'gold' ? { name: 'Altın halka', coins: 0, bulbs: 0 }
-        : { name: 'Ampul halkası', coins: 0, bulbs: 1 };
+        : type === 'gold' ? { name: tr('Altın halka'), coins: 0, bulbs: 0 }
+        : { name: tr('Ampul halkası'), coins: 0, bulbs: 1 };
       loot = { type, ...what, ring, x, y };
     }
     return (lootCache[n] = loot);
   }
   const LOOT_TIPS = {
-    chest: { flag: 'lootTip', text: 'Sandık, içinde durduğu halka kurtulunca açılır' },
-    gold: { flag: 'goldTip', text: 'Altın halkayı kurtar: bu bölümün altınları 2 kat sayılır' },
-    bulb: { flag: 'bulbTip', text: 'Ampul halkasını kurtar: +1 ampul' },
+    chest: { flag: 'lootTip', text: tr('Sandık, içinde durduğu halka kurtulunca açılır') },
+    gold: { flag: 'goldTip', text: tr('Altın halkayı kurtar: bu bölümün altınları 2 kat sayılır') },
+    bulb: { flag: 'bulbTip', text: tr('Ampul halkasını kurtar: +1 ampul') },
   };
   // ---- Çıkartma parçaları: dünyanın bölümlerine yayılır, bölüm bitince verilir (rewards.js STICKERS) ----
   let pieceMap = null;
@@ -398,7 +412,7 @@
     toastBusy = true;
     const b = toastQ.shift();
     const el = $('toast');
-    el.innerHTML = `${medalHtml(b, true)}<span><small>Yeni rozet</small><b>${b.name}</b><em>+${B.TIERS[b.tier].coins} altın</em></span>`;
+    el.innerHTML = `${medalHtml(b, true)}<span><small>${tr('Yeni rozet')}</small><b>${b.name}</b><em>${tr('+{n} altın', { n: B.TIERS[b.tier].coins })}</em></span>`;
     el.classList.remove('out');
     el.hidden = false;
     Sound.gift();
@@ -433,7 +447,7 @@
       const done = !!progress.badges[b.id];
       const reward = B.TIERS[b.tier].coins;
       const meta = done
-        ? `<span class="got">Kazanıldı · +${reward} altın</span>`
+        ? `<span class="got">${tr('Kazanıldı · +{n} altın', { n: reward })}</span>`
         : `<span class="bar-track"><i style="width:${Math.round(100 * s.value / s.goal)}%"></i></span><span>${s.value} / ${s.goal}</span><span>+${reward}</span>`;
       html += `<div class="badge-row${fresh.has(b.id) ? ' new' : ''}" style="--tc:${B.TIERS[b.tier].color}">
         ${medalHtml(b, done)}
@@ -449,10 +463,10 @@
       const got = starsOf(n);
       const stars = got ? `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>` : '';
       return `<div class="album-card${got ? '' : ' missing'}">${shapeSvg(def, !!got)}
-        <b>${got ? def.name : '???'}</b><small>Kapı ${W.gateOf(n)}</small>${stars}</div>`;
+        <b>${got ? tr(def.name) : '???'}</b><small>${tr('Kapı {n}', { n: W.gateOf(n) })}</small>${stars}</div>`;
     });
     return `<div class="album-grid">${cards.join('')}</div>
-      <p class="album-note">Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.</p>`;
+      <p class="album-note">${tr('Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.')}</p>`;
   }
 
   function stickersHtml() {
@@ -461,10 +475,10 @@
       const done = have === STK.PIECES;
       return `<div class="sticker-card${done ? ' done' : ''}">${stickerSvg(w.id)}
         <b>${have ? STK.SETS[w.id].name : '???'}</b><small>${w.name}</small>
-        <span class="${done ? 'got' : ''}">${done ? `Tamam · +${R.STICKERS.setCoins} altın` : `${have} / ${STK.PIECES} parça`}</span></div>`;
+        <span class="${done ? 'got' : ''}">${done ? tr('Tamam · +{n} altın', { n: R.STICKERS.setCoins }) : tr('{have} / {all} parça', { have, all: STK.PIECES })}</span></div>`;
     });
     return `<div class="sticker-grid">${cards.join('')}</div>
-      <p class="album-note">Her dünyanın 5 parçalı bir çıkartması var. Haritada yapboz işareti olan bölümleri bitirince parça kazanırsın. Çıkartmayı tamamlayınca ${R.STICKERS.setCoins} altın.</p>`;
+      <p class="album-note">${tr('Her dünyanın 5 parçalı bir çıkartması var. Haritada yapboz işareti olan bölümleri bitirince parça kazanırsın. Çıkartmayı tamamlayınca {n} altın.', { n: R.STICKERS.setCoins })}</p>`;
   }
 
   // ---- Mağaza ----
@@ -484,20 +498,20 @@
     for (const cat of Object.keys(R.SHOP)) $('shopTab-' + cat).setAttribute('aria-selected', String(shopTab === cat));
     const items = R.SHOP[shopTab].items.map(it => {
       const on = equipped(shopTab) === it.id, own = owns(it.id);
-      const btn = on ? '<button class="shop-btn on" disabled>Kullanılıyor</button>'
-        : own ? `<button class="shop-btn" data-act="use" data-id="${it.id}">Kullan</button>`
-        : shopConfirm === it.id ? `<button class="shop-btn buy confirm" data-act="buy" data-id="${it.id}">Onayla · <i class="coin-ico"></i>${it.price}</button>`
+      const btn = on ? `<button class="shop-btn on" disabled>${tr('Kullanılıyor')}</button>`
+        : own ? `<button class="shop-btn" data-act="use" data-id="${it.id}">${tr('Kullan')}</button>`
+        : shopConfirm === it.id ? `<button class="shop-btn buy confirm" data-act="buy" data-id="${it.id}">${tr('Onayla')} · <i class="coin-ico"></i>${it.price}</button>`
         : progress.coins >= it.price ? `<button class="shop-btn buy" data-act="ask" data-id="${it.id}"><i class="coin-ico"></i>${it.price}</button>`
-        : `<button class="shop-btn buy" disabled><i class="coin-ico"></i>${it.price}</button><small class="need">${it.price - progress.coins} altın daha</small>`;
+        : `<button class="shop-btn buy" disabled><i class="coin-ico"></i>${it.price}</button><small class="need">${tr('{n} altın daha', { n: it.price - progress.coins })}</small>`;
       const preview = shopTab === 'win'
-        ? `<button class="shop-try" data-try="${it.id}" aria-label="${it.name} önizle">${WIN_ICONS[it.id]}<span class="try">Dene</span></button>`
+        ? `<button class="shop-try" data-try="${it.id}" aria-label="${tr('{name} önizle', { name: it.name })}">${WIN_ICONS[it.id]}<span class="try">${tr('Dene')}</span></button>`
         : shopTab === 'pop'
-        ? `<button class="shop-try sound" data-try="${it.id}" aria-label="${it.name} sesini dinle"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>`
-        : `<button class="shop-try" data-try="${it.id}" aria-label="${it.name} önizle"><canvas width="240" height="150" data-prev="${it.id}"></canvas></button>`;
+        ? `<button class="shop-try sound" data-try="${it.id}" aria-label="${tr('{name} sesini dinle', { name: it.name })}"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>`
+        : `<button class="shop-try" data-try="${it.id}" aria-label="${tr('{name} önizle', { name: it.name })}"><canvas width="240" height="150" data-prev="${it.id}"></canvas></button>`;
       return `<div class="shop-card${on ? ' on' : ''}">${preview}<b>${it.name}</b><small>${it.desc}</small>${btn}</div>`;
     });
     $('shopList').innerHTML = `<div class="shop-grid">${items.join('')}</div>
-      <p class="album-note">Önizlemeye dokunup dene. Süsler yalnızca görünüş ve ses içindir; bulmacayı kolaylaştırmaz.</p>`;
+      <p class="album-note">${tr('Önizlemeye dokunup dene. Süsler yalnızca görünüş ve ses içindir; bulmacayı kolaylaştırmaz.')}</p>`;
     $('shopList').querySelectorAll('[data-act]').forEach(b => { b.onclick = () => shopAct(b.dataset.act, b.dataset.id); });
     $('shopList').querySelectorAll('[data-try]').forEach(b => { b.onclick = () => shopTry(b.dataset.try); });
     previews = [...$('shopList').querySelectorAll('canvas[data-prev]')].map(c => ({ c, id: c.dataset.prev, parts: [], t0: performance.now() - 900 }));
@@ -576,13 +590,13 @@
   function renderHome() {
     const next = frontier();
     applyWorld(W.worldOfGate(W.gateOf(next)));
-    $('playLevel').textContent = 'Seviye ' + next;
+    $('playLevel').textContent = tr('Seviye {n}', { n: next });
     $('homeStars').textContent = totalStars();
     $('homeCoins').textContent = progress.coins;
     $('homeBulbs').textContent = progress.hints;
     $('trophyDot').hidden = !unseenBadges().length;
     $('homeScore').textContent = fmt(totalScore());
-    $('homeTitle').textContent = progress.title || currentTitle();
+    $('homeTitle').textContent = tr(progress.title || currentTitle());
     $('promiseLevels').textContent = TOTAL;
     $('promiseWorlds').textContent = W.WORLDS.length;
     $('promiseBadges').textContent = B.BADGES.length;
@@ -685,7 +699,7 @@
     const open = !teaser && isUnlocked(W.gateStart(g)) && (g === 1 || progress.rewards['gate:' + g]);
     const cls = ['arch', open ? 'open' : 'locked', !teaser && gateGold(g) ? 'gold' : '', teaser ? 'teaser' : ''].join(' ');
     const label = teaser
-      ? `<span class="arch-sub">Yakında</span>`
+      ? `<span class="arch-sub">${tr('Yakında')}</span>`
       : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
     return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
       ${W.isWorldStart(g) ? `<span class="arch-world">${world.name}</span>` : ''}
@@ -697,7 +711,7 @@
           <circle class="l1" cx="-9" cy="-3" r="10"/><circle class="l2" cx="9" cy="-3" r="10"/><circle class="l3" cx="0" cy="9" r="10"/>
         </g>
       </svg>
-      <span class="arch-name">Kapı ${g} · ${gate.name}</span>
+      <span class="arch-name">${tr('Kapı {n}', { n: g })} · ${gate.name}</span>
       ${label}
     </div>`;
   }
@@ -739,10 +753,10 @@
       const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
         n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
         state !== 'locked' && def.name ? 'colored' : ''].join(' ');
-      const label = `Seviye ${n}${def.name ? ', ' + def.name : ''}, ${tierOf(n).name.toLowerCase()}, ` +
-        (state === 'locked' ? 'kilitli' : state === 'done' ? `${starsOf(n)} yıldız` : 'oynanmadı');
+      const label = `${tr('Seviye {n}', { n })}${def.name ? ', ' + tr(def.name) : ''}, ${tierOf(n).name.toLowerCase()}, ` +
+        (state === 'locked' ? tr('kilitli') : state === 'done' ? tr('{n} yıldız', { n: starsOf(n) }) : tr('oynanmadı'));
       html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
-        aria-label="${label}${chest ? ', ' + chest.name.toLowerCase() + ' var' : ''}${piece ? ', çıkartma parçası var' : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
+        aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
     }
     const cur = geo.nodes[front];
     html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
@@ -801,7 +815,7 @@
       const teaser = g > GATE_COUNT;
       const locked = teaser || !isUnlocked(W.gateStart(g));
       html += `<button data-g="${g}" class="${locked ? 'locked' : ''}${!teaser && gateGold(g) ? ' gold' : ''}"
-        aria-label="Kapı ${g}${teaser ? ', yakında' : locked ? ', kilitli' : ''}" style="--wa:${W.worldOfGate(g).theme.accent}">${g}</button>`;
+        aria-label="${tr('Kapı {n}', { n: g })}${teaser ? ', ' + tr('yakında') : locked ? ', ' + tr('kilitli') : ''}" style="--wa:${W.worldOfGate(g).theme.accent}">${g}</button>`;
     }
     strip.innerHTML = html;
     strip.querySelectorAll('button').forEach(b => {
@@ -853,20 +867,20 @@
       if (p.gate) {
         progress.rewards['gate:' + p.gate] = true;
         progress.hints += ECO.gateBulbs;
-        rewards.push(`<span class="chip bulb">+${ECO.gateBulbs} ampul</span>`);
+        rewards.push(`<span class="chip bulb">${tr('+{n} ampul', { n: ECO.gateBulbs })}</span>`);
       }
       if (p.newTitle) {
         progress.title = p.newTitle;
-        rewards.push(`<span class="chip rank-chip">Yeni unvan: <b>${p.newTitle}</b></span>`);
+        rewards.push(`<span class="chip rank-chip">${tr('Yeni unvan')}: <b>${tr(p.newTitle)}</b></span>`);
       }
       saveProgress();
       const gate = p.gate ? W.GATES[p.gate - 1] : null;
       const world = p.gate ? W.worldOfGate(p.gate) : null;
-      $('gateEyebrow').textContent = p.gate ? `Kapı ${p.gate} açıldı` : 'Yolculuk';
-      $('gateTitle').textContent = gate ? gate.name : 'Tebrikler!';
+      $('gateEyebrow').textContent = p.gate ? tr('Kapı {n} açıldı', { n: p.gate }) : tr('Yolculuk');
+      $('gateTitle').textContent = gate ? gate.name : tr('Tebrikler!');
       $('gateWorld').textContent = p.gate
-        ? (W.isWorldStart(p.gate) ? `Yeni dünya: ${world.name}` : world.name)
-        : (GATE_COUNT < W.GATES.length ? 'Bu dünyayı bitirdin. Yeni kapılar yakında açılacak.' : 'Bütün kapıları açtın.');
+        ? (W.isWorldStart(p.gate) ? tr('Yeni dünya: {name}', { name: world.name }) : world.name)
+        : (GATE_COUNT < W.GATES.length ? tr('Bu dünyayı bitirdin. Yeni kapılar yakında açılacak.') : tr('Bütün kapıları açtın.'));
       $('gateRewards').innerHTML = rewards.join('');
       $('gateCard').classList.remove('hidden');
       launchConfetti(2);
@@ -944,7 +958,7 @@
     const days = R.STREAK.days;
     return days.map((d, k) => {
       const state = k < slot || (k === slot && opened) ? 'done' : k === slot ? 'today' : '';
-      return `<li class="${state}${k === days.length - 1 ? ' last' : ''}"><small>${k + 1}. gün</small>
+      return `<li class="${state}${k === days.length - 1 ? ' last' : ''}"><small>${tr('{n}. gün', { n: k + 1 })}</small>
         <b><i class="coin-ico"></i>${d.coins}</b>${d.bulbs ? '<em>+1 <i class="bulb-ico"></i></em>' : ''}</li>`;
     }).join('');
   }
@@ -952,14 +966,14 @@
   function showStreakCard(step) {
     const days = R.STREAK.days, r = step.reward;
     const next = days[(step.slot + 1) % days.length];
-    $('streakTitle').textContent = `${step.slot + 1}. gün`;
+    $('streakTitle').textContent = tr('{n}. gün', { n: step.slot + 1 });
     $('streakDays').innerHTML = streakDaysHtml(step.slot, false);
     $('streakChest').innerHTML = bigChestSvg(r.rarity);
     $('streakNote').textContent = step.missed
-      ? `${step.missed} gün ara verdin, seri ${step.missed} gün geri gitti. Sıfırlanmadı!`
-      : step.slot === days.length - 1 ? 'Serinin son günü: efsane sandık!' : 'Her gün gel, sandık her gün büyüsün.';
+      ? tr('{n} gün ara verdin, seri {n} gün geri gitti. Sıfırlanmadı!', { n: step.missed })
+      : step.slot === days.length - 1 ? tr('Serinin son günü: efsane sandık!') : tr('Her gün gel, sandık her gün büyüsün.');
     const btn = $('streakGo');
-    btn.textContent = 'Sandığı aç';
+    btn.textContent = tr('Sandığı aç');
     btn.disabled = false;
     $('streakCard').classList.remove('hidden');
     let opened = false;
@@ -982,8 +996,8 @@
         Sound.chestOpen(r.rarity);
         if (navigator.vibrate && r.rarity === 'epic') { try { navigator.vibrate([20, 40, 30]); } catch (e) { /* yok say */ } }
         $('streakDays').innerHTML = streakDaysHtml(step.slot, true);
-        $('streakNote').innerHTML = `<span class="streak-got"><b>+${r.coins} altın</b>${r.bulbs ? ` · <b>+${r.bulbs} ampul</b>` : ''}</span>
-          Yarın gel: <b>${next.coins} altın${next.bulbs ? ' ve ampul' : ''}</b>`;
+        $('streakNote').innerHTML = `<span class="streak-got"><b>${tr('+{n} altın', { n: r.coins })}</b>${r.bulbs ? ` · <b>${tr('+{n} ampul', { n: r.bulbs })}</b>` : ''}</span>
+          ${tr('Yarın gel')}: <b>${tr('{n} altın', { n: next.coins })}${next.bulbs ? ' ' + tr('ve ampul') : ''}</b>`;
         btn.textContent = 'Devam';
         btn.disabled = false;
         renderHome();
@@ -1081,7 +1095,7 @@
   function loadTutorial(i) {
     const def = getTutorial(i);
     startDef(def, 0, i);
-    $('coachStep').textContent = `Deneme ${i + 1} / ${TUTORIAL.length}`;
+    $('coachStep').textContent = tr('Deneme {n} / {all}', { n: i + 1, all: TUTORIAL.length });
     $('coachTitle').textContent = def.title;
     $('coachText').textContent = def.text;
     hideTip();
@@ -1098,20 +1112,20 @@
   function loadLevel(n) {
     const src = srcOf(n);
     const def = getLevel(src);
-    if (!def) { showTip('Bu seviye yüklenemedi'); return; }
+    if (!def) { showTip(tr('Bu seviye yüklenemedi')); return; }
     applyWorld(W.worldOfGate(W.gateOf(n)));
     if (n !== failedLevel) failedLevel = null;
     startDef(def, n, null);
     maybeWorldCard(n);
     if (dailyGift()) return;
-    if (src === 1) showTip('Halkayı sürükleyerek döndür', 4000);
-    else if (src === 2) showTip('Parlayan nokta: halka oradan geçebilir', 4000);
-    else if (src === 5) showTip('Gri halkalar kilitli, dönmez', 3500);
-    else if (src === 7) showTip('Noktalı çizgiyle bağlı halkalar birlikte döner', 4000);
-    else if (src === 8) showTip('Bu halkanın iki boşluğu var', 3500);
-    else if (src === 9) showTip('Çubuk dönmez: halkaların boşluğunu çubuğa getir', 4500);
+    if (src === 1) showTip(tr('Halkayı sürükleyerek döndür'), 4000);
+    else if (src === 2) showTip(tr('Parlayan nokta: halka oradan geçebilir'), 4000);
+    else if (src === 5) showTip(tr('Gri halkalar kilitli, dönmez'), 3500);
+    else if (src === 7) showTip(tr('Noktalı çizgiyle bağlı halkalar birlikte döner'), 4000);
+    else if (src === 8) showTip(tr('Bu halkanın iki boşluğu var'), 3500);
+    else if (src === 9) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'), 4500);
     else if (def.name && !progress.shapeTip) {
-      showTip(`${def.name} halkalara takılmış! Onu kurtar`, 3500);
+      showTip(tr('{name} halkalara takılmış! Onu kurtar', { name: tr(def.name) }), 3500);
       progress.shapeTip = true;
       saveProgress();
     }
@@ -1121,12 +1135,12 @@
       saveProgress();
     }
     else if (pieceWaiting(n) && !progress.pieceTip) {
-      showTip('Bu bölümü bitir, çıkartma parçası kazan', 4000);
+      showTip(tr('Bu bölümü bitir, çıkartma parçası kazan'), 4000);
       progress.pieceTip = true;
       saveProgress();
     }
     else if (!progress.coinTip && S.coins.length) {
-      showTip('Altını almak için yanındaki halkayı serbest bırak', 4000);
+      showTip(tr('Altını almak için yanındaki halkayı serbest bırak'), 4000);
       progress.coinTip = true;
       saveProgress();
     } else hideTip();
@@ -1151,12 +1165,12 @@
   }
 
   function updateHud() {
-    $('levelLabel').textContent = S.tut != null ? 'Nasıl oynanır'
-      : S.preview ? 'Önizleme · ' + (S.def.title || S.def.name)
-      : 'Seviye ' + S.levelNo + ' · ' + (S.def.name || W.GATES[W.gateOf(S.levelNo) - 1].name);
+    $('levelLabel').textContent = S.tut != null ? tr('Nasıl oynanır')
+      : S.preview ? tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name)
+      : tr('Seviye {n}', { n: S.levelNo }) + ' · ' + (S.def.name ? tr(S.def.name) : W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
     $('movesNum').textContent = S.tut != null ? S.moves : left;
-    $('movesLbl').textContent = S.tut != null ? 'hamle' : 'hamle kaldı';
+    $('movesLbl').textContent = S.tut != null ? tr('hamle') : tr('hamle kaldı');
     $('movesNum').classList.toggle('warn', S.tut == null && left <= 2 && !S.won);
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins - S.lootInAir + S.coinsTaken * S.coinMult;
@@ -1356,7 +1370,7 @@
       const p = boardToApp(c.x, c.y);
       if (c.rarity !== 'common') {
         const w = $('app').clientWidth;
-        floaters.push({ text: c.name + '!', x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), big: c.rarity === 'epic' });
+        floaters.push({ text: tr(c.name) + '!', x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), big: c.rarity === 'epic' });
       }
       if (c.rarity === 'epic' && navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch (e) { /* yok say */ } }
       lootCoins(c, p);
@@ -1375,7 +1389,7 @@
       Sound.goldRing();
       lootBurst(c, '#ffc94a', 40);
       const p = boardToApp(c.x, c.y), w = $('app').clientWidth;
-      floaters.push({ text: 'Altın ×' + R.LOOT.goldMult + '!', x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), big: true });
+      floaters.push({ text: tr('Altın ×{n}!', { n: R.LOOT.goldMult }), x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), big: true });
       updateHud();
       const pill = $('coinPill');
       pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
@@ -1665,9 +1679,9 @@
   // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
   // Tek halkada övgü yok; seyrek kaldıkça değerli hisseder.
   const PRAISE = {
-    1: { words: ['Güzel!', 'Süper!'], size: 36, colors: ['#fff3b0', '#ffb52e'] },
-    2: { words: ['Harika!', 'Şahane!'], size: 42, colors: ['#d9fff6', '#2dd4bf'] },
-    3: { words: ['Muhteşem!', 'İnanılmaz!'], size: 48, colors: ['#ffe0f4', '#f72585'] },
+    1: { words: [tr('Güzel!'), tr('Süper!')], size: 36, colors: ['#fff3b0', '#ffb52e'] },
+    2: { words: [tr('Harika!'), tr('Şahane!')], size: 42, colors: ['#d9fff6', '#2dd4bf'] },
+    3: { words: [tr('Muhteşem!'), tr('İnanılmaz!')], size: 48, colors: ['#ffe0f4', '#f72585'] },
   };
   let lastPraise = '';
   function praiseWord(words) {
@@ -1688,7 +1702,7 @@
     if (!quiet) {
       const tier = n >= 4 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      floaters.push({ text: praiseWord(pr.words), sub: `Zincir ×${n}`, x, y: p.y, t0: performance.now(),
+      floaters.push({ text: praiseWord(pr.words), sub: tr('Zincir ×{n}', { n }), x, y: p.y, t0: performance.now(),
         size: pr.size, colors: pr.colors, life: 1500 });
       Sound.praise(tier);
     }
@@ -1704,7 +1718,7 @@
   function endPraise() {
     if (S.tut != null || S.extra) return null;
     if (S.moves > (S.def.par ?? S.moves)) return null;
-    return S.usedHint ? 'Mükemmel!' : 'Kusursuz!';
+    return S.usedHint ? tr('Mükemmel!') : tr('Kusursuz!');
   }
   function showEndPraise(word) {
     const p = boardToApp(BOARD.w / 2, BOARD.h / 2);
@@ -1718,8 +1732,8 @@
     const have = piecesOf(piece.world).filter(Boolean).length;
     return `<div class="sticker-win${setDone ? ' complete' : ''}" style="--wa:${W.worldById(piece.world).theme.accent}">
       ${stickerSvg(piece.world, piece.k)}
-      <span><small>${setDone ? 'Çıkartma tamamlandı!' : 'Çıkartma parçası'}</small><b>${STK.SETS[piece.world].name}</b>
-      <em>${setDone ? `+${R.STICKERS.setCoins} altın` : `${have} / ${STK.PIECES}`}</em></span></div>`;
+      <span><small>${setDone ? tr('Çıkartma tamamlandı!') : tr('Çıkartma parçası')}</small><b>${STK.SETS[piece.world].name}</b>
+      <em>${setDone ? tr('+{n} altın', { n: R.STICKERS.setCoins }) : `${have} / ${STK.PIECES}`}</em></span></div>`;
   }
 
   function showWin() {
@@ -1762,15 +1776,15 @@
       }
     }
     saveProgress();
-    $('winNote').textContent = S.extra ? 'Ek hamleyle bitti: bu bölüm en fazla 1 yıldız verir.' : '';
+    $('winNote').textContent = S.extra ? tr('Ek hamleyle bitti: bu bölüm en fazla 1 yıldız verir.') : '';
     const opened = S.loot && S.loot.t0 != null ? S.loot : null;
     const ch = opened && opened.type === 'chest' ? opened : null;
-    $('winRewards').innerHTML = (firstClear && S.def.name ? `<span class="chip album-chip">Albüme eklendi: <b>${S.def.name}</b></span>` : '') +
-      (ch ? `<span class="chip loot-chip ${ch.rarity}">${ch.name}: <b>+${ch.coins} altın</b></span>` : '') +
-      (ch && ch.bulbs ? `<span class="chip bulb"><b>+${ch.bulbs} ampul</b></span>` : '') +
-      (S.coinMult > 1 ? `<span class="chip loot-chip gold">Altın halka: <b>altınlar ×${S.coinMult}</b></span>` : '') +
-      (opened && opened.type === 'bulb' ? `<span class="chip bulb">Ampul halkası: <b>+${opened.bulbs} ampul</b></span>` : '') +
-      (goldGate ? `<span class="chip bulb">Altın kapı: <b>+${GOLD_GATE_BULBS} ampul</b></span>` : '') +
+    $('winRewards').innerHTML = (firstClear && S.def.name ? `<span class="chip album-chip">${tr('Albüme eklendi')}: <b>${tr(S.def.name)}</b></span>` : '') +
+      (ch ? `<span class="chip loot-chip ${ch.rarity}">${tr(ch.name)}: <b>${tr('+{n} altın', { n: ch.coins })}</b></span>` : '') +
+      (ch && ch.bulbs ? `<span class="chip bulb"><b>${tr('+{n} ampul', { n: ch.bulbs })}</b></span>` : '') +
+      (S.coinMult > 1 ? `<span class="chip loot-chip gold">${tr('Altın halka')}: <b>${tr('altınlar ×{n}', { n: S.coinMult })}</b></span>` : '') +
+      (opened && opened.type === 'bulb' ? `<span class="chip bulb">${tr('Ampul halkası')}: <b>${tr('+{n} ampul', { n: opened.bulbs })}</b></span>` : '') +
+      (goldGate ? `<span class="chip bulb">${tr('Altın kapı')}: <b>${tr('+{n} ampul', { n: GOLD_GATE_BULBS })}</b></span>` : '') +
       (piece ? stickerWinHtml(piece, setDone) : '');
     if (piece) setTimeout(() => Sound.piece(setDone), 900);
     if (goldGate) {
@@ -1786,13 +1800,13 @@
     const card = $('win').querySelector('.card');
     card.classList.remove('tut');
     card.classList.toggle('perfect', stars === 3 && fxOn());
-    $('winLevel').textContent = S.def.name ? `${S.def.name} kurtarıldı` : `Seviye ${S.levelNo} tamamlandı`;
-    $('winTitle').textContent = stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Başardın!';
+    $('winLevel').textContent = S.def.name ? tr('{name} kurtarıldı', { name: tr(S.def.name) }) : tr('Seviye {n} tamamlandı', { n: S.levelNo });
+    $('winTitle').textContent = stars === 3 ? tr('Mükemmel!') : stars === 2 ? tr('Harika!') : tr('Başardın!');
     $('stars').innerHTML = [1, 2, 3].map(k =>
       `<span class="star-ico${k <= stars ? '' : ' off'}" style="animation-delay:${200 + k * 180}ms"></span>`).join('');
     $('winMoves').textContent = S.moves;
     $('winPar').textContent = par;
-    $('continue').textContent = W.posInGate(S.levelNo) === W.GATE_SIZE || S.levelNo >= TOTAL ? 'Haritaya dön' : 'Sonraki seviye';
+    $('continue').textContent = W.posInGate(S.levelNo) === W.GATE_SIZE || S.levelNo >= TOTAL ? tr('Haritaya dön') : tr('Sonraki seviye');
     $('win').classList.remove('hidden');
     Sound.win();
     for (let k = 1; k <= stars; k++) setTimeout(() => Sound.star(k), 400 + k * 180);
@@ -1817,17 +1831,17 @@
     const stars = S.extra ? 1 : starsFor(S.moves, S.def.par ?? S.moves);
     const card = $('win').querySelector('.card');
     card.classList.remove('tut', 'perfect');
-    $('winLevel').textContent = 'Önizleme · ' + (S.def.title || S.def.name);
-    $('winTitle').textContent = stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Başardın!';
+    $('winLevel').textContent = tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name);
+    $('winTitle').textContent = stars === 3 ? tr('Mükemmel!') : stars === 2 ? tr('Harika!') : tr('Başardın!');
     $('stars').innerHTML = [1, 2, 3].map(k =>
       `<span class="star-ico${k <= stars ? '' : ' off'}" style="animation-delay:${200 + k * 180}ms"></span>`).join('');
     $('winMoves').textContent = S.moves;
     $('winPar').textContent = S.def.par;
     $('winCoins').textContent = '+0';
     $('winScore').textContent = '+0';
-    $('winNote').textContent = 'Önizleme: sonuç kaydedilmedi.';
+    $('winNote').textContent = tr('Önizleme: sonuç kaydedilmedi.');
     $('winRewards').innerHTML = '';
-    $('continue').textContent = 'Ana menü';
+    $('continue').textContent = tr('Ana menü');
     $('win').classList.remove('hidden');
     Sound.win();
     launchConfetti(stars);
@@ -1836,7 +1850,7 @@
 
   function loadPreview(src) {
     const def = getLevel(src);
-    if (!def) { showTip('Bu bölüm yüklenemedi'); return; }
+    if (!def) { showTip(tr('Bu bölüm yüklenemedi')); return; }
     // Şekiller gireceği kapının dünyasında, tanıtımlar kendi dünyasında görünür
     const plan = window.RingLevels.SHAPE_PLAN[src];
     applyWorld(W.worldById(def.world) || (plan ? W.worldOfGate(plan.gate) : W.WORLDS[0]));
@@ -1844,16 +1858,16 @@
     if (def.tip) showTip(def.tip, 5000);
   }
 
-  const TUT_PRAISE = ['Harika!', 'Süper!', 'Çok iyi!', 'Hazırsın!'];
+  const TUT_PRAISE = [tr('Harika!'), tr('Süper!'), tr('Çok iyi!'), tr('Hazırsın!')];
   function showTutorialWin() {
     const last = S.tut === TUTORIAL.length - 1;
     $('win').querySelector('.card').classList.add('tut');
     $('win').querySelector('.card').classList.remove('perfect');
-    $('winLevel').textContent = `Deneme ${S.tut + 1} / ${TUTORIAL.length}`;
-    $('winTitle').textContent = TUT_PRAISE[S.tut] || 'Harika!';
-    $('winNote').textContent = last ? 'Artık gerçek seviyelere hazırsın.' : 'Bir sonraki denemeye geç.';
+    $('winLevel').textContent = tr('Deneme {n} / {all}', { n: S.tut + 1, all: TUTORIAL.length });
+    $('winTitle').textContent = TUT_PRAISE[S.tut] || tr('Harika!');
+    $('winNote').textContent = last ? tr('Artık gerçek seviyelere hazırsın.') : tr('Bir sonraki denemeye geç.');
     $('winRewards').innerHTML = '';
-    $('continue').textContent = last ? 'Oyuna başla' : 'Devam';
+    $('continue').textContent = last ? tr('Oyuna başla') : tr('Devam');
     $('win').classList.remove('hidden');
     Sound.win();
     launchConfetti(last ? 3 : 1);
@@ -1868,11 +1882,11 @@
     closeHintMenu();
     const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
     const can = progress.coins >= EXTRA_PRICE;
-    $('failNote').textContent = left === 1 ? 'Tek halka kaldı!' : `${left} halka kaldı.`;
+    $('failNote').textContent = left === 1 ? tr('Tek halka kaldı!') : tr('{n} halka kaldı.', { n: left });
     $('extraPrice').textContent = EXTRA_PRICE;
     $('extraMoves').disabled = !can;
     $('extraNote').hidden = can;
-    $('extraNote').textContent = `${EXTRA_PRICE - progress.coins} altın daha gerekir (sende ${progress.coins}).`;
+    $('extraNote').textContent = tr('{n} altın daha gerekir (sende {have}).', { n: EXTRA_PRICE - progress.coins, have: progress.coins });
     // Ek hamle alınamıyorsa öne çıkan düğme "Baştan başla" olur
     $('failRetry').className = can ? 'btn-ghost' : 'btn-primary';
     $('fail').classList.remove('hidden');
@@ -1898,7 +1912,7 @@
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     const pill = $('coinPill');
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
-    showTip(`+${EXTRA_MOVES} hamle. Bu bölüm en fazla 1 yıldız verir`, 3000);
+    showTip(tr('+{n} hamle. Bu bölüm en fazla 1 yıldız verir', { n: EXTRA_MOVES }), 3000);
   }
 
   // Skor sayacı yukarı doğru sayar
@@ -1981,12 +1995,12 @@
     if (!canRotate(S.L, i, S.mask)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
-      if (isBar(i)) showTip('Çubuk dönmez: halkaların boşluğunu çubuğa getir');
-      else if (isFrame(i)) showTip('Çerçeve yerinden oynamaz: halkaları etrafından kurtar');
+      if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
+      else if (isFrame(i)) showTip(tr('Çerçeve yerinden oynamaz: halkaları etrafından kurtar'));
       else if (S.L.rings[i].lockedBy >= 0) {
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
-        showTip('Kilitli: önce anahtarlı halkayı kurtar');
+        showTip(tr('Kilitli: önce anahtarlı halkayı kurtar'));
       }
       return;
     }
@@ -2140,13 +2154,13 @@
     const earned = Object.keys(progress.badges).length;
     const perfect = Object.values(progress.stars).filter(v => v === 3).length;
     $('endingStats').innerHTML = [
-      [`${totalStars()}`, `/ ${TOTAL * 3} yıldız`],
-      [`${earned}`, `/ ${B.BADGES.length} rozet`],
-      [`${shapes.filter(n => starsOf(n)).length}`, `/ ${shapes.length} şekil`],
-      [fmt(progress.stats.coinsTotal || 0), 'altın'],
+      [`${totalStars()}`, tr('/ {n} yıldız', { n: TOTAL * 3 })],
+      [`${earned}`, tr('/ {n} rozet', { n: B.BADGES.length })],
+      [`${shapes.filter(n => starsOf(n)).length}`, tr('/ {n} şekil', { n: shapes.length })],
+      [fmt(progress.stats.coinsTotal || 0), tr('altın')],
     ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
     const missing = TOTAL - perfect;
-    $('endingMore').textContent = missing > 0 ? `${missing} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.` : 'Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.';
+    $('endingMore').textContent = missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
     const quick = REDUCED || !fxOn();
     const t0 = performance.now();
     endingRun = { t0, sparks: [] };
@@ -2241,7 +2255,7 @@
     const shown = progress.hints - bulbsInAir;
     el.textContent = free ? '∞' : shown;
     el.classList.toggle('empty', !free && shown <= 0);
-    $('hint').setAttribute('aria-label', free ? 'İpucu (ücretsiz)' : `İpucu (${shown} ampul)`);
+    $('hint').setAttribute('aria-label', free ? tr('İpucu (ücretsiz)') : tr('İpucu ({n} ampul)', { n: shown }));
   }
 
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
@@ -2263,12 +2277,12 @@
     for (const b of $('hintMenu').querySelectorAll('.hint-opt')) {
       if (b.dataset.tier === 'nudge') continue;
       const cost = b.querySelector('.cost');
-      cost.innerHTML = free ? 'Ücretsiz' : '<i class="bulb-ico"></i>1';
+      cost.innerHTML = free ? tr('Ücretsiz') : '<i class="bulb-ico"></i>1';
       cost.classList.toggle('free', free);
       b.classList.toggle('locked', !free && progress.hints <= 0);
     }
-    $('hintBank').innerHTML = free ? 'Bu kapıda bütün ipuçları ücretsiz.'
-      : progress.hints > 0 ? `Ampulün: <b>${progress.hints}</b>` : 'Ampulün kalmadı. Dürtme her zaman ücretsiz.';
+    $('hintBank').innerHTML = free ? tr('Bu kapıda bütün ipuçları ücretsiz.')
+      : progress.hints > 0 ? `${tr('Ampulün')}: <b>${progress.hints}</b>` : tr('Ampulün kalmadı. Dürtme her zaman ücretsiz.');
     renderBuy();
     $('hintMenu').hidden = false;
   }
@@ -2281,7 +2295,7 @@
     const have = progress.coins;
     btn.disabled = have < BULB_PRICE;
     btn.querySelector('.cost').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
-    $('buyNote').textContent = have >= BULB_PRICE ? `Altının: ${have}` : `${BULB_PRICE - have} altın daha topla (sende ${have})`;
+    $('buyNote').textContent = have >= BULB_PRICE ? tr('Altının: {n}', { n: have }) : tr('{n} altın daha topla (sende {have})', { n: BULB_PRICE - have, have });
   }
 
   function buyBulb() {
@@ -2310,7 +2324,7 @@
     progress.hints += ECO.dailyBulbs;
     saveProgress();
     bulbsInAir += ECO.dailyBulbs;
-    showTip(`Günün hediyesi: ${ECO.dailyBulbs} ampul`, 3500);
+    showTip(tr('Günün hediyesi: {n} ampul', { n: ECO.dailyBulbs }), 3500);
     setTimeout(() => {
       const ar = $('app').getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
       flyBulbs(ECO.dailyBulbs, sr.left - ar.left + sr.width / 2, sr.top - ar.top + sr.height / 2, true);
@@ -2383,11 +2397,11 @@
   function useHint(tier) {
     if (S.won || S.failed || S.auto) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
-    if (cost > progress.hints) { Sound.deny(); showTip('Ampulün kalmadı. Ücretsiz dürtmeyi dene'); return; }
+    if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
     closeHintMenu();
     const sol = bestMove();
     // Çözüm bulunamazsa ampul harcanmaz
-    if (!sol || !sol.first) { showTip('İpucu bulunamadı, yeniden başlatmayı dene'); return; }
+    if (!sol || !sol.first) { showTip(tr('İpucu bulunamadı, yeniden başlatmayı dene')); return; }
     if (cost) {
       progress.hints -= cost;
       saveProgress();
@@ -2407,10 +2421,10 @@
     const now = performance.now();
     if (tier === 'nudge') {
       S.hint = { ...sol.first, t0: now, nudge: true };
-      showTip('Parlayan halkayı çevir');
+      showTip(tr('Parlayan halkayı çevir'));
     } else if (tier === 'hint') {
       S.hint = { ...sol.first, t0: now };
-      showTip('Parlayan halkanın boşluğunu sarı halkaya getir');
+      showTip(tr('Parlayan halkanın boşluğunu sarı halkaya getir'));
     } else {
       S.hint = null;
       hideTip();
@@ -2459,7 +2473,7 @@
     S.help.shown = true;
     $('hint').classList.add('pulse');
     if (!progress.helpTip) {
-      showTip('Takıldıysan ipucuna dokun: dürtme ücretsiz', 4000);
+      showTip(tr('Takıldıysan ipucuna dokun: dürtme ücretsiz'), 4000);
       progress.helpTip = true;
       saveProgress();
     }
@@ -2998,7 +3012,7 @@
   }
 
   // Övgü ve "Zincir ×N" yazıları: büyüyerek belirir, yükselir ve söner (efektler kapalıysa büyümeden)
-  const FLOAT_FONT = '"Baloo 2", "Trebuchet MS", sans-serif';
+  const FLOAT_FONT = '"Baloo F", "Baloo 2", "Trebuchet MS", sans-serif';
   function drawFloaters(now) {
     floaters = floaters.filter(f => now < f.t0 + (f.life || 1300));
     for (const f of floaters) {
