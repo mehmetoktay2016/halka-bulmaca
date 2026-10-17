@@ -16,12 +16,12 @@
     align-items: center;
   }
   .text { padding-left: 72px; }
-  h1 { margin: 0; font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 104px; line-height: .9; }
+  h1 { margin: 0; font-family: "Baloo F", "Baloo 2", sans-serif; font-weight: 800; font-size: 104px; line-height: .9; }
   h1 span { display: block; font-size: 46px; letter-spacing: .24em; color: #ffc94a; margin-top: 14px; }
   p { margin: 22px 0 0; font-size: 26px; font-weight: 700; color: #d2d6f2; }
   .tags { display: flex; gap: 10px; margin-top: 26px; }
   .tags b {
-    font-family: "Baloo 2", sans-serif; font-size: 20px; padding: 6px 16px; border-radius: 999px;
+    font-family: "Baloo F", "Baloo 2", sans-serif; font-size: 20px; padding: 6px 16px; border-radius: 999px;
     background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12);
   }
   svg { width: 440px; height: 440px; }
@@ -33,6 +33,14 @@
     <p>Döndür · Hizala · Serbest bırak</p>
     <div class="tags"><b>Reklamsız</b><b>200 bölüm</b><b>8 dünya</b></div>
   </div>
+  <script>
+    // ?lang=en: İngilizce mağaza sayfası için (tools/store_shots.js --lang en)
+    if (new URLSearchParams(location.search).get('lang') === 'en') {
+      document.documentElement.lang = 'en';
+      document.querySelector('.text p').textContent = 'Turn · Align · Set free';
+      ['No ads', '200 levels', '8 worlds'].forEach((t, i) => { document.querySelectorAll('.tags b')[i].textContent = t; });
+    }
+  </script>
   <svg viewBox="0 0 440 440" aria-hidden="true">
     <circle cx="170" cy="180" r="92" class="lr" stroke="#ff6b6b" stroke-dasharray="470 108" transform="rotate(-40 170 180)"/>
     <circle cx="276" cy="180" r="92" class="lr" stroke="#ffc94a" stroke-dasharray="470 108" transform="rotate(150 276 180)"/>
