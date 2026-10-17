@@ -144,5 +144,22 @@ test('sıra değişince yıldızlar bölümle birlikte gider', () => {
   assert.strictEqual(Save.frontier(p, newOrder), 2);
 });
 
+test('2.2 düzen taşıması: oyuncu ekrandaki yerini korur, bir kez çalışır', () => {
+  const oldOrder = [1, 2, 3, 4, 5], newOrder = [2, 1, 3, 5, 4];
+  const v3 = { ...Save.fresh(), stars: { 1: 3, 2: 2, 4: 1 }, best: { 1: 300, 2: 200, 4: 100 }, clean: { 2: true }, loot: { 4: 'chest' } };
+  delete v3.layout;
+  const p = Save.load(memStorage({ [Save.KEY]: JSON.stringify(v3) }));
+  assert.strictEqual(p.layout, 3, 'eski kayıt eski düzende sayılır');
+  assert.strictEqual(Save.relayout(p, oldOrder, newOrder), true);
+  // 1. sıradaki (kimlik 1) kayıt yeni 1. sıradakine (kimlik 2) geçer
+  assert.deepStrictEqual(p.stars, { 2: 3, 1: 2, 5: 1 });
+  assert.deepStrictEqual(p.best, { 2: 300, 1: 200, 5: 100 });
+  assert.deepStrictEqual(p.clean, { 1: true });
+  assert.deepStrictEqual(p.loot, { 5: 'chest' });
+  assert.strictEqual(Save.frontier(p, newOrder), Save.frontier({ stars: { 1: 3, 2: 2, 4: 1 } }, oldOrder));
+  assert.strictEqual(Save.relayout(p, oldOrder, newOrder), false, 'ikinci kez taşımaz');
+  assert.strictEqual(Save.fresh().layout, 4, 'yeni oyuncu taşınmaz');
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kayıt testleri geçti');
 process.exit(failed ? 1 : 0);

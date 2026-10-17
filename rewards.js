@@ -26,11 +26,11 @@
     goldCoins: 3,        // altın halkalı bölümde tahtaya konan altın (yer varsa)
     goldMult: 2,
     // Ampul halkası (+1 ampul): yalnız en zor kapılarda (hata payı en düşük), kapı başına bir
-    bulbGates: [6, 9, 10, 11, 12],
+    bulbGates: [6, 7, 8, 9, 10, 11],
     introPos: 3,         // 1. kapıda tek tanıtım sandığı: kapının kaçıncı bölümünde
     introCoins: 5,
     // Zor kapılarda (hata payı en düşük olanlar, tools/economy.js) nadir sandık daha sık
-    hardGates: [6, 9, 10, 11, 12],
+    hardGates: [6, 7, 8, 9, 10, 11],
     rarity: {
       normal: { common: 65, rare: 28, epic: 7 },
       hard: { common: 45, rare: 40, epic: 15 },

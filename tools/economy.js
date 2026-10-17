@@ -26,7 +26,7 @@ const order = Levels.gateOrder(get);
 const STARS = Number(process.env.STARS || 2);
 
 // game.js ile aynı kurallar
-const moveCap = src => ((Levels.gateOfSource(src) || 1) >= 17 ? 14 : 10);
+const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10; // game.js ile aynı
 const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 // min(n, düzgün dağılımlı lo..hi) beklenen değeri
 function expectedCoins(n) {
