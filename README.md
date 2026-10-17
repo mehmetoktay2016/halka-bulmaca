@@ -26,6 +26,11 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
 - Günlük sandık: her gün ilk açılışta 7 günlük şerit, büyüyen ödül; gün kaçırılırsa seri o kadar geri gider.
 - Mağaza: altınla kurtulma efekti, kurtulma sesi ve zafer kutlaması alınır (halka renkleri değişmez).
 - Ödül miktarları ve fiyatlar tek yerde: `rewards.js`. Ekonomi ölçümü: `npm run economy`.
+- Zorluk (2.2): bölümün zorluk puanı en az hamle ile halkaların birbirine yakınlığından gelir. Her kapının başı
+  ferah, sonu sıkışık; her kapının zirvesi ve ortalaması bir öncekinden yüksek (kapı 11 bilinen istisna).
+  Haritada her durağın üstünde Kolay / Orta / Zor noktası.
+- Övgü (2.2): tek hamlede 2, 3 ya da 4+ halka kurtulunca kademeli söz ve müzik motifi; en az hamleyle
+  bitirince "Kusursuz!" (ipucusuz) ya da "Mükemmel!".
 
 200 bölüm 20 kapıya, kapılar 8 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
 Fabrika, Uzay, Büyük Usta). Her kapının 5. bölümü bir ara şekil, 10. bölümü bir şekil finalidir; her

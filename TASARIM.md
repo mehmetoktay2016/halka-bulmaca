@@ -62,6 +62,15 @@ yanına "veya reklam izle" seçeneği olarak gelir, hiçbiri zorunlu olmaz):
 
 1. kapıda reklam olmaz. Ödüllü reklamın ödülü cömert ve net yazılır.
 
+## Zorluk ve övgü (2.2)
+
+- **Zorluk puanı** = hamle puanı (en az hamle, parça ve mekanik sayısı) + halka yakınlığı katkısı (en çok ±1).
+  Yakınlık: her halkanın en yakın komşusuna uzaklığının iki yarıçap toplamına oranı; küçükse sıkışık.
+- **Düzen:** testere dişi. Kapı içinde kolaydan zora (baş ferah ve kısa, son sıkışık ve uzun); yeni kapı önceki
+  zirvenin altından başlar; zirve ve ortalama her kapıda artar. En iyi çözüm sınırı kapı 12-16'da 9 (hamle hakkı 12).
+- **Oyuncu kaydı** bölüm düzeni değişince sıra numarasıyla taşınır (`save.js` relayout): oyuncu yerini korur.
+- **Övgü:** zincir 2 / 3 / 4+ → Güzel-Süper / Harika-Şahane / Muhteşem-İnanılmaz; tek halkada övgü yok.
+
 ## Yol Haritası
 
 1. [x] Prototip: halka döndürme, boşluk hizalama, halka çıkışı

@@ -57,7 +57,13 @@ TAKILINCA YARDIM
 Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda saklanır.
 ```
 
-## Bu sürümdeki yenilikler (2.1, en fazla 500 karakter)
+## Bu sürümdeki yenilikler (2.2, en fazla 500 karakter)
+
+```
+Zorluk güncellemesi! Bölümler yeniden düzenlendi: her kapı ferah ve kolay bölümlerle başlar, halkalar sıkıştıkça zorlaşır; her kapı bir öncekinden biraz daha zor. Haritada her bölümün üstünde kolay, orta, zor işareti. Tek hamlede birden çok halka kurtarınca "Süper!", "Harika!", "Muhteşem!"; en az hamleyle bitirince "Kusursuz!". İlerlemen korunur, kaldığın yerden devam edersin.
+```
+
+## Önceki sürümün yenilikleri (2.1)
 
 ```
 Ödül güncellemesi! Halkaların içinde sandıklar: sıradan, nadir ve efsane. Altın halka altınları ikiye katlar, ampul halkası ampul verir. Her dünyanın 5 parçalı çıkartmasını topla. Her gün açılan günlük sandık, yedinci gün efsane! Yeni mağazada altınla kurtulma efekti, ses ve zafer kutlaması seç. Eski bölümlerindeki sandık ve parçalar da seni bekliyor.
