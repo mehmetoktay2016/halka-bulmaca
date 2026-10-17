@@ -31,6 +31,8 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
   Haritada her durağın üstünde Kolay / Orta / Zor noktası.
 - Övgü (2.2): tek hamlede 2, 3 ya da 4+ halka kurtulunca kademeli söz ve müzik motifi; en az hamleyle
   bitirince "Kusursuz!" (ipucusuz) ya da "Mükemmel!".
+- Dil (2.3): Türkçe ve İngilizce. Oyun telefonun diline göre açılır (Türkçe değilse İngilizce), ayarlardan
+  değişir. Metnin Türkçesi anahtardır: `tr('Türkçe metin')`, sözlük `i18n_en.js`. Yeni metin eklerken iki dili birlikte yaz.
 
 200 bölüm 20 kapıya, kapılar 8 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
 Fabrika, Uzay, Büyük Usta). Her kapının 5. bölümü bir ara şekil, 10. bölümü bir şekil finalidir; her
@@ -65,6 +67,7 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `levels_data.js` | Önceden üretilmiş bölümler (elle düzenlenmez) |
 | `worlds.js` | Yolculuk: dünyalar, kapılar, unvanlar, dünya temaları |
 | `save.js` | Oyuncu kaydı: yükleme, eski sürümden taşıma, kilit sınırı |
+| `i18n.js`, `i18n_en.js` | Dil desteği: `tr()` çevirisi, dil seçimi; İngilizce sözlük (tekil/çoğul) |
 | `achievements.js` | 25 rozet: kurallar ve ödüller |
 | `rewards.js` | Ödül ekonomisi: fiyatlar, sandık/altın halka/ampul halkası yerleri ve içerikleri, çıkartma parçaları, günlük sandık, mağaza ürünleri |
 | `loot_data.js` | Her bölümde ödül taşıyabilecek halkalar ve konumları (`tools/build_loot.js` üretir, elle düzenlenmez) |
@@ -77,7 +80,7 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `tools/check_levels.js` | `npm run check` içinde: bütün bölümleri, kapıların zorluk sırasını ve tanıtımları doğrular |
 | `tools/check_shapes.js` | `npm run check` içinde: şekillerin geometrisini ve süslerini doğrular |
 | `tools/check_themes.js` | `npm run check` içinde: her dünyanın zemininde halkaların okunaklı olduğunu (kontrast) doğrular |
-| `tools/test_save.js`, `test_badges.js`, `test_logic.js`, `test_loot.js` | `npm test`: kayıt, rozet, kural (dişli, tık, kilit, çerçeve) ve ödül (yerler, sandık, çıkartma, seri, mağaza) testleri |
+| `tools/test_save.js`, `test_badges.js`, `test_logic.js`, `test_loot.js`, `test_i18n.js` | `npm test`: kayıt, rozet, kural (dişli, tık, kilit, çerçeve), ödül (yerler, sandık, çıkartma, seri, mağaza) ve dil (eksik çeviri, değişkenler, dil seçimi) testleri |
 | `tools/build_loot.js` | Bölümler değişince ödül yerlerini yeniden hesaplar (`loot_data.js`) |
 | `tools/browser_levels.js` | Bölümleri tarayıcıdakiyle aynı (ortalanmış) yükler; ekrandaki konuma bakan araçlar bunu kullanır |
 | `tools/economy.js` | `npm run economy`: kapı kapı altın ve ampul kazancı, mağaza toplamı |
