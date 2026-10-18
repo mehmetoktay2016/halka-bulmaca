@@ -805,7 +805,8 @@
       0.4 * ratios.filter(r => r === -1).length + 0.5 * ratios.filter(r => Math.abs(r) !== 1).length +
       0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame') +
       0.5 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
-      0.5 * n(r => r.tokens != null) + 0.2 * n(r => r.token != null);
+      0.5 * n(r => r.tokens != null) + 0.2 * n(r => r.token != null) +
+      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -907,19 +908,25 @@
     // jetonu ona uçar, üstteki bir kez döner ve kalanlar kurtulur. Jeton kuralı olmasa 1 hamle, kuralla 2.
     1007: { title: 'Jetonlu halka', world: 'lunapark', tip: 'Jetonlu halka jetonsuz dönmez. Jeton taşıyan halkayı kurtar, jetonu ona uçar',
       rings: [{ x: 200, y: 215, r: 70, a: 165, tokens: 0 }, { x: 140, y: 320, r: 64, a: 60, token: 0 }, { x: 260, y: 320, r: 64, a: 195 }] },
+    // Şalter tanıtımı (1008, 2.4): şalter başta mavide, yalnızca sağdaki mavi halka döner. Önce onu çevir,
+    // sonra şalteri turuncuya al ve üstteki turuncu halkayı çevir. Şalter olmasa 2 hamle, şalterle 3.
+    1008: { title: 'Şalter', world: 'santral', tip: 'Şalter hangi rengi gösteriyorsa o renkteki halkalar döner. Şaltere dokunmak bir hamle',
+      switch: 0, rings: CROSSED.map((r, i) => ({ ...r, a: [75, 180, 345, 315][i], side: [1, 1, 0, 1][i] })) },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
   const plainVersion = def => ({
     ...def,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined })),
+    switch: undefined,
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
   // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002,
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
-  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007 };
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
+    switch: 1008 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -932,6 +939,7 @@
     if (def.rings.some(r => r.type === 'frame')) f.push('frame');
     if (def.rings.some(r => r.kick)) f.push('kick');
     if (def.rings.some(r => r.tokens != null)) f.push('token');
+    if (def.switch != null) f.push('switch');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -954,7 +962,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.

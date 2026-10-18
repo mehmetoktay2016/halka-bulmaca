@@ -195,5 +195,28 @@ test('jetonlu halka: geçersiz tanımlar hata verir', () => {
   assert.doesNotThrow(() => two({ tokens: 0 }, { token: 0 }));
 });
 
+// Şalter: tanıtım düzeni (başta mavi; 2 mavi, kalanlar turuncu)
+const CROSS = [{ x: 145, y: 280, r: 66 }, { x: 200, y: 375, r: 60 }, { x: 255, y: 280, r: 66 }, { x: 200, y: 185, r: 60 }];
+const SWITCH = { switch: 0, rings: CROSS.map((r, i) => ({ ...r, a: [75, 180, 345, 315][i], side: [1, 1, 0, 1][i] })) };
+
+test('şalter: yalnızca gösterdiği renk döner; şalter bir hamle, çözücü onu da kullanır', () => {
+  const L = Logic.buildLevel(SWITCH);
+  assert.ok(Logic.canRotate(L, 2, 0) && !Logic.canRotate(L, 0, 0));
+  assert.ok(Logic.canRotate(L, 0, 0, null, 1) && !Logic.canRotate(L, 2, 0, null, 1));
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 3);
+  const plain = Logic.buildLevel({ rings: SWITCH.rings.map(({ side, ...r }) => r) });
+  assert.strictEqual(Logic.solve(plain, plain.startAngles, 0).moves, 2);
+  // turuncu açıkken ilk hamle şalter olmalı (hiçbir halka tek başına işe yaramıyorsa)
+  const s = Logic.solve(L, Logic.rotate(L, L.startAngles, 2, 0), 0, 100000, null, 0);
+  assert.ok(s.first.toggle || s.first.ring === 2);
+});
+
+test('şalter: eşler aynı renkte olmalı, renkli halka şaltersiz bölümde olamaz', () => {
+  const two = (a, b, extra) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }], ...extra });
+  assert.throws(() => two({ side: 0 }, { side: 1 }, { switch: 0, couples: [[0, 1]] }), /aynı şalter/);
+  assert.throws(() => two({ side: 0 }, {}, {}), /şalter yok/);
+  assert.doesNotThrow(() => two({ side: 1 }, { side: 1 }, { switch: 0, couples: [[0, 1]] }));
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

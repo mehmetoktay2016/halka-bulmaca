@@ -28,11 +28,12 @@ const pieceDist = (px, py, r) => (r.kind === 'frame' ? Math.min(...r.segs.map(s 
 
 // İpucuna uyarak oynar (balance.js ile aynı); her halkanın kaçıncı hamlede kurtulduğunu döner
 function releaseMoves(L) {
-  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0;
+  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0, sw = L.startSw;
   const at = {};
   while (m !== L.full && moves < 30) {
-    const s = Logic.solveFast(L, a, m, 2000, 0.8, left) || Logic.solveFast(L, a, m, 30000, undefined, left);
+    const s = Logic.solveFast(L, a, m, 2000, 0.8, left, sw) || Logic.solveFast(L, a, m, 30000, undefined, left, sw);
     if (!s || !s.first) break;
+    if (s.first.toggle) { sw ^= 1; moves++; continue; }
     const c = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring));
     const next = c.mask;
     a = c.angles;

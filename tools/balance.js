@@ -19,20 +19,21 @@ const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ce
 // İpucu arama bütçesi (game.js ile aynı olmalı); farklı bütçeleri denemek için HINT_NODES verilebilir
 const HINT_NODES = Number(process.env.HINT_NODES || 2000);
 const FALLBACK_NODES = Number(process.env.FALLBACK_NODES || 30000);
-const bestMove = (L, a, m, left) => Logic.solveFast(L, a, m, HINT_NODES, 0.8, left) || Logic.solveFast(L, a, m, FALLBACK_NODES, undefined, left);
+const bestMove = (L, a, m, left, sw) => Logic.solveFast(L, a, m, HINT_NODES, 0.8, left, sw) || Logic.solveFast(L, a, m, FALLBACK_NODES, undefined, left, sw);
 
 let failed = 0, slowest = 0, slowestAt = 0, threeStar = 0, coinLinks = 0;
 const rows = [];
 order.forEach((src, i) => {
   const n = i + 1, def = get(src), L = Logic.buildLevel(def);
   const limit = moveLimit(def.par, src);
-  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0;
+  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0, sw = L.startSw;
   while (m !== L.full && moves < limit + 2) {
     const t0 = Date.now();
-    const s = bestMove(L, a, m, left);
+    const s = bestMove(L, a, m, left, sw);
     const ms = Date.now() - t0;
     if (ms > slowest) { slowest = ms; slowestAt = n; }
     if (!s || !s.first) break;
+    if (s.first.toggle) { sw ^= 1; moves++; continue; }
     ({ mask: m, angles: a, left } = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring)));
     moves++;
   }

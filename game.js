@@ -44,6 +44,9 @@
   const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
   const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
   const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
+  // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
+  const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
+  const SWITCH_W = 84, SWITCH_H = 40, SWITCH_MS = 180;
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
@@ -194,6 +197,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Şalter: kısa mekanik şak ve elektrik vızıltısı
+      flip: () => { tone(1400, 0.03, 'square', 0.06); tone(95, 0.16, 'sawtooth', 0.05, 110, 0.02); tone(3200, 0.05, 'square', 0.02, 2400, 0.04); },
       // Jeton jetonlu halkaya girdi: oyun makinesine atılan jeton gibi çınlama
       token: () => { tone(2637, 0.06, 'square', 0.03); tone(1319, 0.18, 'triangle', 0.07, null, 0.04); tone(1760, 0.3, 'sine', 0.05, null, 0.1); },
       // Yay tekmesi: yukarı kayan "boing" ve titreşen kısa bir kuyruk
@@ -1084,7 +1089,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      tokenFly: [],
+      tokenFly: [], swT0: 0,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1092,6 +1097,8 @@
     $('hint').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
     S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
+    S.sw = S.L.startSw;           // şalterin gösterdiği renk
+    S.swPos = S.L.hasSwitch ? switchSpot() : null;
     const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
     if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
     // Bölüm altınları yalnız ilk bitirişte: tekrar oynayarak altın toplanmasın (alınmamış altın halka hariç)
@@ -1125,7 +1132,7 @@
   // Denemede sıradaki hamleyi her zaman göster
   function guide() {
     if (S.tut == null || S.won) return;
-    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left);
+    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left, S.sw);
     S.hint = sol && sol.first ? { ...sol.first, t0: performance.now(), guide: true } : null;
   }
 
@@ -2030,9 +2037,10 @@
     closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
+    if (S.swPos && Math.abs(p.x - S.swPos.x) < SWITCH_W / 2 + 8 && Math.abs(p.y - S.swPos.y) < SWITCH_H / 2 + 8) { flipSwitch(); return; }
     const i = hitRing(p);
     if (i < 0) return;
-    if (!canRotate(S.L, i, S.mask, S.left)) {
+    if (!canRotate(S.L, i, S.mask, S.left, S.sw)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
@@ -2041,6 +2049,9 @@
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
         showTip(tr('Kilitli: önce anahtarlı halkayı kurtar'));
+      } else if (S.L.rings[i].side >= 0 && S.L.rings[i].side !== S.sw) {
+        S.swPulse = performance.now();
+        showTip(tr('Bu renk kapalı: şalteri çevir'));
       } else if (S.left[i] === 0) {
         // Jetonsuz halka: ona jeton taşıyan ilk halka kısa bir süre parlar
         const carrier = S.L.rings.findIndex((r, k) => r.token === i && present(k));
@@ -2307,12 +2318,12 @@
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
   // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
-  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',');
+  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw;
   function bestMove() {
     const key = boardKey();
     if (hintCache && hintCache.key === key) return hintCache.sol;
     // 2000 düğüm: denge testinde (tools/balance.js) 40000 ile aynı sonuç, en yavaş adım ~0,2 sn
-    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left);
+    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left, S.sw) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left, S.sw);
     hintCache = { key, sol };
     return sol;
   }
@@ -2465,7 +2476,10 @@
     }
     Sound.tap();
     const now = performance.now();
-    if (tier === 'nudge') {
+    if (sol.first.toggle) {
+      // Sıradaki hamle şalter: dürtme ve ipucu şalteri gösterir, "Hamleyi yap" çevirir
+      if (tier === 'move') { S.hint = null; hideTip(); flipSwitch(); } else { S.hint = { toggle: true, ring: -1, t0: now }; showTip(tr('Şalteri çevir')); }
+    } else if (tier === 'nudge') {
       S.hint = { ...sol.first, t0: now, nudge: true };
       showTip(tr('Parlayan halkayı çevir'));
     } else if (tier === 'hint') {
@@ -2622,6 +2636,82 @@
     ctx.restore();
   }
 
+  // ---- Şalter (2.4) ----
+  // Şalter halkalardan uzak bir yere konur: önce tahtanın üst ortası (alttaki uyarı balonu örtmesin),
+  // sonra alt ortası, sonra köşeler; yer yetecek kadar boşsa sıradaki aday denenmez.
+  function switchSpot() {
+    const spots = [[BOARD.w / 2, 30], [BOARD.w / 2, BOARD.h - 34], [70, 30], [BOARD.w - 70, 30], [70, BOARD.h - 34], [BOARD.w - 70, BOARD.h - 34]];
+    let best = spots[0], bestD = -1;
+    for (const [x, y] of spots) {
+      let d = Infinity;
+      for (const r of S.L.rings) {
+        if (r.kind !== 'ring') continue;
+        // kutunun halkaya en yakın noktası
+        const qx = Math.max(x - SWITCH_W / 2, Math.min(r.x, x + SWITCH_W / 2)), qy = Math.max(y - SWITCH_H / 2, Math.min(r.y, y + SWITCH_H / 2));
+        d = Math.min(d, Math.hypot(qx - r.x, qy - r.y) - r.r - STROKE);
+      }
+      if (d >= 24) return { x, y };
+      if (d > bestD) { bestD = d; best = [x, y]; }
+    }
+    return { x: best[0], y: best[1] };
+  }
+
+  function flipSwitch() {
+    if (S.won || S.failed || S.auto || S.kicks.length) return;
+    const before = snapshot();
+    S.sw ^= 1;
+    S.swT0 = performance.now();
+    S.hint = null;
+    Sound.flip();
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { /* yok say */ } }
+    commitMove(before, -1);
+  }
+
+  // Şalter: iki renkli kızak, beyaz topuz açık rengin üstünde, topuzda şimşek
+  function drawSwitch(now) {
+    if (!S.swPos) return;
+    const { x, y } = S.swPos, w = SWITCH_W, h = SWITCH_H, r = h / 2;
+    const t = Math.min(1, (now - S.swT0) / SWITCH_MS), e = 1 - Math.pow(1 - t, 3);
+    const from = S.sw ? 0 : 1, pos = from + (S.sw - from) * e; // 0 sol (mavi), 1 sağ (turuncu)
+    const pill = (ox, oy, ww, hh, rr) => {
+      ctx.beginPath();
+      ctx.moveTo(ox + rr, oy); ctx.lineTo(ox + ww - rr, oy); ctx.arc(ox + ww - rr, oy + rr, rr, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(ox + rr, oy + hh); ctx.arc(ox + rr, oy + rr, rr, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+    };
+    ctx.save();
+    pill(x - w / 2, y - h / 2 + 3, w, h, r); ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fill();
+    pill(x - w / 2, y - h / 2, w, h, r);
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = SIDE_COLORS[0]; ctx.globalAlpha = S.sw === 0 ? 1 : 0.35; ctx.fillRect(x - w / 2, y - h / 2, w / 2, h);
+    ctx.fillStyle = SIDE_COLORS[1]; ctx.globalAlpha = S.sw === 1 ? 1 : 0.35; ctx.fillRect(x, y - h / 2, w / 2, h);
+    ctx.restore();
+    pill(x - w / 2, y - h / 2, w, h, r); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+    const kx = x - w / 2 + r + pos * (w - h);
+    ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 6;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(kx, y, r - 4, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    drawBolt(kx, y, 9, SIDE_COLORS[S.sw]);
+    ctx.restore();
+  }
+
+  function drawBolt(x, y, s, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.15 * s, y - s); ctx.lineTo(x - 0.55 * s, y + 0.15 * s); ctx.lineTo(x - 0.05 * s, y + 0.15 * s);
+    ctx.lineTo(x - 0.2 * s, y + s); ctx.lineTo(x + 0.55 * s, y - 0.2 * s); ctx.lineTo(x + 0.05 * s, y - 0.2 * s);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function drawSwitchPulse(now, t0) {
+    if (!S.swPos) return;
+    const p = 0.5 + 0.5 * Math.sin((now - t0) / 200);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,201,74,${0.5 + 0.5 * p})`; ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.ellipse(S.swPos.x, S.swPos.y, SWITCH_W / 2 + 8 + 4 * p, SWITCH_H / 2 + 8 + 4 * p, 0, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
   // ---- Jetonlu halka çizimi (2.4) ----
   // Jetonlu halkanın rozeti: pirinç oyun jetonu, içinde kalan jeton sayısı; jetonu yoksa sönük.
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
@@ -2742,6 +2832,7 @@
   function ringColor(i) {
     if (S.L.rings[i].kind !== 'ring') return BAR_COLOR;
     if (S.L.rings[i].fixed) return FIXED_COLOR;
+    if (S.L.rings[i].side >= 0) return SIDE_COLORS[S.L.rings[i].side];
     return S.def.rings[i].color || COLORS[i % COLORS.length];
   }
 
@@ -2835,7 +2926,7 @@
     const { cx, cy, alpha, grow } = ringPose(i, now);
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
     const color = ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
@@ -3132,7 +3223,7 @@
   // Denemede: parmak, halkayı tutup gösterilen yöne sürükler (döngü halinde)
   function drawFinger(now) {
     const h = S.hint;
-    if (!h || !h.guide || !present(h.ring) || S.drag) return;
+    if (!h || !h.guide || h.toggle || !present(h.ring) || S.drag) return;
     const ring = S.L.rings[h.ring];
     const t = ((now - h.t0) % 1900) / 1900;
     const move = Math.min(1, Math.max(0, (t - 0.18) / 0.55));
@@ -3160,6 +3251,7 @@
 
   function drawHint(now) {
     const h = S.hint;
+    if (h && h.toggle) { drawSwitchPulse(now, h.t0); return; }
     if (!h || !present(h.ring)) return;
     const ring = S.L.rings[h.ring];
     const pulse = 0.5 + 0.5 * Math.sin((now - h.t0) / 200);
@@ -3396,6 +3488,8 @@
         drawOpenPoints(now);
         drawSprings(now);
         drawTokens(now);
+        drawSwitch(now);
+        if (S.swPulse && now - S.swPulse < 900) drawSwitchPulse(now, S.swPulse);
         drawCoins(now);
         drawLoot(now);
         drawKeys(now);

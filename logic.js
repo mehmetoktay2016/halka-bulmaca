@@ -83,6 +83,9 @@
       // Yay tekmesi jeton harcamaz.
       tokens: r.tokens == null ? null : r.tokens,
       token: r.token == null ? -1 : r.token,
+      // Şalter rengi (side: 0 mavi, 1 turuncu): yalnızca şalter o rengi gösterirken döner. Bölümde
+      // def.switch (başlangıç rengi) varsa tahtada bir şalter vardır; ona dokunmak bir hamledir.
+      side: r.side == null ? -1 : r.side,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -160,6 +163,12 @@
       const t = rings[r.token];
       if (!t || t === r || t.tokens == null) throw new Error(`Halka ${r.id}: jetonun gideceği halka jetonlu değil`);
     }
+    // Eşler aynı renkte olmalı: kapalı renkteki halka, eşi döndü diye dönmesin
+    for (const r of rings) {
+      if (r.side == null) continue;
+      if (group[r.id].some(k => rings[k].side !== r.side)) throw new Error(`Halka ${r.id}: eşler aynı şalter renginde olmalı`);
+      if (r.side >= 0 && def.switch == null) throw new Error(`Halka ${r.id}: şalter rengi var ama bölümde şalter yok`);
+    }
     // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
     for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
@@ -184,6 +193,9 @@
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
       // Başlangıç jetonları (jetonsuz halkada null)
       tokens: rings.map(r => r.tokens),
+      // Şalter: bölümde var mı, başta hangi renk açık
+      hasSwitch: def.switch != null,
+      startSw: def.switch || 0,
     };
   }
 
@@ -197,9 +209,12 @@
 
   // Halka i şu an döndürülebilir mi? Sabit değil, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
-  function canRotate(L, i, mask, left) {
+  // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
+  function canRotate(L, i, mask, left, sw) {
     if (!L.rotatable[i]) return false;
     if ((left || L.tokens)[i] === 0) return false;
+    const side = L.rings[i].side;
+    if (side >= 0 && side !== (sw == null ? L.startSw : sw)) return false;
     const key = L.rings[i].lockedBy;
     return key < 0 || !!(mask & (1 << key));
   }
@@ -306,8 +321,8 @@
     return out;
   }
 
-  function stateKey(L, angles, mask, left) {
-    let key = mask.toString(36);
+  function stateKey(L, angles, mask, left, sw) {
+    let key = mask.toString(36) + (sw ? 's' : '');
     for (let i = 0; i < L.rings.length; i++) {
       if (mask & (1 << i)) continue;
       key += ',' + (Math.round(angles[i] / DEG * 2) % 720);
@@ -317,30 +332,39 @@
   }
 
   // En az hamleli çözüm (BFS). Bulamazsa ya da sınır aşılırsa null.
-  // left: kalan jetonlar (verilmezse başlangıçtaki)
-  function solve(L, angles, mask, maxNodes, left) {
+  // left: kalan jetonlar, sw: şalterin rengi (verilmezse başlangıçtakiler).
+  // Şaltere dokunmak da bir hamledir: ilk hamle şalterse first = { toggle: true, ring: -1 }.
+  function solve(L, angles, mask, maxNodes, left, sw) {
     maxNodes = maxNodes || 100000;
+    if (sw == null) sw = L.startSw;
     ({ mask, angles, left } = cascade(L, angles, mask, left));
     if (mask === L.full) return { moves: 0, first: null };
-    const seen = new Set([stateKey(L, angles, mask, left)]);
-    let frontier = [{ angles, mask, left, first: null }];
+    const seen = new Set([stateKey(L, angles, mask, left, sw)]);
+    let frontier = [{ angles, mask, left, sw, first: null }];
     let expanded = 0;
     for (let depth = 1; frontier.length; depth++) {
       const next = [];
       for (const node of frontier) {
         if (++expanded > maxNodes) return null;
+        if (L.hasSwitch) {
+          const key = stateKey(L, node.angles, node.mask, node.left, node.sw ^ 1);
+          if (!seen.has(key)) {
+            seen.add(key);
+            next.push({ ...node, sw: node.sw ^ 1, first: node.first || { toggle: true, ring: -1 } });
+          }
+        }
         for (let i = 0; i < L.rings.length; i++) {
-          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left)) continue;
+          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left, node.sw)) continue;
           const spent = spend(L, node.left, i);
           for (const target of candidates(L, node.angles, node.mask, i)) {
             const delta = signedDelta(node.angles[i], target);
             const { mask: m2, angles: na, left: l2 } = cascade(L, rotate(L, node.angles, i, delta), node.mask, spent);
             const first = node.first || { ring: i, target, delta };
             if (m2 === L.full) return { moves: depth, first };
-            const key = stateKey(L, na, m2, l2);
+            const key = stateKey(L, na, m2, l2, node.sw);
             if (seen.has(key)) continue;
             seen.add(key);
-            next.push({ angles: na, mask: m2, left: l2, first });
+            next.push({ angles: na, mask: m2, left: l2, sw: node.sw, first });
           }
         }
       }
@@ -363,8 +387,9 @@
   // Üretimde ön eleme ve denemelerin rehber eli için kullanılır.
   // weight: tahminin ağırlığı. 2 (varsayılan) en hızlısı; 0.8 neredeyse her zaman en kısa yolu bulur
   // ama daha çok düğüm açar (ipucu bunu kullanır: ilk 50 bölümde 49'u en kısa yol).
-  function solveFast(L, angles, mask, maxNodes, weight, left) {
+  function solveFast(L, angles, mask, maxNodes, weight, left, sw) {
     maxNodes = maxNodes || 20000;
+    if (sw == null) sw = L.startSw;
     const W = weight == null ? 2 : weight;
     ({ mask, angles, left } = cascade(L, angles, mask, left));
     if (mask === L.full) return { moves: 0, first: null };
@@ -394,25 +419,32 @@
       }
       return top;
     };
-    const seen = new Set([stateKey(L, angles, mask, left)]);
-    push({ angles, mask, left, g: 0, f: 0, first: null });
+    const seen = new Set([stateKey(L, angles, mask, left, sw)]);
+    push({ angles, mask, left, sw, g: 0, f: 0, first: null });
     let expanded = 0;
     while (heap.length) {
       const node = pop();
       if (++expanded > maxNodes) return null;
+      if (L.hasSwitch) {
+        const key = stateKey(L, node.angles, node.mask, node.left, node.sw ^ 1);
+        if (!seen.has(key)) {
+          seen.add(key);
+          push({ ...node, sw: node.sw ^ 1, g: node.g + 1, f: node.f + 1, first: node.first || { toggle: true, ring: -1 } });
+        }
+      }
       for (let i = 0; i < L.rings.length; i++) {
-        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left)) continue;
+        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left, node.sw)) continue;
         const spent = spend(L, node.left, i);
         for (const target of candidates(L, node.angles, node.mask, i)) {
           const delta = signedDelta(node.angles[i], target);
           const { mask: m2, angles: na, left: l2 } = cascade(L, rotate(L, node.angles, i, delta), node.mask, spent);
           const first = node.first || { ring: i, target, delta };
           if (m2 === L.full) return { moves: node.g + 1, first };
-          const key = stateKey(L, na, m2, l2);
+          const key = stateKey(L, na, m2, l2, node.sw);
           if (seen.has(key)) continue;
           seen.add(key);
           const g = node.g + 1;
-          push({ angles: na, mask: m2, left: l2, g, f: g + W * closedLinks(L, na, m2), first });
+          push({ angles: na, mask: m2, left: l2, sw: node.sw, g, f: g + W * closedLinks(L, na, m2), first });
         }
       }
     }
