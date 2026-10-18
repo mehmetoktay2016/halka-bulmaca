@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend } = window.RingLogic;
+          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -48,6 +48,7 @@
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
   const SWITCH_W = 84, SWITCH_H = 40, SWITCH_MS = 180;
   const PULSE_MS = 260; // nabız kapağının açılıp kapanması
+  const TURN_MS = 620, HUB = 26, TABLE_COLOR = '#c3a6ff'; // döner tabla: dönüş süresi, göbek düğmesi
   const LAMP = '#ffd27a';
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
@@ -199,6 +200,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Tabla: ağır bir dönüş uğultusu ve yerine oturan iki tık
+      turn: () => { tone(70, 0.6, 'sawtooth', 0.035, 95); tone(1500, 0.03, 'square', 0.04, null, 0.05); tone(1200, 0.04, 'square', 0.05, null, 0.6); },
       // Nabız: kapak açılınca yükselen, kapanınca alçalan yumuşak bir çan
       lamp: open => tone(open ? 880 : 587, 0.22, 'sine', 0.05, open ? 1175 : 440),
       // Şalter: kısa mekanik şak ve elektrik vızıltısı
@@ -1093,7 +1096,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      tokenFly: [], swT0: 0, phT0: 0,
+      tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1280,7 +1283,7 @@
     S.mask = mask;
     for (const c of S.coins) {
       if (c.taken) continue;
-      const k = S.L.links[c.link];
+      const k = c;
       if (!(mask & (1 << k.a)) && !(mask & (1 << k.b))) continue;
       c.taken = true;
       const w = waves.findIndex(wv => wv.includes(k.a) || wv.includes(k.b));
@@ -1323,6 +1326,7 @@
       if (out.length >= want) break;
       const k = L.links[li];
       if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2) continue;
+      if (L.table && (L.table.carried.includes(k.a) || L.table.carried.includes(k.b))) continue;
       const x = (k.pts[0].x + k.pts[1].x) / 2;
       const y = (k.pts[0].y + k.pts[1].y) / 2;
       const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
@@ -1330,7 +1334,7 @@
       const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30) &&
         (!S.loot || Math.hypot(S.loot.x - x, S.loot.y - y) > 46);
       if (clear && offMark && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
-        out.push({ link: li, x, y, taken: false, phase: Math.random() * TAU });
+        out.push({ a: k.a, b: k.b, x, y, taken: false, phase: Math.random() * TAU });
       }
     }
     return out;
@@ -2038,10 +2042,11 @@
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (S.won || S.failed || S.auto || S.kicks.length) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
+    if (S.L.table && Math.hypot(p.x - S.L.table.x, p.y - S.L.table.y) < HUB + 10) { spinTable(); return; }
     if (S.swPos && Math.abs(p.x - S.swPos.x) < SWITCH_W / 2 + 8 && Math.abs(p.y - S.swPos.y) < SWITCH_H / 2 + 8) { flipSwitch(); return; }
     const i = hitRing(p);
     if (i < 0) return;
@@ -2459,7 +2464,7 @@
   function closeHintMenu() { $('hintMenu').hidden = true; }
 
   function useHint(tier) {
-    if (S.won || S.failed || S.auto || S.kicks.length) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
     closeHintMenu();
@@ -2486,6 +2491,8 @@
     if (sol.first.toggle) {
       // Sıradaki hamle şalter: dürtme ve ipucu şalteri gösterir, "Hamleyi yap" çevirir
       if (tier === 'move') { S.hint = null; hideTip(); flipSwitch(); } else { S.hint = { toggle: true, ring: -1, t0: now }; showTip(tr('Şalteri çevir')); }
+    } else if (sol.first.table) {
+      if (tier === 'move') { S.hint = null; hideTip(); spinTable(); } else { S.hint = { table: true, ring: -1, t0: now }; showTip(tr('Tablayı çevir')); }
     } else if (tier === 'nudge') {
       S.hint = { ...sol.first, t0: now, nudge: true };
       showTip(tr('Parlayan halkayı çevir'));
@@ -2502,7 +2509,7 @@
   }
 
   $('hint').onclick = () => {
-    if (S.won || S.failed || S.auto || S.kicks.length) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     if (S.tut != null) { guide(); return; }
     Sound.tap();
     if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
@@ -2561,7 +2568,7 @@
   // Rozet: yaylı halkanın en boş yerinde, içinde dik bir yay olan madalyon (yaylı olduğunu söyler).
   // Sarmal yay: yayın hedefe değdiği kesişimden başlar, hedefin kenarı boyunca tekme yönüne uzanır, ucu ok.
   // Boş daire: tekmeden sonra hedefin boşluğunun geleceği yer.
-  const springLive = i => present(i) && !S.fly[i];
+  const springLive = i => present(i) && !S.fly[i] && !(S.turn && S.L.table.carried.includes(i));
   function springBadgeAt(s) {
     const r = S.L.rings[s];
     const key = s + ':' + S.mask + ':' + Math.round(S.angles[s] / (10 * DEG));
@@ -2643,6 +2650,100 @@
     ctx.restore();
   }
 
+  // ---- Döner tabla (2.4) ----
+  // Tabla dönerken taşınan halkalar göbek etrafında döner, boşlukları da (adım adım) dönerek gelir.
+  // Dönüş bitince mantık tablanın sonraki konumuna geçer ve hamle sayılır.
+  function tableOffset(now) {
+    if (!S.turn) return 0;
+    const t = Math.min(1, (now - S.turn.t0) / TURN_MS);
+    return (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) * S.L.table.step * DEG;
+  }
+
+  function spinTable() {
+    if (!S.L.table || S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
+    const before = snapshot();
+    S.turn = { t0: performance.now(), base: S.angles.slice() };
+    S.hint = null;
+    Sound.turn();
+    setTimeout(() => {
+      const t = turnTable(S.L, S.turn.base);
+      S.L = t.L; S.angles = t.angles; S.turn = null;
+      S.springSpot = {}; // rozet ve fiş yerleri yeni konuma göre
+      commitMove(before, -1);
+    }, REDUCED ? 0 : TURN_MS);
+  }
+
+  // Dönüş sırasında taşınan halkaların boşlukları tablayla birlikte döner
+  function stepTable(now) {
+    if (!S.turn) return;
+    const off = tableOffset(now);
+    S.angles = S.turn.base.map((a, i) => (S.L.table.carried.includes(i) ? a + off : a));
+  }
+
+  // Tabla: koyu disk, kesik kenar, dört çentik; taşınan halkalar göbeğe bir kolla bağlı
+  function drawTable(now) {
+    const T = S.L.table;
+    if (!T) return;
+    const off = S.L.tableIdx * T.step * DEG + tableOffset(now);
+    ctx.save();
+    const g = ctx.createRadialGradient(T.x, T.y - 20, 10, T.x, T.y, T.r);
+    g.addColorStop(0, 'rgba(120,96,220,.30)'); g.addColorStop(1, 'rgba(60,44,140,.22)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(T.x, T.y, T.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.arc(T.x, T.y, T.r, off, off + TAU); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(195,166,255,.8)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const a = off + k * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(T.x + Math.cos(a) * (T.r - 10), T.y + Math.sin(a) * (T.r - 10));
+      ctx.lineTo(T.x + Math.cos(a) * (T.r + 4), T.y + Math.sin(a) * (T.r + 4));
+      ctx.stroke();
+    }
+    for (const i of T.carried) {
+      if (!present(i) || S.fly[i]) continue;
+      const P = ringPose(i, now);
+      ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(T.x, T.y); ctx.lineTo(P.cx, P.cy); ctx.stroke();
+      ctx.fillStyle = TABLE_COLOR; ctx.beginPath(); ctx.arc(P.cx, P.cy, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(P.cx, P.cy, 3, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Göbek düğmesi: beyaz disk, içinde saat yönünde iki ok (tabla dönerken oklar da döner)
+  function drawHub(now) {
+    const T = S.L.table;
+    if (!T) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,3,12,.9)'; ctx.beginPath(); ctx.arc(T.x, T.y + 3, HUB + 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = TABLE_COLOR; ctx.beginPath(); ctx.arc(T.x, T.y, HUB, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(T.x, T.y, HUB - 4, 0, TAU); ctx.fill();
+    const spin = tableOffset(now);
+    ctx.strokeStyle = '#6a4fd0'; ctx.fillStyle = '#6a4fd0'; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+    for (const base of [0, Math.PI]) {
+      const a0 = base + spin - 1.05, a1 = base + spin + 0.75, R = 12;
+      ctx.beginPath(); ctx.arc(T.x, T.y, R, a0, a1); ctx.stroke();
+      const hx = T.x + Math.cos(a1) * R, hy = T.y + Math.sin(a1) * R, tg = a1 + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tg) * 6, hy + Math.sin(tg) * 6);
+      ctx.lineTo(hx + Math.cos(tg + 2.3) * 5.5, hy + Math.sin(tg + 2.3) * 5.5);
+      ctx.lineTo(hx + Math.cos(tg - 2.3) * 5.5, hy + Math.sin(tg - 2.3) * 5.5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawHubPulse(now, t0) {
+    const T = S.L.table;
+    if (!T) return;
+    const p = 0.5 + 0.5 * Math.sin((now - t0) / 200);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,201,74,${0.5 + 0.5 * p})`; ctx.lineWidth = 4;
+    ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(T.x, T.y, HUB + 9 + 4 * p, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
   // ---- Nabız halka (2.4) ----
   // Kapak kapalıyken boşluğu koyu gri bir kepenk doldurur (amber çizgili; halka renkleriyle karışmaz);
   // açıkken boşluğun iki ucunda lamba ışığı yanar. Her hamlede kapak ortadan açılır ya da kapanır.
@@ -2711,8 +2812,8 @@
     let best = spots[0], bestD = -1;
     for (const [x, y] of spots) {
       let d = Infinity;
-      for (const r of S.L.rings) {
-        if (r.kind !== 'ring') continue;
+      for (const r of S.L.table ? [...S.L.rings, S.L.table] : S.L.rings) {
+        if (r.kind && r.kind !== 'ring') continue;
         // kutunun halkaya en yakın noktası
         const qx = Math.max(x - SWITCH_W / 2, Math.min(r.x, x + SWITCH_W / 2)), qy = Math.max(y - SWITCH_H / 2, Math.min(r.y, y + SWITCH_H / 2));
         d = Math.min(d, Math.hypot(qx - r.x, qy - r.y) - r.r - STROKE);
@@ -2724,7 +2825,7 @@
   }
 
   function flipSwitch() {
-    if (S.won || S.failed || S.auto || S.kicks.length) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const before = snapshot();
     S.sw ^= 1;
     S.swT0 = performance.now();
@@ -2879,7 +2980,7 @@
 
   // Akıllı yardım: en iyi hamle sayısı aşıldıysa ya da uzun süre hamle yoksa ipucu düğmesi nabız atar
   function checkHelp(now) {
-    if (S.tut != null || S.won || S.failed || S.auto || S.kicks.length || S.hint || S.help.shown) return;
+    if (S.tut != null || S.won || S.failed || S.auto || S.kicks.length || S.turn || S.hint || S.help.shown) return;
     if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
       S.help.lastAct = now;
       return;
@@ -2927,6 +3028,11 @@
   function ringPose(i, now) {
     const ring = S.L.rings[i];
     let cx = ring.x, cy = ring.y, alpha = 1, grow = 1;
+    const off = tableOffset(now);
+    if (off && S.L.table.carried.includes(i)) {
+      const T = S.L.table, dx = cx - T.x, dy = cy - T.y, c = Math.cos(off), s = Math.sin(off);
+      cx = T.x + dx * c - dy * s; cy = T.y + dx * s + dy * c;
+    }
     const f = S.fly[i];
     if (f) {
       const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
@@ -3291,7 +3397,7 @@
   // Denemede: parmak, halkayı tutup gösterilen yöne sürükler (döngü halinde)
   function drawFinger(now) {
     const h = S.hint;
-    if (!h || !h.guide || h.toggle || !present(h.ring) || S.drag) return;
+    if (!h || !h.guide || h.toggle || h.table || !present(h.ring) || S.drag) return;
     const ring = S.L.rings[h.ring];
     const t = ((now - h.t0) % 1900) / 1900;
     const move = Math.min(1, Math.max(0, (t - 0.18) / 0.55));
@@ -3320,6 +3426,7 @@
   function drawHint(now) {
     const h = S.hint;
     if (h && h.toggle) { drawSwitchPulse(now, h.t0); return; }
+    if (h && h.table) { drawHubPulse(now, h.t0); return; }
     if (!h || !present(h.ring)) return;
     const ring = S.L.rings[h.ring];
     const pulse = 0.5 + 0.5 * Math.sin((now - h.t0) / 200);
@@ -3547,16 +3654,19 @@
       if (S.L && !$('game').hidden) {
         stepAuto(now);
         stepKicks(now);
+        stepTable(now);
         checkHelp(now);
+        drawTable(now);
         drawCouples();
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
-        drawOpenPoints(now);
+        if (!S.turn) drawOpenPoints(now);
         drawSprings(now);
         drawTokens(now);
         drawSwitch(now);
+        drawHub(now);
         if (S.swPulse && now - S.swPulse < 900) drawSwitchPulse(now, S.swPulse);
         drawCoins(now);
         drawLoot(now);

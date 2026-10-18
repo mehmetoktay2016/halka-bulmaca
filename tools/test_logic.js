@@ -234,5 +234,31 @@ test('nabız halka: kapak kapalıyken boşluk sayılmaz, her hamle kapağı çev
   assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
 });
 
+// Döner tabla: tanıtım düzeni (iki halka tablada)
+const TABLE = { rings: [{ x: 159, y: 321, r: 52, a: 270 }, { x: 241, y: 239, r: 52, a: 120 }, { x: 328, y: 280, r: 56, a: 90 },
+  { x: 105, y: 375, r: 64, a: 30 }, { x: 295, y: 185, r: 60, a: 270 }], table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } };
+
+test('döner tabla: her konum ayrı düzen, çevirmek taşınan halkaları ve boşluklarını döndürür', () => {
+  const L = Logic.buildLevel(TABLE);
+  assert.strictEqual(L.table.k, 4);
+  assert.strictEqual(L.variants.length, 4);
+  const t = Logic.turnTable(L, L.startAngles);
+  assert.strictEqual(t.L.tableIdx, 1);
+  close(t.angles[0], Logic.norm(L.startAngles[0] + 90 * DEG));
+  close(t.angles[2], L.startAngles[2]);
+  // taşınan halka 0: (159,321) -> göbek (200,280) etrafında saat yönünde 90°: (159,239)
+  assert.ok(Math.abs(t.L.rings[0].x - 159) < 1e-6 && Math.abs(t.L.rings[0].y - 239) < 1e-6);
+  let tt = t; for (let k = 0; k < 3; k++) tt = Logic.turnTable(tt.L, tt.angles);
+  assert.strictEqual(tt.L, L, 'dört turda başa döner');
+});
+
+test('döner tabla: çözücü tablayı da kullanır; tablasız daha uzun', () => {
+  const L = Logic.buildLevel(TABLE);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  const P = Logic.buildLevel({ rings: TABLE.rings });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 3);
+  assert.strictEqual(Logic.solveFast(L, L.startAngles, 0, 30000, 0.8).moves, 2);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

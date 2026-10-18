@@ -322,12 +322,16 @@
     return null;
   }
 
+  // Döner tabla da yerleşimde bir parça gibi sayılır (sınırları ve kaydırması)
+  const withTable = def => (def.table ? [...def.rings, def.table] : def.rings);
+  const moveTable = (def, dx, dy, k = 1) => (def.table ? { table: { ...def.table, ...movePiece({ x: def.table.x, y: def.table.y, r: def.table.r }, dx, dy, k) } } : {});
+
   // Halkaları bütün olarak tahtanın ortasına kaydırır (kural değişmez, sadece görünüm)
   function centered(def) {
-    const b = bounds(def.rings);
+    const b = bounds(withTable(def));
     const dx = BOARD.w / 2 - (b.x0 + b.x1) / 2;
     const dy = BOARD.h / 2 - (b.y0 + b.y1) / 2;
-    return { ...def, rings: def.rings.map(r => movePiece(r, dx, dy)) };
+    return { ...def, rings: def.rings.map(r => movePiece(r, dx, dy)), ...moveTable(def, dx, dy) };
   }
 
   // ---- Hayvan Dostlar bölümü ----
@@ -806,7 +810,8 @@
       0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame') +
       0.5 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
       0.5 * n(r => r.tokens != null) + 0.2 * n(r => r.token != null) +
-      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0) + 0.6 * n(r => r.pulse != null);
+      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0) + 0.6 * n(r => r.pulse != null) +
+      (def.table ? 0.8 : 0);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -917,12 +922,18 @@
     // Nabız olmasa 1 hamle, nabızla 2 (ritmi yakalamak).
     1009: { title: 'Nabız halka', world: 'fener', tip: 'Nabız halkanın kapağı her hamlede açılıp kapanır. Kapak açıkken boşluk işe yarar',
       rings: [{ x: 200, y: 215, r: 70, a: 195, pulse: 0 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }] },
+    // Döner tabla tanıtımı (1010, 2.4): tabla iki halka taşır. Önce sağdaki halkayı çevir, sonra tablayı çevir:
+    // taşınan halkalar yer değiştirir ve kalanlar kurtulur. Tabla olmasa 3 hamle, tablayla 2 (prototipin "İlk tur"u).
+    1010: { title: 'Döner tabla', world: 'rasathane', tip: 'Göbekteki düğmeye dokun: tabla çeyrek tur döner, üstündeki halkalar yer değiştirir. Bu bir hamle',
+      rings: [{ x: 159, y: 321, r: 52, a: 270 }, { x: 241, y: 239, r: 52, a: 120 }, { x: 328, y: 280, r: 56, a: 90 }, { x: 105, y: 375, r: 64, a: 30 }, { x: 295, y: 185, r: 60, a: 270 }],
+      table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
   const plainVersion = def => ({
     ...def,
     switch: undefined,
+    table: undefined,
     rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
@@ -931,7 +942,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009 };
+    switch: 1008, pulse: 1009, table: 1010 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -946,6 +957,7 @@
     if (def.rings.some(r => r.tokens != null)) f.push('token');
     if (def.switch != null) f.push('switch');
     if (def.rings.some(r => r.pulse != null)) f.push('pulse');
+    if (def.table) f.push('table');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -968,7 +980,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
@@ -1236,10 +1248,10 @@
   // Hayvan şekillerini tahtayı dolduracak kadar büyütür. Her şey aynı oranda
   // büyüdüğü için kesişim açıları, dolayısıyla çözüm ve hedef hamle değişmez.
   function fitted(def) {
-    const b = bounds(def.rings);
+    const b = bounds(withTable(def));
     const k = Math.min((BOARD.w - 50) / (b.x1 - b.x0), (BOARD.h - 90) / (b.y1 - b.y0), 1.5);
     if (k <= 1) return def;
-    return { ...def, rings: def.rings.map(r => movePiece(r, 0, 0, k)) };
+    return { ...def, rings: def.rings.map(r => movePiece(r, 0, 0, k)), ...moveTable(def, 0, 0, k) };
   }
 
   const cache = {};

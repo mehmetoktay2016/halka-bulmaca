@@ -24,7 +24,8 @@ const bestMove = (L, a, m, left, sw, ph) => Logic.solveFast(L, a, m, HINT_NODES,
 let failed = 0, slowest = 0, slowestAt = 0, threeStar = 0, coinLinks = 0;
 const rows = [];
 order.forEach((src, i) => {
-  const n = i + 1, def = get(src), L = Logic.buildLevel(def);
+  const n = i + 1, def = get(src);
+  let L = Logic.buildLevel(def);
   const limit = moveLimit(def.par, src);
   let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0, sw = L.startSw, ph = 0;
   while (m !== L.full && moves < limit + 2) {
@@ -35,6 +36,7 @@ order.forEach((src, i) => {
     if (ms > slowest) { slowest = ms; slowestAt = n; }
     if (!s || !s.first) break;
     if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, a, m, left, ph)); continue; }
+    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, t.angles, m, left, ph)); continue; }
     ({ mask: m, angles: a, left } = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph));
     moves++;
   }

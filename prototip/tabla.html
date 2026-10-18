@@ -1,0 +1,389 @@
+<title>Döner Tabla Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Tek koyu görünüm, Rasathane gecesi: dar sütun, üstte bölüm seçimi, ortada tahta, altta hamle ve düğmeler */
+:root {
+  --bg: #04030c; --panel: #16122e; --line: #2f2856; --fg: #f1edff; --muted: #b9addb;
+  --accent: #c3a6ff; --gold: #ffc94a; --gold-ink: #3d2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: radial-gradient(70% 45% at 15% 0%, rgba(138, 108, 255, .2), transparent 70%), linear-gradient(180deg, #100c26, var(--bg)); background-color: var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+header { display: grid; gap: 2px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: 800 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.tabs button.done::after { content: " ✓"; }
+.tip { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.tip b { color: var(--fg); }
+.board { position: relative; width: 100%; aspect-ratio: 400 / 520; border-radius: 22px; background: rgba(0, 0, 0, .3); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count { flex: 1; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-family: var(--display); font-size: 22px; }
+.bar button { font: 800 15px var(--body); border-radius: 14px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.bar button.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.win { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: rgba(4, 3, 12, .72); backdrop-filter: blur(3px); }
+.win h2 { margin: 0; font-family: var(--display); font-size: 38px; color: var(--gold); }
+.win p { margin: 0; color: var(--muted); }
+.win button { justify-self: center; font: 800 16px var(--body); border-radius: 14px; padding: 10px 20px; border: 0; background: var(--gold); color: var(--gold-ink); cursor: pointer; }
+.legend { display: grid; gap: 6px; font-size: 14px; color: var(--muted); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.legend b { color: var(--fg); }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Rasathane · prototip</span>
+    <h1>Döner tabla</h1>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <p class="tip" id="tip"></p>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Oyun tahtası"></canvas>
+    <div class="win" id="win" hidden>
+      <h2 id="winTitle">Kusursuz!</h2>
+      <p id="winText"></p>
+      <button id="next" type="button">Sonraki bölüm</button>
+    </div>
+  </div>
+  <div class="bar">
+    <span class="count">Hamle <b id="moves">0</b> · en iyi <span id="par">1</span></span>
+    <button id="reset" type="button">Baştan</button>
+    <button id="hint" class="primary" type="button">İpucu</button>
+  </div>
+  <div class="legend">
+    <span><b>Büyük disk döner tabladır.</b> Ortasındaki düğmeye dokun: tabla çeyrek tur döner, üstündeki halkalar da onunla yer değiştirir. Bu bir hamle.</span>
+    <span>Halkalar yer değiştirince kimin kime değdiği de değişir. Hiçbir halkaya değmeyen halka hemen uçar.</span>
+    <span>Halkaları her zamanki gibi parmakla sürükleyerek döndür.</span>
+  </div>
+</main>
+
+<!--LOGIC-->
+<script>
+(function () {
+  'use strict';
+  const Logic = window.RingLogic, TL_ = window.TableLogic;
+  const { TAU, DEG, GAP_HALF } = Logic;
+  const W = 400, H = 520, STROKE = 13, TURN_MS = 620, HUB = 26;
+  const COLORS = ['#ff6b6b', '#ffc94a', '#2dd4bf', '#4cc9f0', '#b388ff', '#ff9f1c', '#f72585', '#90be6d'];
+
+  const LEVELS = [
+    { name: 'İlk tur', tip: 'Ortadaki <b>düğmeye</b> dokun: tabla döner, üstündeki iki halka yer değiştirir.',
+      def: { rings: [{ x: 159, y: 321, r: 52, a: 270 }, { x: 241, y: 239, r: 52, a: 120 }, { x: 328, y: 280, r: 56, a: 90 }, { x: 105, y: 375, r: 64, a: 30 }, { x: 295, y: 185, r: 60, a: 270 }],
+        table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } } },
+    { name: 'Önce tabla', tip: 'Bazen ilk iş tablayı çevirmektir. <b>Kim kime değecek</b>, önceden bak.',
+      def: { rings: [{ x: 241, y: 239, r: 52, a: 345 }, { x: 159, y: 321, r: 52, a: 270 }, { x: 299, y: 379, r: 64, a: 330 }, { x: 105, y: 375, r: 56, a: 210 }, { x: 200, y: 414, r: 64, a: 120 }, { x: 291, y: 189, r: 60, a: 150 }],
+        table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } } },
+    { name: 'Ortada tabla', tip: 'Bir halka, tabla döndü, bir halka daha. <b>Sırayı</b> bul.',
+      def: { rings: [{ x: 241, y: 239, r: 52, a: 120 }, { x: 159, y: 321, r: 52, a: 315 }, { x: 200, y: 146, r: 60, a: 285 }, { x: 109, y: 371, r: 60, a: 135 }, { x: 291, y: 189, r: 60, a: 330 }, { x: 200, y: 420, r: 64, a: 300 }],
+        table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } } },
+    { name: 'Son tur', tip: 'Üç hamle. Tablayı ne zaman çevireceksin?',
+      def: { rings: [{ x: 159, y: 239, r: 52, a: 0 }, { x: 241, y: 321, r: 52, a: 240 }, { x: 105, y: 185, r: 60, a: 45 }, { x: 334, y: 280, r: 56, a: 315 }, { x: 200, y: 414, r: 64, a: 225 }, { x: 295, y: 375, r: 56, a: 210 }],
+        table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } } },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const done = new Set();
+  let S = null;
+
+  // Tahtaya ortala (tabla dahil)
+  function centered(def) {
+    let y0 = Infinity, y1 = -Infinity;
+    for (const r of def.rings) { y0 = Math.min(y0, r.y - r.r); y1 = Math.max(y1, r.y + r.r); }
+    const dx = W / 2 - def.table.x, dy = H / 2 - (y0 + y1) / 2;
+    return { ...def, rings: def.rings.map(r => ({ ...r, x: r.x + dx, y: r.y + dy })), table: { ...def.table, x: def.table.x + dx, y: def.table.y + dy } };
+  }
+
+  function load(k) {
+    const TL = TL_.build(centered(LEVELS[k].def));
+    const sol = TL_.solve(TL, TL.startAngles, 0, 0);
+    S = { k, TL, t: 0, angles: TL.startAngles.slice(), mask: 0, moves: 0, par: sol ? sol.moves : '?', busy: false,
+      fly: {}, hidden: 0, drag: null, praise: null, turn: null, hintRing: -1, hubPulse: 0 };
+    $('tip').innerHTML = LEVELS[k].tip;
+    $('par').textContent = S.par;
+    $('moves').textContent = 0;
+    $('win').hidden = true;
+    renderTabs();
+  }
+  const L = () => S.TL.variants[S.t];
+
+  function renderTabs() {
+    $('tabs').innerHTML = LEVELS.map((l, i) =>
+      `<button type="button" data-k="${i}" aria-pressed="${i === S.k}" class="${done.has(i) ? 'done' : ''}">${i + 1}. ${l.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => { b.onclick = () => load(+b.dataset.k); });
+  }
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const w = cv.clientWidth;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * H / W * dpr);
+    ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  }
+  const present = i => !(S.hidden & (1 << i));
+
+  // Tabla dönerken taşınan halkaların konumu ve boşluk açısı ara değerle hesaplanır
+  function turnOffset(now) {
+    if (!S.turn) return 0;
+    const t = Math.min(1, (now - S.turn.t0) / TURN_MS);
+    return (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) * S.TL.T.step * DEG;
+  }
+  function pose(i, now) {
+    const r = L().rings[i], T = S.TL.T;
+    let x = r.x, y = r.y, extra = 0;
+    const off = turnOffset(now);
+    if (off && T.carried.includes(i)) {
+      const dx = x - T.x, dy = y - T.y, c = Math.cos(off), s = Math.sin(off);
+      x = T.x + dx * c - dy * s; y = T.y + dx * s + dy * c; extra = off;
+    }
+    const f = S.fly[i];
+    if (!f) return { x, y, alpha: 1, grow: 1, extra };
+    const t = Math.min(Math.max((now - f.t0) / 520, 0), 1), e = t * t;
+    return { x: x + f.dx * 460 * e, y: y + f.dy * 460 * e, alpha: 1 - t, grow: 1 + 0.18 * t, extra };
+  }
+
+  function arcs(ring, angle, x, y, color, width) {
+    const gaps = ring.gaps.map(g => Logic.norm(angle + g)).sort((a, b) => a - b);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    for (let k = 0; k < gaps.length; k++) {
+      const from = gaps[k] + GAP_HALF, to = (k + 1 < gaps.length ? gaps[k + 1] : gaps[0] + TAU) - GAP_HALF;
+      ctx.beginPath(); ctx.arc(x, y, ring.r, from, to); ctx.stroke();
+    }
+  }
+
+  // Döner tabla: koyu disk, kenarında 4 çentik, ortada dönüş düğmesi (iki ok)
+  function drawTable(now) {
+    const T = S.TL.T, off = S.t * T.step * DEG + turnOffset(now);
+    ctx.save();
+    const g = ctx.createRadialGradient(T.x, T.y - 20, 10, T.x, T.y, T.r);
+    g.addColorStop(0, 'rgba(120,96,220,.30)'); g.addColorStop(1, 'rgba(60,44,140,.22)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(T.x, T.y, T.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.arc(T.x, T.y, T.r, off, off + TAU); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(195,166,255,.8)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const a = off + k * Math.PI / 2;
+      ctx.beginPath(); ctx.moveTo(T.x + Math.cos(a) * (T.r - 10), T.y + Math.sin(a) * (T.r - 10)); ctx.lineTo(T.x + Math.cos(a) * (T.r + 4), T.y + Math.sin(a) * (T.r + 4)); ctx.stroke();
+    }
+    // Taşınan halkalar tablaya bir kolla bağlı: kol göbekten halkanın merkezine uzanır, ucunda perçin
+    for (const i of T.carried) {
+      if (!present(i) || S.fly[i]) continue;
+      const P = pose(i, now);
+      ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(T.x, T.y); ctx.lineTo(P.x, P.y); ctx.stroke();
+      ctx.fillStyle = '#c3a6ff'; ctx.beginPath(); ctx.arc(P.x, P.y, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(P.x, P.y, 3, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawHub(now) {
+    const T = S.TL.T, pulse = S.hubPulse && now - S.hubPulse < 1600 ? 0.5 + 0.5 * Math.sin((now - S.hubPulse) / 140) : 0;
+    ctx.save();
+    if (pulse) { ctx.strokeStyle = `rgba(255,201,74,${0.4 + 0.6 * pulse})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(T.x, T.y, HUB + 8 + 4 * pulse, 0, TAU); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(4,3,12,.9)'; ctx.beginPath(); ctx.arc(T.x, T.y + 3, HUB + 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#c3a6ff'; ctx.beginPath(); ctx.arc(T.x, T.y, HUB, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(T.x, T.y, HUB - 4, 0, TAU); ctx.fill();
+    // saat yönünde dönen iki ok
+    const spin = turnOffset(now);
+    ctx.strokeStyle = '#6a4fd0'; ctx.fillStyle = '#6a4fd0'; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+    for (const base of [0, Math.PI]) {
+      const a0 = base + spin - 1.05, a1 = base + spin + 0.75, R = 12;
+      ctx.beginPath(); ctx.arc(T.x, T.y, R, a0, a1); ctx.stroke();
+      const hx = T.x + Math.cos(a1) * R, hy = T.y + Math.sin(a1) * R, tg = a1 + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tg) * 6, hy + Math.sin(tg) * 6);
+      ctx.lineTo(hx + Math.cos(tg + 2.3) * 5.5, hy + Math.sin(tg + 2.3) * 5.5);
+      ctx.lineTo(hx + Math.cos(tg - 2.3) * 5.5, hy + Math.sin(tg - 2.3) * 5.5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    drawTable(now);
+    const Lv = L();
+    if (!S.turn) {
+      for (const link of Lv.links) {
+        if (!present(link.a) || !present(link.b) || S.fly[link.a] || S.fly[link.b]) continue;
+        for (const p of link.pts) {
+          if (!Logic.pointOpen(Lv, link, p, S.angles)) continue;
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+          g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    // önce tabladaki halkalar değil, dışarıdakiler; tabladakiler üstte (tablayla birlikte görünsün)
+    const order = Lv.rings.map((_, i) => i).sort((a, b) => S.TL.T.carried.includes(a) - S.TL.T.carried.includes(b));
+    for (const i of order) {
+      if (!present(i)) continue;
+      const r = Lv.rings[i], P = pose(i, now), color = COLORS[i % COLORS.length], ang = S.angles[i] + P.extra;
+      ctx.save();
+      ctx.globalAlpha = P.alpha;
+      if (P.grow !== 1) { ctx.translate(P.x, P.y); ctx.scale(P.grow, P.grow); ctx.translate(-P.x, -P.y); }
+      arcs(r, ang, P.x + 2, P.y + 4, 'rgba(0,0,0,.42)', STROKE + 6);
+      if ((S.drag && S.drag.ring === i) || S.hintRing === i) { ctx.shadowColor = color; ctx.shadowBlur = 20; }
+      arcs(r, ang, P.x, P.y, color, STROKE);
+      ctx.shadowBlur = 0;
+      arcs(r, ang, P.x - 1.2, P.y - 1.6, 'rgba(255,255,255,.28)', 3);
+      ctx.restore();
+    }
+    drawHub(now);
+    if (S.praise) {
+      const t = (now - S.praise.t0) / 1300;
+      if (t >= 1) S.praise = null;
+      else {
+        ctx.save();
+        ctx.globalAlpha = t < .15 ? t / .15 : 1 - Math.max(0, (t - .6) / .4);
+        ctx.font = '800 44px "Baloo 2", "Nunito", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(4,3,12,.85)';
+        ctx.strokeText(S.praise.text, W / 2, 56); ctx.fillStyle = '#ffc94a'; ctx.fillText(S.praise.text, W / 2, 56);
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+  function tween(from, to, ms) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const step = () => {
+        const t = REDUCED ? 1 : Math.min((performance.now() - t0) / ms, 1), e = 1 - Math.pow(1 - t, 3);
+        S.angles = from.map((a, i) => a + Logic.signedDelta(a, to[i]) * e);
+        if (t < 1) requestAnimationFrame(step); else { S.angles = to.slice(); res(); }
+      };
+      step();
+    });
+  }
+
+  async function settle() {
+    const c = Logic.cascade(L(), S.angles, S.mask);
+    if (!c.waves.length) { S.busy = false; return; }
+    S.busy = true;
+    let freed = 0;
+    for (const wave of c.waves) {
+      const now = performance.now();
+      for (const i of wave) {
+        const r = L().rings[i];
+        let dx = r.x - W / 2, dy = r.y - H / 2;
+        const d = Math.hypot(dx, dy) || 1;
+        S.fly[i] = { t0: now, dx: dx / d, dy: dy / d - .25 };
+        S.mask |= 1 << i; freed++;
+      }
+      await sleep(200);
+    }
+    await sleep(380);
+    for (const i of Object.keys(S.fly)) { S.hidden |= 1 << i; delete S.fly[i]; }
+    S.mask = c.mask;
+    if (freed >= 2) S.praise = { text: freed >= 4 ? 'Muhteşem!' : freed === 3 ? 'Harika!' : 'Süper!', t0: performance.now() };
+    S.busy = false;
+    if (S.mask === S.TL.full) win();
+  }
+
+  async function turnTable() {
+    if (S.busy || !$('win').hidden) return;
+    S.busy = true; S.hintRing = -1; S.hubPulse = 0;
+    S.moves++; $('moves').textContent = S.moves;
+    S.turn = { t0: performance.now() };
+    await sleep(TURN_MS);
+    S.turn = null;
+    S.angles = TL_.turnAngles(S.TL, S.angles);
+    S.t = (S.t + 1) % S.TL.k;
+    await settle();
+  }
+
+  function win() {
+    done.add(S.k);
+    renderTabs();
+    const perfect = S.moves <= S.par;
+    $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
+    $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
+    $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
+    setTimeout(() => { $('win').hidden = false; }, 500);
+  }
+
+  function snap(i) {
+    const Lv = L(), ring = Lv.rings[i];
+    let best = null, bd = 14 * DEG;
+    for (const li of Lv.ringLinks[i]) {
+      const k = Lv.links[li], o = k.a === i ? k.b : k.a;
+      if (S.mask & (1 << o)) continue;
+      for (const p of k.pts) {
+        const ang = k.a === i ? p.angA : p.angB;
+        for (const g of ring.gaps) {
+          const t = Logic.norm(ang - g), d = Logic.angDist(t, S.angles[i]);
+          if (d < bd) { bd = d; best = t; }
+        }
+      }
+    }
+    if (best != null) S.angles = Logic.rotate(Lv, S.angles, i, Logic.signedDelta(S.angles[i], best));
+  }
+
+  const toBoard = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height }; };
+  cv.addEventListener('pointerdown', e => {
+    if (S.busy || !$('win').hidden) return;
+    const p = toBoard(e), T = S.TL.T;
+    if (Math.hypot(p.x - T.x, p.y - T.y) < HUB + 8) { turnTable(); return; }
+    let pick = -1, bd = 28;
+    L().rings.forEach((r, i) => {
+      if (S.mask & (1 << i)) return;
+      const d = Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      if (d < bd) { bd = d; pick = i; }
+    });
+    if (pick < 0) return;
+    const r = L().rings[pick];
+    S.drag = { ring: pick, last: Math.atan2(p.y - r.y, p.x - r.x), total: 0, base: S.angles.slice() };
+    S.hintRing = -1;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.drag) return;
+    const p = toBoard(e), r = L().rings[S.drag.ring];
+    const a = Math.atan2(p.y - r.y, p.x - r.x);
+    S.drag.total += Logic.signedDelta(S.drag.last, a);
+    S.drag.last = a;
+    S.angles = Logic.rotate(L(), S.drag.base, S.drag.ring, S.drag.total);
+  });
+  const release = () => {
+    if (!S.drag) return;
+    const d = S.drag; S.drag = null;
+    if (Math.abs(d.total) < 3 * DEG) { S.angles = d.base; return; }
+    snap(d.ring);
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  $('reset').onclick = () => { if (!S.busy) load(S.k); };
+  $('next').onclick = () => load((S.k + 1) % LEVELS.length);
+  $('hint').onclick = async () => {
+    if (S.busy || S.mask === S.TL.full) return;
+    const sol = TL_.solve(S.TL, S.angles, S.mask, S.t);
+    if (!sol || !sol.first) return;
+    if (sol.first.table) { S.hubPulse = performance.now(); return; }
+    S.busy = true; S.hintRing = sol.first.ring;
+    await tween(S.angles, Logic.rotate(L(), S.angles, sol.first.ring, sol.first.delta), 650);
+    S.hintRing = -1;
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  load(0);
+  requestAnimationFrame(draw);
+  window.__proto = { get S() { return S; }, load, turnTable };
+})();
+</script>
