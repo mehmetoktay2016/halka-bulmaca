@@ -161,6 +161,27 @@ var RING_LANG_EN = {
   'Uzay Roketi': 'Space Rocket',
   'Büyük Çark': 'Great Wheel',
 
+  // ---- 2.4 şekilleri ----
+  'Maymun': 'Monkey',
+  'Dönme Dolap': 'Ferris Wheel',
+  'Fok': 'Seal',
+  'Atlıkarınca': 'Carousel',
+  'Kanguru': 'Kangaroo',
+  'Flamingo': 'Flamingo',
+  'Ateş Böceği': 'Firefly',
+  'Ampul': 'Light Bulb',
+  'Yılan Balığı': 'Eel',
+  'Kunduz': 'Beaver',
+  'Yengeç': 'Crab',
+  'Martı': 'Seagull',
+  'Balina': 'Whale',
+  'Denizatı': 'Seahorse',
+  'Yunus': 'Dolphin',
+  'Rakun': 'Raccoon',
+  'Teleskop': 'Telescope',
+  'Kurt': 'Wolf',
+  'Gözlemevi': 'Observatory Dome',
+
   // ---- Dünyalar, kapılar, unvanlar ----
   'Başlangıç Vadisi': 'Beginner Valley',
   'Atölye': 'Workshop',
