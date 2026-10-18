@@ -59,27 +59,27 @@
       theme: { top: '#181934', bottom: '#0a0b1a', accent: '#ffd36b',
                glows: [['#ffc94a', 0.12], ['#625cff', 0.18], ['#ff6b6b', 0.08]],
                board: { kind: 'mermer', tint: '#e6d3a3', alpha: 0.10 }, air: 'altin' } },
-    // 2.4: yeni dünyalar (kapı 21-30). Tahta dokusu, parçacık ve ortam sesi Y7'ye kadar eski dünyalardan ödünç
+    // 2.4: yeni dünyalar (kapı 21-30): kendi tahta dokuları, parçacıkları ve ortam sesleri (Y7)
     { id: 'lunapark', name: 'Lunapark', title: 'Cambaz',
       intro: 'Yaylı halkalar kurtulunca komşusunu iter. Zinciri sen kur.',
       theme: { top: '#2a1533', bottom: '#110818', accent: '#ff6fb5',
                glows: [['#ff4fa3', 0.16], ['#ffd34a', 0.10], ['#4cc9f0', 0.10]],
-               board: { kind: 'kaldirim', tint: '#e0a0d0', alpha: 0.10 }, air: 'isik' } },
+               board: { kind: 'cadir', tint: '#e0a0d0', alpha: 0.10 }, air: 'konfeti' } },
     { id: 'santral', name: 'Santral', title: 'Elektrikçi',
       intro: 'Şalteri çevir: bir renk durur, öbürü döner.',
       theme: { top: '#0f1d24', bottom: '#060c10', accent: '#7cf0ff',
                glows: [['#38e0ff', 0.15], ['#ffe14a', 0.08], ['#4c6cff', 0.10]],
-               board: { kind: 'metal', tint: '#8fb8c8', alpha: 0.09 }, air: 'kivilcim' } },
+               board: { kind: 'devre', tint: '#7fc4d4', alpha: 0.08 }, air: 'elektrik' } },
     { id: 'fener', name: 'Deniz Feneri', title: 'Fener Bekçisi',
       intro: 'Fenerin ışığı gibi bazı boşluklar her hamlede açılıp kapanır.',
       theme: { top: '#0a1826', bottom: '#050c14', accent: '#ffd27a',
                glows: [['#ffd27a', 0.10], ['#2a9df4', 0.12], ['#2dd4bf', 0.08]],
-               board: { kind: 'ahsap', tint: '#a8b8c0', alpha: 0.10 }, air: 'buhar' } },
+               board: { kind: 'dalga', tint: '#9cc8e8', alpha: 0.11 }, air: 'fener' } },
     { id: 'rasathane', name: 'Rasathane', title: 'Gökbilimci',
       intro: 'Döner tablalar halkaları gezegenler gibi taşır.',
       theme: { top: '#100c26', bottom: '#04030c', accent: '#c3a6ff',
                glows: [['#8a6cff', 0.20], ['#4cc9f0', 0.10], ['#ffd36b', 0.08]],
-               board: { kind: 'yildiz', tint: '#b9a8ff', alpha: 0.12 }, air: 'yildiz' } },
+               board: { kind: 'gokkure', tint: '#b9a8ff', alpha: 0.11 }, air: 'gezegen' } },
   ];
 
   // Kapı n (1'den başlar): adı ve dünyası
