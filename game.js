@@ -29,6 +29,9 @@
   const ORDER = window.RingLevels.gateOrder(getLevel);
   const TOTAL = ORDER.length;
   const GATE_COUNT = TOTAL / W.GATE_SIZE; // bölümleri hazır olan kapı sayısı
+  // Bölümleri hazır olan dünyalar: yolculuğa yeni eklenen ama henüz bölümü olmayan dünyalar
+  // haritada yalnızca kapalı kemer olarak görünür; çıkartma, sayaç ve kapanışa girmez
+  const LIVE_WORLDS = W.WORLDS.filter(w => W.GATES.slice(0, GATE_COUNT).some(g => g.world === w.id));
   const srcOf = n => ORDER[n - 1];
   const BAR_COLOR = W.PIECE_COLORS.bar;
   const COLORS = W.PIECE_COLORS.rings;
@@ -332,7 +335,7 @@
   function pieceAt(n) {
     if (!pieceMap) {
       pieceMap = {};
-      for (const w of W.WORLDS) {
+      for (const w of LIVE_WORLDS) {
         const levels = [];
         for (let m = 1; m <= TOTAL; m++) if (W.worldOfGate(W.gateOf(m)).id === w.id) levels.push(m);
         if (levels.length) R.stickerLevels(levels, W.GATE_SIZE).forEach((m, k) => { pieceMap[m] = { world: w.id, k, id: w.id + ':' + k }; });
@@ -429,7 +432,7 @@
     const earned = B.BADGES.filter(b => progress.badges[b.id]).length;
     $('badgeCount').textContent = `${earned}/${B.BADGES.length}`;
     $('albumCount').textContent = `${ctx.shapes}/${ctx.shapesTotal}`;
-    $('stickerCount').textContent = `${W.WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${W.WORLDS.length}`;
+    $('stickerCount').textContent = `${LIVE_WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${LIVE_WORLDS.length}`;
     $('tabBadges').setAttribute('aria-selected', String(trophyTab === 'badges'));
     $('tabAlbum').setAttribute('aria-selected', String(trophyTab === 'album'));
     $('tabStickers').setAttribute('aria-selected', String(trophyTab === 'stickers'));
@@ -470,7 +473,7 @@
   }
 
   function stickersHtml() {
-    const cards = W.WORLDS.map(w => {
+    const cards = LIVE_WORLDS.map(w => {
       const have = piecesOf(w.id).filter(Boolean).length;
       const done = have === STK.PIECES;
       return `<div class="sticker-card${done ? ' done' : ''}">${stickerSvg(w.id)}
@@ -598,7 +601,7 @@
     $('homeScore').textContent = fmt(totalScore());
     $('homeTitle').textContent = tr(progress.title || currentTitle());
     $('promiseLevels').textContent = TOTAL;
-    $('promiseWorlds').textContent = W.WORLDS.length;
+    $('promiseWorlds').textContent = LIVE_WORLDS.length;
     $('promiseBadges').textContent = B.BADGES.length;
   }
 
@@ -692,6 +695,14 @@
     return `<span class="num">${n}</span><span class="tier-dot ${tierOf(n).id}"></span>` + (state === 'done' ? stars : '');
   }
 
+  // Dünya adı kemerin üstünde, kapının ilk durağının hemen altında durur: durağın ters yanına kayar
+  function worldNameShift(g, geo) {
+    const first = geo.nodes[W.gateStart(g)];
+    if (!first) return 0;
+    const dx = first.x - geo.arches[g].x;
+    return -(Math.sign(dx) || 1) * Math.max(15, 95 - Math.abs(dx));
+  }
+
   function archHtml(g, geo) {
     const gate = W.GATES[g - 1];
     const world = W.worldById(gate.world);
@@ -702,7 +713,7 @@
       ? `<span class="arch-sub">${tr('Yakında')}</span>`
       : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
     return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
-      ${W.isWorldStart(g) ? `<span class="arch-world">${world.name}</span>` : ''}
+      ${W.isWorldStart(g) ? `<span class="arch-world" style="transform:translateX(${worldNameShift(g, geo)}px)">${world.name}</span>` : ''}
       <svg viewBox="0 0 230 100" aria-hidden="true">
         <path class="arch-shadow" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
         <path class="arch-line" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
@@ -2140,7 +2151,7 @@
   // ---- Büyük Makine: yolculuğun kapanışı ----
   // Oyunun halka renklerindeki 8 halka (bir dünyaya bir halka) dört bir yandan uçup altın merkez halkanın
   // çevresinde makineyi kurar, makine dişliler gibi döner, kıvılcımlar saçılır; ardından yolculuğun özeti gelir.
-  const END_RINGS = COLORS.slice(0, W.WORLDS.length);
+  const END_RINGS = COLORS.slice(0, LIVE_WORLDS.length);
   let endingRun = null;
   function showEnding(replay) {
     if (!replay) {
@@ -3187,7 +3198,7 @@
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
   } else if (params.has('ending')) {
     // Geliştirme: ?ending kapanış sahnesini kayda dokunmadan gösterir
-    applyWorld(W.worldOfGate(W.GATES.length));
+    applyWorld(W.worldOfGate(GATE_COUNT));
     showScreen('home');
     showEnding(true);
   } else if (params.has('src')) {

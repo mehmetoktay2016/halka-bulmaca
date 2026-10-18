@@ -456,7 +456,13 @@ svg { display: block; }
 .arch.open:not(.opening) .arch-lock { display: none; }
 .arch.teaser { opacity: .55; }
 .arch.teaser .arch-lock circle { stroke: rgba(255, 255, 255, .3); }
+/* Dünya adı kemerin üstüne asılır: akışta kalırsa kemeri ve yıldız sayacını aşağı iter,
+   sayaç önceki kapının son durağının altında kalır */
 .arch-world {
+  position: absolute;
+  bottom: 100%;
+  left: -40px;
+  right: -40px;
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 22px;

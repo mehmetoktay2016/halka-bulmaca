@@ -102,8 +102,9 @@ const worldLevels = id => order.map((_, i) => i + 1).filter(n => W.worldOfGate(W
 
 test('her dünyanın çıkartması ve 5 parçası var; parçalar farklı bölümlerde, sonuncusu dünyanın son bölümünde', () => {
   for (const w of W.WORLDS) {
-    assert.ok(STK.SETS[w.id] && STK.SETS[w.id].name, w.id + ' çıkartması yok');
     const levels = worldLevels(w.id);
+    if (!levels.length) continue; // bölümleri henüz eklenmemiş dünya
+    assert.ok(STK.SETS[w.id] && STK.SETS[w.id].name, w.id + ' çıkartması yok');
     const at = R.stickerLevels(levels);
     assert.strictEqual(at.length, STK.PIECES, w.id);
     assert.strictEqual(new Set(at).size, STK.PIECES, w.id + ' aynı bölümde iki parça');
