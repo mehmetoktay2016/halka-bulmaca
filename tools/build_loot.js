@@ -28,14 +28,15 @@ const pieceDist = (px, py, r) => (r.kind === 'frame' ? Math.min(...r.segs.map(s 
 
 // İpucuna uyarak oynar (balance.js ile aynı); her halkanın kaçıncı hamlede kurtulduğunu döner
 function releaseMoves(L) {
-  let { mask: m, angles: a } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0;
+  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0;
   const at = {};
   while (m !== L.full && moves < 30) {
-    const s = Logic.solveFast(L, a, m, 2000, 0.8) || Logic.solveFast(L, a, m, 30000);
+    const s = Logic.solveFast(L, a, m, 2000, 0.8, left) || Logic.solveFast(L, a, m, 30000, undefined, left);
     if (!s || !s.first) break;
-    const c = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m);
+    const c = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring));
     const next = c.mask;
     a = c.angles;
+    left = c.left;
     moves++;
     for (let i = 0; i < L.rings.length; i++) if ((next & (1 << i)) && !(m & (1 << i))) at[i] = moves;
     m = next;

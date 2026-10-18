@@ -78,6 +78,11 @@
       // Yaylı halka (kick: [hedef, derece]): tahtadan çıkarken hedef halkayı o kadar döndürür
       // (artı saat yönü). Tekme hamle sayılmaz; hedefin eşleri de kendi oranlarıyla döner.
       kick: r.kick ? { target: r.kick[0], turn: r.kick[1] * DEG } : null,
+      // Jetonlu halka (tokens: n, 0 olabilir): her döndürme bir jeton harcar, jetonu yoksa dönmez.
+      // Jeton taşıyan halka (token: k) kurtulunca k numaralı jetonlu halkaya bir jeton verir.
+      // Yay tekmesi jeton harcamaz.
+      tokens: r.tokens == null ? null : r.tokens,
+      token: r.token == null ? -1 : r.token,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -148,6 +153,13 @@
     const group = rings.map((_, i) => rings.filter((_, k) => groupId[k] === groupId[i]).map(r => r.id));
     // Tıklı halka eşli olamaz: eşi farklı oranla dönünce halka tık yerlerinin dışına düşerdi
     for (const r of rings) if (r.step && group[r.id].length > 1) throw new Error(`Halka ${r.id}: tıklı halka eşli olamaz`);
+    // Jetonlu halka eşli olamaz: eşi döndürülünce jeton harcanıp harcanmadığı belirsiz kalırdı
+    for (const r of rings) if (r.tokens != null && (group[r.id].length > 1 || r.fixed || r.lockedBy >= 0 || r.kick)) throw new Error(`Halka ${r.id}: jetonlu halka eşli, sabit, anahtarlı ya da yaylı olamaz`);
+    for (const r of rings) {
+      if (!(r.token >= 0)) continue; // çubuk ve çerçevede alan yok
+      const t = rings[r.token];
+      if (!t || t === r || t.tokens == null) throw new Error(`Halka ${r.id}: jetonun gideceği halka jetonlu değil`);
+    }
     // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
     for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
@@ -170,12 +182,24 @@
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
       full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
+      // Başlangıç jetonları (jetonsuz halkada null)
+      tokens: rings.map(r => r.tokens),
     };
   }
 
-  // Halka i şu an döndürülebilir mi? Sabit değil ve (anahtarlıysa) anahtarı tahtadan çıkmış olmalı.
-  function canRotate(L, i, mask) {
+  // Halka i döndürüldü: jetonluysa bir jeton harcanır (yeni dizi döner)
+  function spend(L, left, i) {
+    if (left[i] == null) return left;
+    const out = left.slice();
+    out[i]--;
+    return out;
+  }
+
+  // Halka i şu an döndürülebilir mi? Sabit değil, (anahtarlıysa) anahtarı tahtadan çıkmış ve
+  // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
+  function canRotate(L, i, mask, left) {
     if (!L.rotatable[i]) return false;
+    if ((left || L.tokens)[i] === 0) return false;
     const key = L.rings[i].lockedBy;
     return key < 0 || !!(mask & (1 << key));
   }
@@ -207,9 +231,11 @@
 
   // Serbest halkaları dalga dalga çıkarır; her dalga ayrı animasyon için döner.
   // Dalgada çıkan yaylı halkalar hedeflerini döndürür (kicks[w]: w. dalganın tekmeleri);
-  // tekmelerden sonraki açılar `angles` olarak döner.
-  function cascade(L, angles, mask) {
-    const waves = [], kicks = [];
+  // tekmelerden sonraki açılar `angles` olarak döner. Jeton taşıyan halkalar çıkınca jetonları
+  // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
+  function cascade(L, angles, mask, left) {
+    left = left || L.tokens;
+    const waves = [], kicks = [], tokens = [];
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
@@ -224,10 +250,18 @@
         angles = rotate(L, angles, k.target, k.turn);
         ks.push({ from: i, target: k.target, turn: k.turn });
       }
+      const ts = [];
+      for (const i of wave) {
+        const t = L.rings[i].token;
+        if (!(t >= 0) || (mask & (1 << t))) continue;
+        left = left.slice(); left[t]++;
+        ts.push({ from: i, to: t });
+      }
       waves.push(wave);
       kicks.push(ks);
+      tokens.push(ts);
     }
-    return { mask, waves, kicks, angles };
+    return { mask, waves, kicks, tokens, angles, left };
   }
 
   // Halka i'yi delta kadar döndürür; eşleri kendi oranlarıyla döner
@@ -272,38 +306,41 @@
     return out;
   }
 
-  function stateKey(L, angles, mask) {
+  function stateKey(L, angles, mask, left) {
     let key = mask.toString(36);
     for (let i = 0; i < L.rings.length; i++) {
       if (mask & (1 << i)) continue;
       key += ',' + (Math.round(angles[i] / DEG * 2) % 720);
+      if (left[i] != null) key += 't' + left[i];
     }
     return key;
   }
 
   // En az hamleli çözüm (BFS). Bulamazsa ya da sınır aşılırsa null.
-  function solve(L, angles, mask, maxNodes) {
+  // left: kalan jetonlar (verilmezse başlangıçtaki)
+  function solve(L, angles, mask, maxNodes, left) {
     maxNodes = maxNodes || 100000;
-    ({ mask, angles } = cascade(L, angles, mask));
+    ({ mask, angles, left } = cascade(L, angles, mask, left));
     if (mask === L.full) return { moves: 0, first: null };
-    const seen = new Set([stateKey(L, angles, mask)]);
-    let frontier = [{ angles, mask, first: null }];
+    const seen = new Set([stateKey(L, angles, mask, left)]);
+    let frontier = [{ angles, mask, left, first: null }];
     let expanded = 0;
     for (let depth = 1; frontier.length; depth++) {
       const next = [];
       for (const node of frontier) {
         if (++expanded > maxNodes) return null;
         for (let i = 0; i < L.rings.length; i++) {
-          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
+          if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left)) continue;
+          const spent = spend(L, node.left, i);
           for (const target of candidates(L, node.angles, node.mask, i)) {
             const delta = signedDelta(node.angles[i], target);
-            const { mask: m2, angles: na } = cascade(L, rotate(L, node.angles, i, delta), node.mask);
+            const { mask: m2, angles: na, left: l2 } = cascade(L, rotate(L, node.angles, i, delta), node.mask, spent);
             const first = node.first || { ring: i, target, delta };
             if (m2 === L.full) return { moves: depth, first };
-            const key = stateKey(L, na, m2);
+            const key = stateKey(L, na, m2, l2);
             if (seen.has(key)) continue;
             seen.add(key);
-            next.push({ angles: na, mask: m2, first });
+            next.push({ angles: na, mask: m2, left: l2, first });
           }
         }
       }
@@ -326,10 +363,10 @@
   // Üretimde ön eleme ve denemelerin rehber eli için kullanılır.
   // weight: tahminin ağırlığı. 2 (varsayılan) en hızlısı; 0.8 neredeyse her zaman en kısa yolu bulur
   // ama daha çok düğüm açar (ipucu bunu kullanır: ilk 50 bölümde 49'u en kısa yol).
-  function solveFast(L, angles, mask, maxNodes, weight) {
+  function solveFast(L, angles, mask, maxNodes, weight, left) {
     maxNodes = maxNodes || 20000;
     const W = weight == null ? 2 : weight;
-    ({ mask, angles } = cascade(L, angles, mask));
+    ({ mask, angles, left } = cascade(L, angles, mask, left));
     if (mask === L.full) return { moves: 0, first: null };
     const heap = [];
     const push = node => {
@@ -357,24 +394,25 @@
       }
       return top;
     };
-    const seen = new Set([stateKey(L, angles, mask)]);
-    push({ angles, mask, g: 0, f: 0, first: null });
+    const seen = new Set([stateKey(L, angles, mask, left)]);
+    push({ angles, mask, left, g: 0, f: 0, first: null });
     let expanded = 0;
     while (heap.length) {
       const node = pop();
       if (++expanded > maxNodes) return null;
       for (let i = 0; i < L.rings.length; i++) {
-        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask)) continue;
+        if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left)) continue;
+        const spent = spend(L, node.left, i);
         for (const target of candidates(L, node.angles, node.mask, i)) {
           const delta = signedDelta(node.angles[i], target);
-          const { mask: m2, angles: na } = cascade(L, rotate(L, node.angles, i, delta), node.mask);
+          const { mask: m2, angles: na, left: l2 } = cascade(L, rotate(L, node.angles, i, delta), node.mask, spent);
           const first = node.first || { ring: i, target, delta };
           if (m2 === L.full) return { moves: node.g + 1, first };
-          const key = stateKey(L, na, m2);
+          const key = stateKey(L, na, m2, l2);
           if (seen.has(key)) continue;
           seen.add(key);
           const g = node.g + 1;
-          push({ angles: na, mask: m2, g, f: g + W * closedLinks(L, na, m2), first });
+          push({ angles: na, mask: m2, left: l2, g, f: g + W * closedLinks(L, na, m2), first });
         }
       }
     }
@@ -384,7 +422,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate, spend,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

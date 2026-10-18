@@ -47,7 +47,7 @@
     await wait(400);
     const S = window.__halka.S;
     for (let guard = 0; guard < 30 && !S.won; guard++) {
-      const sol = solveFast(S.L, S.angles, S.mask, 30000);
+      const sol = solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left);
       if (!sol || !sol.first) break;
       const ring = S.L.rings[sol.first.ring];
       // halkayı boşluğun tam karşısından tut

@@ -165,5 +165,35 @@ test('yaylı halka: geçersiz hedef hata verir (kendisi, sabit, anahtarlı, tık
   assert.doesNotThrow(() => two({ kick: [1, 90] }, { step: 45 }));
 });
 
+// Jetonlu halka: tanıtım düzeni (0 jetonlu üst halka, sol alt jeton taşır)
+const TOKEN = [{ x: 200, y: 215, r: 70, a: 165, tokens: 0 }, { x: 140, y: 320, r: 64, a: 60, token: 0 }, { x: 260, y: 320, r: 64, a: 195 }];
+
+test('jetonlu halka: jetonsuz dönmez, jeton taşıyan kurtulunca jeton gelir, döndürünce harcanır', () => {
+  const L = Logic.buildLevel({ rings: TOKEN });
+  assert.ok(!Logic.canRotate(L, 0, 0));
+  assert.ok(Logic.canRotate(L, 0, 0, [2, null, null]));
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  assert.strictEqual(sol.first.ring, 1, 'önce jeton taşıyan halka');
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 1, sol.first.delta), 0, Logic.spend(L, L.tokens, 1));
+  assert.ok(c.mask & 2, 'taşıyan kurtuldu');
+  assert.deepStrictEqual(c.tokens.flat(), [{ from: 1, to: 0 }]);
+  assert.strictEqual(c.left[0], 1);
+  assert.strictEqual(Logic.spend(L, c.left, 0)[0], 0);
+});
+
+test('jetonlu halka: kural olmasa daha kısa', () => {
+  const L = Logic.buildLevel({ rings: TOKEN.map(({ tokens, token, ...r }) => r) });
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 1);
+});
+
+test('jetonlu halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b, couples) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }], couples });
+  assert.throws(() => two({ token: 1 }, {}), /jetonlu değil/);
+  assert.throws(() => two({ tokens: 1 }, {}, [[0, 1]]), /jetonlu halka/);
+  assert.throws(() => two({ tokens: 1, kick: [1, 90] }, {}), /jetonlu halka/);
+  assert.doesNotThrow(() => two({ tokens: 0 }, { token: 0 }));
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

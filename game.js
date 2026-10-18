@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate } = window.RingLogic;
+          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -43,6 +43,7 @@
   const KEY_MS = 560;   // anahtarın kilide uçuşu
   const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
   const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
+  const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
@@ -193,6 +194,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Jeton jetonlu halkaya girdi: oyun makinesine atılan jeton gibi çınlama
+      token: () => { tone(2637, 0.06, 'square', 0.03); tone(1319, 0.18, 'triangle', 0.07, null, 0.04); tone(1760, 0.3, 'sine', 0.05, null, 0.1); },
       // Yay tekmesi: yukarı kayan "boing" ve titreşen kısa bir kuyruk
       boing: () => { tone(170, 0.22, 'sine', 0.13, 430); tone(430, 0.24, 'triangle', 0.06, 260, 0.09); tone(1300, 0.05, 'square', 0.025); },
       // Tıklı halka her adımda: saat tıkırtısı
@@ -1081,12 +1084,14 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
+      tokenFly: [],
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
+    S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
     const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
     if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
     // Bölüm altınları yalnız ilk bitirişte: tekrar oynayarak altın toplanmasın (alınmamış altın halka hariç)
@@ -1120,7 +1125,7 @@
   // Denemede sıradaki hamleyi her zaman göster
   function guide() {
     if (S.tut == null || S.won) return;
-    const sol = solveFast(S.L, S.angles, S.mask, 20000);
+    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left);
     S.hint = sol && sol.first ? { ...sol.first, t0: performance.now(), guide: true } : null;
   }
 
@@ -1204,7 +1209,7 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves, kicks, angles } = cascade(S.L, S.angles, S.mask);
+    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
@@ -1219,6 +1224,14 @@
       }
     });
     if (S.kicks.length) S.kickEnd = angles;
+    // Kurtulan halkanın jetonu jetonlu halkaya uçar; sayı jeton varınca artar (mantıkta hemen geçerli)
+    tokens.forEach((ts, w) => {
+      for (const t of ts) {
+        S.tokenFly.push({ ...t, t0: now + at[w] + 80, from: tokenPos(t.from, 'carry') });
+        setTimeout(() => Sound.token(), at[w] + 80 + TOKEN_FLY_MS);
+      }
+    });
+    S.left = left;
     waves.forEach((wave, w) => {
       const last = finale && w === waves.length - 1;
       if (last) setTimeout(() => finaleBlast(wave), at[w]);
@@ -2019,7 +2032,7 @@
     const p = toBoard(e);
     const i = hitRing(p);
     if (i < 0) return;
-    if (!canRotate(S.L, i, S.mask)) {
+    if (!canRotate(S.L, i, S.mask, S.left)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
@@ -2028,6 +2041,11 @@
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
         showTip(tr('Kilitli: önce anahtarlı halkayı kurtar'));
+      } else if (S.left[i] === 0) {
+        // Jetonsuz halka: ona jeton taşıyan ilk halka kısa bir süre parlar
+        const carrier = S.L.rings.findIndex((r, k) => r.token === i && present(k));
+        if (carrier >= 0) S.keyPulse = { ring: carrier, t0: performance.now() };
+        showTip(tr('Jeton yok: önce jeton taşıyan halkayı kurtar'));
       }
       return;
     }
@@ -2075,14 +2093,15 @@
     S.drag = null;
     const stepped = S.L.rings[drag.ring].step;
     if (stepped ? !drag.applied : Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
-    commitMove(drag.before);
+    commitMove(drag.before, drag.ring);
   }
 
   const snapshot = () => ({ angles: S.angles.slice(), mask: S.mask, moves: S.moves, taken: S.coins.map(c => c.taken) });
 
   // Bir hamle tamamlandı (elle ya da "Hamleyi yap" ile)
-  function commitMove(before) {
+  function commitMove(before, ring) {
     S.moves++;
+    S.left = spend(S.L, S.left, ring);
     S.help.lastAct = performance.now();
     const el = $('movesNum');
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
@@ -2288,12 +2307,12 @@
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
   // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
-  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',');
+  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',');
   function bestMove() {
     const key = boardKey();
     if (hintCache && hintCache.key === key) return hintCache.sol;
     // 2000 düğüm: denge testinde (tools/balance.js) 40000 ile aynı sonuç, en yavaş adım ~0,2 sn
-    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8) || solveFast(S.L, S.angles, S.mask, 30000);
+    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left);
     hintCache = { key, sol };
     return sol;
   }
@@ -2485,7 +2504,7 @@
     const unit = S.L.rings[a.ring].step || 15 * DEG;
     const notch = Math.round(a.done / unit);
     if (notch !== a.notch) { a.notch = notch; S.L.rings[a.ring].step ? Sound.clack() : Sound.tick(); }
-    if (t >= 1) { S.auto = null; commitMove(a.before); }
+    if (t >= 1) { S.auto = null; commitMove(a.before, a.ring); }
   }
 
   // Yay tekmesi: hedef halka (ve eşleri) çeyrek tur döner, sonunda hafif geri yaylanır.
@@ -2601,6 +2620,96 @@
       ctx.beginPath(); ctx.arc(t.x + Math.cos(ga) * t.r, t.y + Math.sin(ga) * t.r, 9, 0, TAU); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // ---- Jetonlu halka çizimi (2.4) ----
+  // Jetonlu halkanın rozeti: pirinç oyun jetonu, içinde kalan jeton sayısı; jetonu yoksa sönük.
+  // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
+  function tokenSpot(i, kind) {
+    const r = S.L.rings[i];
+    const springAt = r.kick ? springBadgeAt(i) : null;
+    const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
+    if (S.springSpot[key] != null) return S.springSpot[key];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, j) => {
+        if (j === i || !present(j) || o.kind !== 'ring') return;
+        d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r));
+      });
+      for (const g of r.gaps) d = Math.min(d, angDist(S.angles[i] + g, th) * r.r);
+      if (springAt != null) d = Math.min(d, angDist(springAt, th) * r.r * 0.6);
+      if (y < 18 || y > BOARD.h - 18 || x < 18 || x > BOARD.w - 18) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return (S.springSpot[key] = best);
+  }
+  function tokenPos(i, kind) {
+    const r = S.L.rings[i], th = tokenSpot(i, kind);
+    return { x: r.x + Math.cos(th) * r.r, y: r.y + Math.sin(th) * r.r };
+  }
+
+  // Jeton: altıgen fiş (altın paralarla karışmasın diye yuvarlak değil), rengi gideceği halkanın rengi.
+  // Jetonlu halkanın rozetinde kalan sayı yazar; taşınan jetonda küçük bir yıldız.
+  function drawTokenCoin(x, y, R, color, label, dim) {
+    const hex = rr => {
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 6 + k * Math.PI / 3;
+        if (k) ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+    };
+    ctx.save();
+    ctx.globalAlpha *= dim ? 0.6 : 1;
+    ctx.translate(0, 2); hex(R + 2); ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.fill(); ctx.translate(0, -2);
+    hex(R); ctx.fillStyle = '#fff'; ctx.fill();
+    hex(R - 2.6); ctx.fillStyle = dim ? '#5d6488' : color; ctx.fill();
+    hex(R * 0.62); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    if (label != null) {
+      ctx.font = `900 ${Math.round(R * 1.05)}px Nunito, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,20,.55)';
+      ctx.strokeText(String(label), x, y + 1); ctx.fillText(String(label), x, y + 1);
+    } else {
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? R * 0.2 : R * 0.48;
+        if (k) ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTokens(now) {
+    const arriving = {};
+    S.tokenFly = S.tokenFly.filter(f => now < f.t0 + TOKEN_FLY_MS);
+    for (const f of S.tokenFly) arriving[f.to] = (arriving[f.to] || 0) + 1;
+    S.L.rings.forEach((r, i) => {
+      if (r.kind !== 'ring' || !springLive(i)) return;
+      if (r.tokens != null) {
+        const p = tokenPos(i, 'bank'), shown = S.left[i] - (arriving[i] || 0);
+        drawTokenCoin(p.x, p.y, 17, ringColor(i), shown, shown <= 0);
+      }
+      if (r.token >= 0 && present(r.token)) {
+        const p = tokenPos(i, 'carry');
+        drawTokenCoin(p.x, p.y, 12.5, ringColor(r.token), null, false);
+      }
+    });
+    // Uçan jetonlar: taşıyan halkadan hedefin rozetine yay çizerek gider, dönerek küçülür
+    for (const f of S.tokenFly) {
+      const t = (now - f.t0) / TOKEN_FLY_MS;
+      if (t < 0) { drawTokenCoin(f.from.x, f.from.y, 12.5, ringColor(f.to), null, false); continue; }
+      const to = tokenPos(f.to, 'bank'), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const x = f.from.x + (to.x - f.from.x) * e, y = f.from.y + (to.y - f.from.y) * e - Math.sin(Math.PI * e) * 60;
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(Math.abs(Math.cos(t * Math.PI * 3)) * 0.7 + 0.3, 1); ctx.translate(-x, -y);
+      drawTokenCoin(x, y, 13 + 4 * Math.sin(Math.PI * t), ringColor(f.to), null, false);
+      ctx.restore();
+    }
   }
 
   function drawSprings(now) {
@@ -3286,6 +3395,7 @@
         drawWeave();
         drawOpenPoints(now);
         drawSprings(now);
+        drawTokens(now);
         drawCoins(now);
         drawLoot(now);
         drawKeys(now);
