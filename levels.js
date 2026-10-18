@@ -806,7 +806,7 @@
       0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame') +
       0.5 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
       0.5 * n(r => r.tokens != null) + 0.2 * n(r => r.token != null) +
-      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0);
+      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0) + 0.6 * n(r => r.pulse != null);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -912,13 +912,18 @@
     // sonra şalteri turuncuya al ve üstteki turuncu halkayı çevir. Şalter olmasa 2 hamle, şalterle 3.
     1008: { title: 'Şalter', world: 'santral', tip: 'Şalter hangi rengi gösteriyorsa o renkteki halkalar döner. Şaltere dokunmak bir hamle',
       switch: 0, rings: CROSSED.map((r, i) => ({ ...r, a: [75, 180, 345, 315][i], side: [1, 1, 0, 1][i] })) },
+    // Nabız halka tanıtımı (1009, 2.4): üstteki halkanın kapağı başta açık. Halkayı doğru yere çevirmek bir hamle
+    // olduğu için kapak kapanır ve hiçbir şey olmaz; bir hamle daha yapınca kapak açılır, hepsi kurtulur.
+    // Nabız olmasa 1 hamle, nabızla 2 (ritmi yakalamak).
+    1009: { title: 'Nabız halka', world: 'fener', tip: 'Nabız halkanın kapağı her hamlede açılıp kapanır. Kapak açıkken boşluk işe yarar',
+      rings: [{ x: 200, y: 215, r: 70, a: 195, pulse: 0 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
   const plainVersion = def => ({
     ...def,
     switch: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -926,7 +931,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008 };
+    switch: 1008, pulse: 1009 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -940,6 +945,7 @@
     if (def.rings.some(r => r.kick)) f.push('kick');
     if (def.rings.some(r => r.tokens != null)) f.push('token');
     if (def.switch != null) f.push('switch');
+    if (def.rings.some(r => r.pulse != null)) f.push('pulse');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -962,7 +968,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.

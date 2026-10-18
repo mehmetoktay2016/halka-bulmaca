@@ -47,6 +47,8 @@
   // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
   const SWITCH_W = 84, SWITCH_H = 40, SWITCH_MS = 180;
+  const PULSE_MS = 260; // nabız kapağının açılıp kapanması
+  const LAMP = '#ffd27a';
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
@@ -197,6 +199,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Nabız: kapak açılınca yükselen, kapanınca alçalan yumuşak bir çan
+      lamp: open => tone(open ? 880 : 587, 0.22, 'sine', 0.05, open ? 1175 : 440),
       // Şalter: kısa mekanik şak ve elektrik vızıltısı
       flip: () => { tone(1400, 0.03, 'square', 0.06); tone(95, 0.16, 'sawtooth', 0.05, 110, 0.02); tone(3200, 0.05, 'square', 0.02, 2400, 0.04); },
       // Jeton jetonlu halkaya girdi: oyun makinesine atılan jeton gibi çınlama
@@ -1089,7 +1093,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      tokenFly: [], swT0: 0,
+      tokenFly: [], swT0: 0, phT0: 0,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1098,6 +1102,7 @@
     S.angles = S.L.startAngles.slice();
     S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
     S.sw = S.L.startSw;           // şalterin gösterdiği renk
+    S.ph = 0;                     // nabız kapakları: hamle sayısının teki/çifti
     S.swPos = S.L.hasSwitch ? switchSpot() : null;
     const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
     if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
@@ -1132,7 +1137,7 @@
   // Denemede sıradaki hamleyi her zaman göster
   function guide() {
     if (S.tut == null || S.won) return;
-    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left, S.sw);
+    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left, S.sw, S.ph);
     S.hint = sol && sol.first ? { ...sol.first, t0: performance.now(), guide: true } : null;
   }
 
@@ -1216,7 +1221,7 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left);
+    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
@@ -2113,6 +2118,8 @@
   function commitMove(before, ring) {
     S.moves++;
     S.left = spend(S.L, S.left, ring);
+    // Her hamle nabız kapaklarını çevirir (serbest kalma kapakların yeni haline göre)
+    if (S.L.hasPulse) { S.ph ^= 1; S.phT0 = performance.now(); Sound.lamp(S.ph); }
     S.help.lastAct = performance.now();
     const el = $('movesNum');
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
@@ -2318,12 +2325,12 @@
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
   // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
-  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw;
+  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw + S.ph;
   function bestMove() {
     const key = boardKey();
     if (hintCache && hintCache.key === key) return hintCache.sol;
     // 2000 düğüm: denge testinde (tools/balance.js) 40000 ile aynı sonuç, en yavaş adım ~0,2 sn
-    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left, S.sw) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left, S.sw);
+    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left, S.sw, S.ph) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left, S.sw, S.ph);
     hintCache = { key, sol };
     return sol;
   }
@@ -2636,6 +2643,66 @@
     ctx.restore();
   }
 
+  // ---- Nabız halka (2.4) ----
+  // Kapak kapalıyken boşluğu koyu gri bir kepenk doldurur (amber çizgili; halka renkleriyle karışmaz);
+  // açıkken boşluğun iki ucunda lamba ışığı yanar. Her hamlede kapak ortadan açılır ya da kapanır.
+  function drawPulseCover(i, cx, cy, now) {
+    const ring = S.L.rings[i], open = ring.pulse === S.ph;
+    const t = Math.min(1, (now - S.phT0) / PULSE_MS), e = 1 - Math.pow(1 - t, 3);
+    const shut = open ? 1 - e : e; // 1 = kapak tam kapalı
+    for (const g of ring.gaps) {
+      const mid = S.angles[i] + g, half = (GAP_HALF - 2 * DEG) * shut;
+      if (half > 0.01) {
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#141826'; ctx.lineWidth = STROKE + 3;
+        ctx.beginPath(); ctx.arc(cx, cy, ring.r, mid - half, mid + half); ctx.stroke();
+        ctx.strokeStyle = '#4a516e'; ctx.lineWidth = STROKE - 3;
+        ctx.beginPath(); ctx.arc(cx, cy, ring.r, mid - half, mid + half); ctx.stroke();
+        ctx.strokeStyle = LAMP; ctx.lineWidth = 2.2;
+        for (let k = -2; k <= 2; k++) {
+          const a = mid + k * half / 2.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(a) * (ring.r - 4), cy + Math.sin(a) * (ring.r - 4));
+          ctx.lineTo(cx + Math.cos(a) * (ring.r + 4), cy + Math.sin(a) * (ring.r + 4));
+          ctx.stroke();
+        }
+        ctx.lineCap = 'round';
+      }
+      if (shut < 1) {
+        // açık: boşluğun iki ucunda yanan lambalar
+        const glow = (1 - shut) * (0.75 + 0.25 * Math.sin(now / 160));
+        for (const s of [-1, 1]) {
+          const a = mid + s * GAP_HALF, x = cx + Math.cos(a) * ring.r, y = cy + Math.sin(a) * ring.r;
+          const gr = ctx.createRadialGradient(x, y, 0, x, y, 16);
+          gr.addColorStop(0, `rgba(255,236,170,${0.95 * glow})`); gr.addColorStop(1, 'rgba(255,210,122,0)');
+          ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 16, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    drawLampBadge(i, open, now);
+  }
+
+  // Fener rozeti: nabız halkanın en boş yerinde küçük bir lamba; açıkken ışınları yanar
+  function drawLampBadge(i, open, now) {
+    const p = tokenPos(i, 'lamp');
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(p.x, p.y + 2, 15, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? LAMP : '#5d6488'; ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? '#fff7dc' : '#2a2f48'; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 5.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? '#b0701a' : '#1a1e30'; ctx.fillRect(p.x - 4, p.y + 5, 8, 3.5);
+    if (open) {
+      ctx.strokeStyle = 'rgba(255,240,190,.9)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      const spin = REDUCED ? 0 : now / 900;
+      for (let k = 0; k < 6; k++) {
+        const a = spin + k * Math.PI / 3;
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(a) * 16, p.y + Math.sin(a) * 16); ctx.lineTo(p.x + Math.cos(a) * 21, p.y + Math.sin(a) * 21);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // ---- Şalter (2.4) ----
   // Şalter halkalardan uzak bir yere konur: önce tahtanın üst ortası (alttaki uyarı balonu örtmesin),
   // sonra alt ortası, sonra köşeler; yer yetecek kadar boşsa sıradaki aday denenmez.
@@ -2940,6 +3007,7 @@
     ctx.shadowBlur = 0;
     strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
     strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    if (ring.pulse >= 0) drawPulseCover(i, cx, cy, now);
     if (ring.fixed) drawLock(cx, cy);
     if (ring.lockedBy >= 0) {
       const open = lockOpening(i, now);
@@ -3138,7 +3206,7 @@
     S.L.links.forEach(k => {
       if (!present(k.a) || !present(k.b)) return;
       for (const p of k.pts) {
-        if (!pointOpen(S.L, k, p, S.angles)) continue;
+        if (!pointOpen(S.L, k, p, S.angles, S.ph)) continue;
         ctx.save();
         ctx.shadowColor = '#fff';
         ctx.shadowBlur = 14;

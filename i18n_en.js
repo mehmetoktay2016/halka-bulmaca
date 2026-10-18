@@ -273,6 +273,8 @@ var RING_LANG_EN = {
   'Şalter hangi rengi gösteriyorsa o renkteki halkalar döner. Şaltere dokunmak bir hamle': 'Only rings in the color the switch shows can turn. Tapping the switch is a move',
   'Bu renk kapalı: şalteri çevir': 'This color is off: flip the switch',
   'Şalteri çevir': 'Flip the switch',
+  'Nabız halka': 'Pulse ring',
+  'Nabız halkanın kapağı her hamlede açılıp kapanır. Kapak açıkken boşluk işe yarar': 'A pulse ring’s cover opens and closes with every move. The gap only works while it is open',
   'Ters dişli': 'Reverse gear',
   'Ters dişli: biri sağa dönerse eşi sola döner': 'Reverse gear: when one turns right, its partner turns left',
   'Hızlı dişli': 'Fast gear',

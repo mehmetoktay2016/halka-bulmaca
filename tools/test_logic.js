@@ -218,5 +218,21 @@ test('şalter: eşler aynı renkte olmalı, renkli halka şaltersiz bölümde ol
   assert.doesNotThrow(() => two({ side: 1 }, { side: 1 }, { switch: 0, couples: [[0, 1]] }));
 });
 
+// Nabız halka: tanıtım düzeni (üst halkanın kapağı başta açık)
+const PULSE = [{ x: 200, y: 215, r: 70, a: 195, pulse: 0 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }];
+
+test('nabız halka: kapak kapalıyken boşluk sayılmaz, her hamle kapağı çevirir, ritmi yakalamak gerekir', () => {
+  const L = Logic.buildLevel({ rings: PULSE });
+  assert.ok(L.hasPulse);
+  const plain = Logic.buildLevel({ rings: PULSE.map(({ pulse, ...r }) => r) });
+  const p = Logic.solve(plain, plain.startAngles, 0);
+  assert.strictEqual(p.moves, 1);
+  // aynı hamle nabızlı bölümde: kapak kapanır (ph 1), hiçbir halka çıkmaz
+  const a = Logic.rotate(L, L.startAngles, p.first.ring, p.first.delta);
+  assert.strictEqual(Logic.cascade(L, a, 0, null, 1).mask, 0);
+  assert.strictEqual(Logic.cascade(L, a, 0, null, 0).mask, L.full, 'kapak açık olsaydı hepsi çıkardı');
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
