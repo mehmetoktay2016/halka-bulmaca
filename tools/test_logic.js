@@ -128,5 +128,42 @@ test('çerçeve: köşesi halkanın içinde kalırsa hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 120, y: 200, r: 40 }, { type: 'frame', points: box }] }), /köşesi/);
 });
 
+// Yaylı halka: Büyük domino deneme bölümü (yol 0-1-2-3-4, yaylar 0→1, 1→2, 2→3)
+const DOMINO = [{ x: 80, y: 160, r: 58, a: 30, kick: [1, 90] }, { x: 150, y: 220, r: 60, a: 220.7, kick: [2, 90] },
+  { x: 235, y: 210, r: 58, a: 285, kick: [3, 90] }, { x: 290, y: 285, r: 60, a: 342.8 }, { x: 255, y: 375, r: 62, a: 0 }];
+
+test('yaylı halka: çıkarken hedefini döndürür, zincir tek hamlede dalga dalga sürer', () => {
+  const L = Logic.buildLevel({ rings: DOMINO });
+  assert.strictEqual(Logic.cascade(L, L.startAngles, 0).mask, 0);
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.strictEqual(c.mask, L.full);
+  assert.deepStrictEqual(c.waves, [[0], [1], [2], [3, 4]]);
+  assert.deepStrictEqual(c.kicks.map(w => w.map(k => k.target)), [[1], [2], [3], []]);
+  close(c.angles[1], Logic.norm((220.7 + 90) * DEG));
+});
+
+test('yaylı halka: yaysız aynı düzen daha çok hamle ister', () => {
+  const L = Logic.buildLevel({ rings: DOMINO.map(({ kick, ...r }) => r) });
+  assert.ok(Logic.solve(L, L.startAngles, 0).moves > 1);
+});
+
+test('yaylı halka: tahtadan çıkmış hedefe tekme atılmaz', () => {
+  const L = Logic.buildLevel({ rings: DOMINO });
+  const a = L.startAngles.slice();
+  const c = Logic.cascade(L, a, 2); // hedef (1) zaten çıkmış
+  assert.ok(c.kicks.flat().every(k => k.target !== 1));
+});
+
+test('yaylı halka: geçersiz hedef hata verir (kendisi, sabit, anahtarlı, tık adımına uymayan)', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ kick: [0, 90] }, {}), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { fixed: true }), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { lockedBy: 0 }), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { step: 60 }), /tık adımına/);
+  assert.doesNotThrow(() => two({ kick: [1, 90] }, { step: 45 }));
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

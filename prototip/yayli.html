@@ -1,0 +1,510 @@
+<title>Yaylı Halka Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Tek koyu görünüm, oyunun Lunapark dünyası: dar sütun, üstte bölüm seçimi, ortada tahta, altta hamle ve düğmeler */
+:root {
+  --bg: #110818; --panel: #22142e; --line: #3a2650; --fg: #f3ecff; --muted: #b7a6cf;
+  --accent: #ff6fb5; --gold: #ffc94a; --gold-ink: #3d2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(70% 45% at 15% 0%, rgba(255, 79, 163, .16), transparent 70%), linear-gradient(180deg, #2a1533, var(--bg)); background-color: var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+header { display: grid; gap: 2px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: 800 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.tabs button.done::after { content: " ✓"; }
+.tip { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.tip b { color: var(--fg); }
+.board { position: relative; width: 100%; aspect-ratio: 400 / 520; border-radius: 22px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count { flex: 1; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-family: var(--display); font-size: 22px; }
+.bar button { font: 800 15px var(--body); border-radius: 14px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.bar button.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.win { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: rgba(17, 8, 24, .72); backdrop-filter: blur(3px); }
+.win h2 { margin: 0; font-family: var(--display); font-size: 38px; color: var(--gold); }
+.win p { margin: 0; color: var(--muted); }
+.win button { justify-self: center; font: 800 16px var(--body); border-radius: 14px; padding: 10px 20px; border: 0; background: var(--gold); color: var(--gold-ink); cursor: pointer; }
+.legend { display: grid; gap: 6px; font-size: 14px; color: var(--muted); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.legend b { color: var(--fg); }
+.styles { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 800; font-size: 13px; color: var(--muted); }
+.styles button { font: 800 13px var(--body); color: var(--fg); background: transparent; border: 2px solid var(--line); border-radius: 12px; padding: 8px 14px; cursor: pointer; }
+.styles button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Lunapark · prototip</span>
+    <h1>Yaylı halka</h1>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <div class="styles" id="styles">Görünüm:
+    <button type="button" data-s="A">A · Rozet + yay</button>
+    <button type="button" data-s="B">B · Çizgili + yay</button>
+    <button type="button" data-s="C">C · İlk hali</button>
+  </div>
+  <p class="tip" id="tip"></p>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Oyun tahtası"></canvas>
+    <div class="win" id="win" hidden>
+      <h2 id="winTitle">Kusursuz!</h2>
+      <p id="winText"></p>
+      <button id="next" type="button">Sonraki bölüm</button>
+    </div>
+  </div>
+  <div class="bar">
+    <span class="count">Hamle <b id="moves">0</b> · en iyi <span id="par">1</span></span>
+    <button id="reset" type="button">Baştan</button>
+    <button id="hint" class="primary" type="button">İpucu</button>
+  </div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<script src="../logic.js"></script>
+<script>
+(function () {
+  'use strict';
+  const Logic = window.RingLogic;
+  const { TAU, DEG, GAP_HALF } = Logic;
+  const W = 400, H = 520, STROKE = 13;
+  const COLORS = ['#ff6b6b', '#ffc94a', '#2dd4bf', '#4cc9f0', '#b388ff', '#ff9f1c', '#f72585', '#90be6d'];
+
+  const LEVELS = [
+    { name: 'İlk yay', tip: 'Çizgili halka <b>yaylı</b>. Onu kurtar: uçarken okla gösterdiği halkayı çeyrek tur çevirir.',
+      rings: [{ x: 200, y: 290, r: 74, a: 282.8 }, { x: 103, y: 338, r: 69, a: 45 }, { x: 127, y: 239, r: 71, a: 0, kick: [0, -90] }] },
+    { name: 'Domino', tip: 'Bir yay öbür yayı da tetikleyebilir. <b>Tek hamlede</b> zinciri başlat.',
+      rings: [{ x: 95, y: 175, r: 62, a: 45, kick: [1, -90] }, { x: 160, y: 250, r: 62, a: 157.8, kick: [2, 90] }, { x: 245, y: 300, r: 62, a: 2.4 }, { x: 300, y: 385, r: 62, a: 0 }] },
+    { name: 'Büyük domino', tip: 'Beş halka, <b>tek hamle</b>. Zincirin başı nerede?',
+      rings: [{ x: 80, y: 160, r: 58, a: 30, kick: [1, 90] }, { x: 150, y: 220, r: 60, a: 220.7, kick: [2, 90] }, { x: 235, y: 210, r: 58, a: 285, kick: [3, 90] }, { x: 290, y: 285, r: 60, a: 342.8 }, { x: 255, y: 375, r: 62, a: 0 }] },
+    { name: 'Önce kur', tip: 'Yayı hemen bırakırsan tekme boşa gider. <b>Önce hedefi hazırla.</b>',
+      rings: [{ x: 95, y: 175, r: 62, a: 45, kick: [1, 90] }, { x: 160, y: 250, r: 62, a: 37.8 }, { x: 245, y: 300, r: 62, a: 0 }, { x: 300, y: 385, r: 62, a: 300 }] },
+    { name: 'Zincir ustası', tip: 'İki hamle yeter. Hangi yay önce gitmeli?',
+      rings: [{ x: 80, y: 160, r: 58, a: 60, kick: [1, 90] }, { x: 150, y: 220, r: 60, a: 125.9, kick: [2, 90] }, { x: 235, y: 210, r: 58, a: 285, kick: [3, 90] }, { x: 290, y: 285, r: 60, a: 342.8 }, { x: 255, y: 375, r: 62, a: 0 }] },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const done = new Set();
+  let S = null;
+  let STYLE = 'A';
+  const LEGENDS = {
+    A: '<span><b>Üstünde yay rozeti olan halka yaylıdır.</b> Değdiği halkanın kenarındaki sarmal yay, o halkayı ok yönüne iter.</span>',
+    B: '<span><b>Çizgili halka yaylıdır.</b> Değdiği halkanın kenarındaki sarmal yay, o halkayı ok yönüne iter.</span>',
+    C: '<span><b>Çizgili halka yaylıdır.</b> Kurtulup uçarken okla gösterdiği halkayı çeyrek tur çevirir.</span>',
+  };
+  function setStyle(st) {
+    STYLE = st;
+    document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === st)));
+    document.getElementById('legend').innerHTML = LEGENDS[st] +
+      '<span><b>Küçük boş daire</b> tekmeden sonra o halkanın boşluğunun geleceği yer.</span>' +
+      '<span>Yay kurtulunca tekme atar, tekme hamle sayılmaz. Halkayı parmakla sürükleyerek döndür.</span>';
+  }
+
+  function centered(rings) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of rings) { x0 = Math.min(x0, r.x - r.r); x1 = Math.max(x1, r.x + r.r); y0 = Math.min(y0, r.y - r.r); y1 = Math.max(y1, r.y + r.r); }
+    const dx = W / 2 - (x0 + x1) / 2, dy = H / 2 - (y0 + y1) / 2;
+    return rings.map(r => ({ ...r, x: r.x + dx, y: r.y + dy }));
+  }
+
+  function load(k) {
+    const def = { rings: centered(LEVELS[k].rings) };
+    const L = Logic.buildLevel(def);
+    const sol = Logic.solve(L, L.startAngles, 0, 200000);
+    S = { k, L, angles: L.startAngles.slice(), mask: 0, moves: 0, par: sol ? sol.moves : '?', busy: false,
+      fly: {}, hidden: 0, drag: null, praise: null, sparks: [], hintRing: -1 };
+    $('tip').innerHTML = LEVELS[k].tip;
+    $('par').textContent = S.par;
+    $('moves').textContent = 0;
+    $('win').hidden = true;
+    renderTabs();
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = LEVELS.map((l, i) =>
+      `<button type="button" data-k="${i}" aria-pressed="${i === S.k}" class="${done.has(i) ? 'done' : ''}">${i + 1}. ${l.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => { b.onclick = () => load(+b.dataset.k); });
+  }
+
+  // ---- çizim ----
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const w = cv.clientWidth;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * H / W * dpr);
+    ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  }
+  const present = i => !(S.hidden & (1 << i));
+
+  function pose(i, now) {
+    const r = S.L.rings[i];
+    const f = S.fly[i];
+    if (!f) return { x: r.x, y: r.y, alpha: 1, grow: 1 };
+    const t = Math.min(Math.max((now - f.t0) / 520, 0), 1), e = t * t;
+    return { x: r.x + f.dx * 460 * e, y: r.y + f.dy * 460 * e, alpha: 1 - t, grow: 1 + 0.18 * t };
+  }
+
+  function arcs(ring, angle, x, y, color, width) {
+    const gaps = ring.gaps.map(g => Logic.norm(angle + g)).sort((a, b) => a - b);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    for (let k = 0; k < gaps.length; k++) {
+      const from = gaps[k] + GAP_HALF, to = (k + 1 < gaps.length ? gaps[k + 1] : gaps[0] + TAU) - GAP_HALF;
+      ctx.beginPath(); ctx.arc(x, y, ring.r, from, to); ctx.stroke();
+    }
+  }
+
+  // Yayın sargıları: halka boyunca eğik beyaz çizgiler
+  function coil(ring, angle, x, y) {
+    ctx.strokeStyle = 'rgba(255,255,255,.62)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (let p = 0; p < TAU; p += 13 * DEG) {
+      if (ring.gaps.some(g => Logic.angDist(angle + g, p) < GAP_HALF + 5 * DEG)) continue;
+      const a1 = p - 3.5 * DEG, a2 = p + 3.5 * DEG;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a1) * (ring.r - 5.5), y + Math.sin(a1) * (ring.r - 5.5));
+      ctx.lineTo(x + Math.cos(a2) * (ring.r + 5.5), y + Math.sin(a2) * (ring.r + 5.5));
+      ctx.stroke();
+    }
+  }
+
+  // Tekme oku: hedef halkanın içinde, başka halkalardan en uzak yerde dönüş yönünü gösteren yay
+  function arrowSpot(s) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target], R = t.r - 24;
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 24; k++) {
+      const th = k * 15 * DEG;
+      let d = Infinity;
+      for (let q = -2; q <= 2; q++) {
+        const a = th + q * 12 * DEG, x = t.x + Math.cos(a) * R, y = t.y + Math.sin(a) * R;
+        S.L.rings.forEach((o, i) => { if (i !== t.id && present(i)) d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r)); });
+      }
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return best;
+  }
+
+  function kickArrow(s, now) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target];
+    if (!S.spots) S.spots = {};
+    const key = s + ':' + S.hidden;
+    if (S.spots[key] == null) S.spots[key] = arrowSpot(s);
+    const th = S.spots[key];
+    const R = t.r - 24, dir = Math.sign(sp.kick.turn);
+    const span = 30 * DEG, wob = REDUCED ? 0 : Math.sin(now / 260) * 3 * DEG;
+    const a0 = th - dir * span + wob, a1 = th + dir * span + wob;
+    ctx.save();
+    ctx.strokeStyle = COLORS[s % COLORS.length]; ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(t.x, t.y, R, a0, a1, dir < 0); ctx.stroke();
+    const hx = t.x + Math.cos(a1) * R, hy = t.y + Math.sin(a1) * R;
+    const tang = a1 + dir * Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(hx + Math.cos(tang) * 9, hy + Math.sin(tang) * 9);
+    ctx.lineTo(hx + Math.cos(tang + 2.4) * 8, hy + Math.sin(tang + 2.4) * 8);
+    ctx.lineTo(hx + Math.cos(tang - 2.4) * 8, hy + Math.sin(tang - 2.4) * 8);
+    ctx.closePath(); ctx.fill();
+    // hayalet boşluk: tekmeden sonra hedefin boşluğu nereye gelecek
+    for (const g of t.gaps) {
+      const ga = S.angles[t.id] + g + sp.kick.turn;
+      ctx.lineWidth = 2.5; ctx.globalAlpha = .9;
+      ctx.beginPath(); ctx.arc(t.x + Math.cos(ga) * t.r, t.y + Math.sin(ga) * t.r, 9, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Hayalet boşluk: tekmeden sonra hedefin boşluğu nereye gelecek
+  function ghost(s) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target];
+    ctx.save();
+    ctx.strokeStyle = COLORS[s % COLORS.length]; ctx.lineWidth = 2.5; ctx.globalAlpha = .9;
+    for (const g of t.gaps) {
+      const ga = S.angles[t.id] + g + sp.kick.turn;
+      ctx.beginPath(); ctx.arc(t.x + Math.cos(ga) * t.r, t.y + Math.sin(ga) * t.r, 9, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Sarmal yay: yayın hedefe değdiği kesişimden başlar, hedefin kenarı boyunca tekme yönüne uzanır, ucu ok
+  function springCoil(s, now) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target], dir = Math.sign(sp.kick.turn);
+    const link = S.L.links.find(l => (l.a === s && l.b === t.id) || (l.b === s && l.a === t.id));
+    // iki kesişimden, yayın dışına doğru uzananı seç
+    let phi0 = 0;
+    for (const p of link.pts) {
+      const a = link.a === t.id ? p.angA : p.angB;
+      const probe = a + dir * 25 * DEG;
+      phi0 = a;
+      if (Math.hypot(t.x + Math.cos(probe) * t.r - sp.x, t.y + Math.sin(probe) * t.r - sp.y) > sp.r) break;
+    }
+    const span = (52 + (REDUCED ? 0 : 4 * Math.sin(now / 200))) * DEG;
+    const N = 6, pts = [];
+    for (let k = 0; k <= 72; k++) {
+      const u = k / 72, ph = phi0 + dir * (8 * DEG + u * span);
+      const R = t.r + (u < .9 ? Math.sin(u / .9 * N * TAU) * 8 : 0);
+      pts.push([t.x + Math.cos(ph) * R, t.y + Math.sin(ph) * R]);
+    }
+    const color = COLORS[s % COLORS.length];
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const [w, c] of [[7, 'rgba(17,8,24,.85)'], [3.5, color]]) {
+      ctx.strokeStyle = c; ctx.lineWidth = w;
+      ctx.beginPath(); pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    }
+    const end = phi0 + dir * (8 * DEG + span), hx = t.x + Math.cos(end) * t.r, hy = t.y + Math.sin(end) * t.r;
+    const tang = end + dir * Math.PI / 2;
+    for (const [grow, c] of [[3, 'rgba(17,8,24,.85)'], [0, color]]) {
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tang) * (13 + grow), hy + Math.sin(tang) * (13 + grow));
+      ctx.lineTo(hx + Math.cos(tang + 2.3) * (11 + grow), hy + Math.sin(tang + 2.3) * (11 + grow));
+      ctx.lineTo(hx + Math.cos(tang - 2.3) * (11 + grow), hy + Math.sin(tang - 2.3) * (11 + grow));
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    ghost(s);
+  }
+
+  // Yay rozeti: yaylı halkanın en boş yerinde, içinde yay çizimi olan madalyon
+  function badgeSpot(s) {
+    const r = S.L.rings[s];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, i) => { if (i !== s && present(i)) d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r)); });
+      for (const g of r.gaps) d = Math.min(d, Logic.angDist(S.angles[s] + g, th) * r.r);
+      if (y - 18 < 0 || y + 18 > H || x - 18 < 0 || x + 18 > W) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return best;
+  }
+  function badge(s, now) {
+    const r = S.L.rings[s];
+    S.badgeAt = S.badgeAt || {};
+    const key = s + ':' + S.hidden + ':' + Math.round(S.angles[s] / DEG / 10);
+    if (S.badgeAt[key] == null) S.badgeAt[key] = badgeSpot(s);
+    const th = S.badgeAt[key], x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+    const color = COLORS[s % COLORS.length];
+    ctx.save();
+    ctx.fillStyle = 'rgba(17,8,24,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 17, 0, TAU); ctx.fill();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 15, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 11.5, 0, TAU); ctx.fill();
+    // içinde dik duran küçük yay
+    ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const sq = REDUCED ? 1 : 1 + .08 * Math.sin(now / 200);
+    ctx.beginPath();
+    for (let k = 0; k <= 5; k++) {
+      const yy = y + (-7 + k * 2.8) * sq, xx = x + (k % 2 ? 5 : -5);
+      if (k) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    const L = S.L;
+    // kesişimler: açık olanlar parlar
+    for (const link of L.links) {
+      if (!present(link.a) || !present(link.b) || S.fly[link.a] || S.fly[link.b]) continue;
+      for (const p of link.pts) {
+        if (!Logic.pointOpen(L, link, p, S.angles)) continue;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, TAU); ctx.fill();
+      }
+    }
+    for (let i = 0; i < L.rings.length; i++) {
+      if (!present(i)) continue;
+      const r = L.rings[i], P = pose(i, now), color = COLORS[i % COLORS.length];
+      ctx.save();
+      ctx.globalAlpha = P.alpha;
+      if (P.grow !== 1) { ctx.translate(P.x, P.y); ctx.scale(P.grow, P.grow); ctx.translate(-P.x, -P.y); }
+      const active = (S.drag && S.drag.ring === i) || S.hintRing === i;
+      arcs(r, S.angles[i], P.x + 2, P.y + 4, 'rgba(0,0,0,.42)', STROKE + 6);
+      if (active) { ctx.shadowColor = color; ctx.shadowBlur = 20; }
+      arcs(r, S.angles[i], P.x, P.y, color, STROKE);
+      ctx.shadowBlur = 0;
+      arcs(r, S.angles[i], P.x - 1.2, P.y - 1.6, 'rgba(255,255,255,.28)', 3);
+      if (r.kick && STYLE !== 'A') coil(r, S.angles[i], P.x, P.y);
+      ctx.restore();
+    }
+    for (let i = 0; i < L.rings.length; i++) {
+      const r = L.rings[i];
+      if (!r.kick || !present(i) || S.fly[i]) continue;
+      if (STYLE === 'A') badge(i, now);
+      if (present(r.kick.target) && !S.fly[r.kick.target]) (STYLE === 'C' ? kickArrow : springCoil)(i, now);
+    }
+    // kıvılcımlar
+    S.sparks = S.sparks.filter(s => now - s.t0 < 600);
+    for (const s of S.sparks) {
+      const t = (now - s.t0) / 600;
+      ctx.fillStyle = s.color; ctx.globalAlpha = 1 - t;
+      for (let k = 0; k < 10; k++) {
+        const a = k * TAU / 10 + s.seed, d = 8 + 46 * t;
+        ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * d, s.y + Math.sin(a) * d, 3.2 * (1 - t) + 1, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (S.praise) {
+      const t = (now - S.praise.t0) / 1300;
+      if (t >= 1) S.praise = null;
+      else {
+        ctx.save();
+        ctx.globalAlpha = t < .15 ? t / .15 : 1 - Math.max(0, (t - .6) / .4);
+        ctx.font = '800 44px "Baloo 2", "Nunito", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(17,8,24,.85)';
+        const y = 70 - 14 * t, sc = 1 + .12 * Math.sin(Math.min(t, .3) / .3 * Math.PI);
+        ctx.translate(W / 2, y); ctx.scale(sc, sc);
+        ctx.strokeText(S.praise.text, 0, 0);
+        ctx.fillStyle = '#ffc94a'; ctx.fillText(S.praise.text, 0, 0);
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  // ---- hareket ----
+  const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+  const easeBack = t => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+
+  function tween(from, to, ms, ease) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const step = () => {
+        const t = REDUCED ? 1 : Math.min((performance.now() - t0) / ms, 1), e = ease(t);
+        S.angles = from.map((a, i) => a + Logic.signedDelta(a, to[i]) * e);
+        if (t < 1) requestAnimationFrame(step); else { S.angles = to.slice(); res(); }
+      };
+      step();
+    });
+  }
+
+  async function settle() {
+    const L = S.L;
+    const c = Logic.cascade(L, S.angles, S.mask);
+    if (!c.waves.length) return;
+    S.busy = true;
+    let a = S.angles, freed = 0;
+    for (let k = 0; k < c.waves.length; k++) {
+      const now = performance.now();
+      for (const i of c.waves[k]) {
+        const r = L.rings[i];
+        let dx = r.x - W / 2, dy = r.y - H / 2;
+        const d = Math.hypot(dx, dy) || 1;
+        S.fly[i] = { t0: now, dx: dx / d, dy: dy / d - .25 };
+        S.mask |= 1 << i; freed++;
+      }
+      await sleep(c.kicks[k].length ? 260 : 200);
+      for (const kick of c.kicks[k]) {
+        const t = L.rings[kick.target], s = L.rings[kick.from];
+        const th = Math.atan2(s.y - t.y, s.x - t.x);
+        S.sparks.push({ x: t.x + Math.cos(th) * t.r, y: t.y + Math.sin(th) * t.r, t0: performance.now(), color: COLORS[kick.from % COLORS.length], seed: Math.random() });
+        const to = Logic.rotate(L, a, kick.target, kick.turn);
+        await tween(a, to, 430, easeBack);
+        a = to;
+      }
+    }
+    await sleep(380);
+    for (const i of Object.keys(S.fly)) { S.hidden |= 1 << i; delete S.fly[i]; }
+    S.angles = c.angles.slice();
+    S.mask = c.mask;
+    if (freed >= 2) S.praise = { text: freed >= 4 ? 'Muhteşem!' : freed === 3 ? 'Harika!' : 'Süper!', t0: performance.now() };
+    S.busy = false;
+    if (S.mask === L.full) win();
+  }
+
+  function win() {
+    done.add(S.k);
+    renderTabs();
+    const perfect = S.moves <= S.par;
+    $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
+    $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
+    $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
+    setTimeout(() => { $('win').hidden = false; }, 500);
+  }
+
+  // Bırakınca boşluk bir kesişime yakınsa oraya oturur
+  function snap(i) {
+    const L = S.L, ring = L.rings[i];
+    let best = null, bd = 14 * DEG;
+    for (const li of L.ringLinks[i]) {
+      const k = L.links[li], o = k.a === i ? k.b : k.a;
+      if (S.mask & (1 << o)) continue;
+      for (const p of k.pts) {
+        const ang = k.a === i ? p.angA : p.angB;
+        for (const g of ring.gaps) {
+          const t = Logic.norm(ang - g), d = Logic.angDist(t, S.angles[i]);
+          if (d < bd) { bd = d; best = t; }
+        }
+      }
+    }
+    if (best != null) S.angles = Logic.rotate(L, S.angles, i, Logic.signedDelta(S.angles[i], best));
+  }
+
+  const toBoard = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height }; };
+  cv.addEventListener('pointerdown', e => {
+    if (S.busy || !$('win').hidden) return;
+    const p = toBoard(e);
+    let pick = -1, bd = 28;
+    S.L.rings.forEach((r, i) => {
+      if (S.mask & (1 << i)) return;
+      const d = Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      if (d < bd) { bd = d; pick = i; }
+    });
+    if (pick < 0) return;
+    const r = S.L.rings[pick];
+    S.drag = { ring: pick, last: Math.atan2(p.y - r.y, p.x - r.x), total: 0, base: S.angles.slice() };
+    S.hintRing = -1;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.drag) return;
+    const p = toBoard(e), r = S.L.rings[S.drag.ring];
+    const a = Math.atan2(p.y - r.y, p.x - r.x);
+    S.drag.total += Logic.signedDelta(S.drag.last, a);
+    S.drag.last = a;
+    S.angles = Logic.rotate(S.L, S.drag.base, S.drag.ring, S.drag.total);
+  });
+  const release = () => {
+    if (!S.drag) return;
+    const d = S.drag; S.drag = null;
+    if (Math.abs(d.total) < 3 * DEG) { S.angles = d.base; return; }
+    snap(d.ring);
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  $('reset').onclick = () => { if (!S.busy) load(S.k); };
+  $('next').onclick = () => load((S.k + 1) % LEVELS.length);
+  $('hint').onclick = async () => {
+    if (S.busy || S.mask === S.L.full) return;
+    const sol = Logic.solve(S.L, S.angles, S.mask, 200000);
+    if (!sol || !sol.first) return;
+    S.busy = true; S.hintRing = sol.first.ring;
+    await tween(S.angles, Logic.rotate(S.L, S.angles, sol.first.ring, sol.first.delta), 650, t => 1 - Math.pow(1 - t, 3));
+    S.hintRing = -1; S.busy = false;
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  document.querySelectorAll('#styles button').forEach(b => { b.onclick = () => setStyle(b.dataset.s); });
+  setStyle('A');
+  load(0);
+  requestAnimationFrame(draw);
+  window.__proto = { get S() { return S; }, load, setStyle };
+})();
+</script>
