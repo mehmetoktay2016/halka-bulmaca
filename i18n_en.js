@@ -264,6 +264,8 @@ var RING_LANG_EN = {
   'Birlikte dönenler': 'Turning together',
   'Noktalı çizgiyle bağlı halkalar aynı anda döner. Birini çevirirken diğerini de düşün.':
     'Rings joined by a dotted line turn at the same time. Think about the other one while you turn one.',
+  'Yaylı halka': 'Spring ring',
+  'Yaylı halka kurtulunca değdiği halkayı yay yönünde çeyrek tur iter': 'When a spring ring flies off, it pushes the ring it touches a quarter turn the way the spring points',
   'Ters dişli': 'Reverse gear',
   'Ters dişli: biri sağa dönerse eşi sola döner': 'Reverse gear: when one turns right, its partner turns left',
   'Hızlı dişli': 'Fast gear',

@@ -803,7 +803,8 @@
     return def.par + 0.15 * def.rings.length + 0.3 * (def.couples || []).length +
       0.3 * n(r => r.fixed) + 0.3 * n(r => r.type === 'bar') + 0.2 * n(r => r.gaps && r.gaps.length > 1) +
       0.4 * ratios.filter(r => r === -1).length + 0.5 * ratios.filter(r => Math.abs(r) !== 1).length +
-      0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame');
+      0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame') +
+      0.5 * n(r => r.kick); // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -897,18 +898,22 @@
         { type: 'frame', points: [[110, 190], [290, 190], [290, 370], [110, 370]] }] },
     1003: { title: 'Tıklı halka', world: 'saat', tip: 'Tıklı halkanın boşluğu yalnızca noktalarda durur',
       rings: [{ x: 200, y: 215, r: 70, a: 255, step: 45 }, { x: 140, y: 320, r: 64, a: 135 }, { x: 260, y: 320, r: 64, a: 195 }] },
+    // Yaylı halka tanıtımı (1006, 2.4): üstteki yaylı halka kurtulunca büyük halkayı çeyrek tur iter,
+    // büyük halkanın boşluğu alttakiyle kesişime gelir ve ikisi birlikte kurtulur. Yaysız 2 hamle, yayla 1.
+    1006: { title: 'Yaylı halka', world: 'lunapark', tip: 'Yaylı halka kurtulunca değdiği halkayı yay yönünde çeyrek tur iter',
+      rings: [{ x: 200, y: 290, r: 74, a: 282.8 }, { x: 103, y: 338, r: 69, a: 45 }, { x: 127, y: 239, r: 71, a: 0, kick: [0, -90] }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
   const plainVersion = def => ({
     ...def,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
   // Bir mekanik (kilit 5, eş 7, çift boşluk 8, çubuk 9, ters dişli 1001, hızlı dişli 1002,
-  // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005) tanıtılmadan onu kullanan bölüm gelemez.
-  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005 };
+  // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006) tanıtılmadan onu kullanan bölüm gelemez.
+  const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -919,6 +924,7 @@
     if (def.rings.some(r => r.step)) f.push('click');
     if (def.rings.some(r => r.lockedBy != null)) f.push('key');
     if (def.rings.some(r => r.type === 'frame')) f.push('frame');
+    if (def.rings.some(r => r.kick)) f.push('kick');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -940,7 +946,7 @@
   const LAST_GATE = 20;
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.

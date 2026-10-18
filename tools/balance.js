@@ -26,15 +26,14 @@ const rows = [];
 order.forEach((src, i) => {
   const n = i + 1, def = get(src), L = Logic.buildLevel(def);
   const limit = moveLimit(def.par, src);
-  let a = L.startAngles.slice(), m = Logic.cascade(L, a, 0).mask, moves = 0;
+  let { mask: m, angles: a } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0;
   while (m !== L.full && moves < limit + 2) {
     const t0 = Date.now();
     const s = bestMove(L, a, m);
     const ms = Date.now() - t0;
     if (ms > slowest) { slowest = ms; slowestAt = n; }
     if (!s || !s.first) break;
-    a = Logic.rotate(L, a, s.first.ring, s.first.delta);
-    m = Logic.cascade(L, a, m).mask;
+    ({ mask: m, angles: a } = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m));
     moves++;
   }
   const ok = m === L.full && moves <= limit;

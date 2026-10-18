@@ -41,6 +41,8 @@
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const KEY_MS = 560;   // anahtarın kilide uçuşu
+  const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
+  const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
@@ -191,6 +193,8 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Yay tekmesi: yukarı kayan "boing" ve titreşen kısa bir kuyruk
+      boing: () => { tone(170, 0.22, 'sine', 0.13, 430); tone(430, 0.24, 'triangle', 0.06, 260, 0.09); tone(1300, 0.05, 'square', 0.025); },
       // Tıklı halka her adımda: saat tıkırtısı
       clack: () => { tone(2200, 0.025, 'square', 0.035); tone(900, 0.05, 'triangle', 0.05, 600); },
       // Anahtar kilide girdi: metalik çıt ve küçük bir çan
@@ -1076,7 +1080,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1,
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1200,12 +1204,24 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves } = cascade(S.L, S.angles, S.mask);
+    const { mask, waves, kicks, angles } = cascade(S.L, S.angles, S.mask);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
+    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
+    const at = [];
+    waves.reduce((t, _, w) => { at[w] = t; return t + (kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS); }, 0);
+    let before = S.angles;
+    kicks.forEach((ks, w) => {
+      for (const k of ks) {
+        S.kicks.push({ ring: k.target, delta: k.turn, t0: now + at[w] + KICK_WAIT, done: 0 });
+        setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
+        before = rotate(S.L, before, k.target, k.turn);
+      }
+    });
+    if (S.kicks.length) S.kickEnd = angles;
     waves.forEach((wave, w) => {
       const last = finale && w === waves.length - 1;
-      if (last) setTimeout(() => finaleBlast(wave), w * WAVE_MS);
+      if (last) setTimeout(() => finaleBlast(wave), at[w]);
       for (const i of wave) {
         const r = S.L.rings[i];
         let dx = r.x - BOARD.w / 2, dy = r.y - BOARD.h / 2;
@@ -1217,8 +1233,8 @@
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + w * WAVE_MS, dx, dy };
-        setTimeout(() => { Sound.pop(w); burst(i, last); }, w * WAVE_MS);
+        S.fly[i] = { t0: now + at[w], dx, dy };
+        setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
     // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
@@ -1226,16 +1242,16 @@
       for (const k of wave) {
         S.L.rings.forEach((r, l) => {
           if (r.lockedBy !== k || (mask & (1 << l))) return;
-          S.keyFly.push({ key: k, lock: l, t0: now + w * WAVE_MS });
-          setTimeout(() => Sound.keyOpen(), w * WAVE_MS + KEY_MS);
+          S.keyFly.push({ key: k, lock: l, t0: now + at[w] });
+          setTimeout(() => Sound.keyOpen(), at[w] + KEY_MS);
         });
       }
     });
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), (waves.length - 1) * WAVE_MS);
-    if (endWord) setTimeout(() => showEndPraise(endWord), (waves.length - 1) * WAVE_MS + 260);
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), at[waves.length - 1]);
+    if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
       if (c.taken) continue;
@@ -1243,12 +1259,12 @@
       if (!(mask & (1 << k.a)) && !(mask & (1 << k.b))) continue;
       c.taken = true;
       const w = waves.findIndex(wv => wv.includes(k.a) || wv.includes(k.b));
-      collectCoin(c, Math.max(w, 0) * WAVE_MS);
+      collectCoin(c, at[Math.max(w, 0)]);
     }
     const loot = S.loot;
     if (loot && loot.t0 == null && (mask & (1 << loot.ring))) {
       const w = waves.findIndex(wv => wv.includes(loot.ring));
-      const t0 = now + Math.max(w, 0) * WAVE_MS;
+      const t0 = now + at[Math.max(w, 0)];
       if (loot.type === 'chest') openChest(t0);
       else if (loot.type === 'gold') openGold(t0);
       else openBulbRing(t0);
@@ -1258,7 +1274,7 @@
       S.won = true;
       // Ödül açılıyorsa bölüm sonu ekranı onun ardından gelir
       const lootEnd = loot && loot.t0 != null ? loot.t0 + (loot.type === 'chest' ? CHEST_SHAKE_MS + 750 : TOKEN_MS + 500) - now : 0;
-      setTimeout(showWin, Math.max(waves.length * WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
+      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
     }
     updateHud();
   }
@@ -1997,7 +2013,7 @@
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length) return;
     closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
@@ -2406,7 +2422,7 @@
   function closeHintMenu() { $('hintMenu').hidden = true; }
 
   function useHint(tier) {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
     closeHintMenu();
@@ -2446,7 +2462,7 @@
   }
 
   $('hint').onclick = () => {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length) return;
     if (S.tut != null) { guide(); return; }
     Sound.tap();
     if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
@@ -2472,9 +2488,132 @@
     if (t >= 1) { S.auto = null; commitMove(a.before); }
   }
 
+  // Yay tekmesi: hedef halka (ve eşleri) çeyrek tur döner, sonunda hafif geri yaylanır.
+  // Dönüş adım adım uygulanır; hepsi bitince açılar mantıktaki son hale eşitlenir.
+  const easeBack = t => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+  function stepKicks(now) {
+    if (!S.kicks.length) return;
+    for (const k of S.kicks) {
+      const t = Math.min(1, (now - k.t0) / KICK_MS);
+      if (t < 0) continue;
+      const d = k.delta * (t >= 1 ? 1 : easeBack(t)) - k.done;
+      S.angles = rotate(S.L, S.angles, k.ring, d);
+      k.done += d;
+      k.over = t >= 1;
+    }
+    S.kicks = S.kicks.filter(k => !k.over);
+    if (!S.kicks.length && S.kickEnd) { S.angles = S.kickEnd; S.kickEnd = null; }
+  }
+
+  // Tekmenin değdiği yerde yayın renginde küçük kıvılcımlar
+  function kickSpark(from, target) {
+    if (REDUCED) return;
+    const s = S.L.rings[from], t = S.L.rings[target];
+    const th = Math.atan2(s.y - t.y, s.x - t.x);
+    const x = t.x + Math.cos(th) * t.r, y = t.y + Math.sin(th) * t.r;
+    for (let k = 0; k < 16; k++) {
+      const a = Math.random() * TAU, sp = 1.5 + Math.random() * 2.5;
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, size: 2 + Math.random() * 2, color: ringColor(from) });
+    }
+  }
+
+  // ---- Yaylı halka çizimi (2.4) ----
+  // Rozet: yaylı halkanın en boş yerinde, içinde dik bir yay olan madalyon (yaylı olduğunu söyler).
+  // Sarmal yay: yayın hedefe değdiği kesişimden başlar, hedefin kenarı boyunca tekme yönüne uzanır, ucu ok.
+  // Boş daire: tekmeden sonra hedefin boşluğunun geleceği yer.
+  const springLive = i => present(i) && !S.fly[i];
+  function springBadgeAt(s) {
+    const r = S.L.rings[s];
+    const key = s + ':' + S.mask + ':' + Math.round(S.angles[s] / (10 * DEG));
+    if (S.springSpot[key] != null) return S.springSpot[key];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, i) => {
+        if (i === s || !present(i) || o.kind !== 'ring') return;
+        d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r));
+      });
+      for (const g of r.gaps) d = Math.min(d, angDist(S.angles[s] + g, th) * r.r);
+      if (y < 18 || y > BOARD.h - 18 || x < 18 || x > BOARD.w - 18) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return (S.springSpot[key] = best);
+  }
+
+  function drawSpringBadge(s, now) {
+    const r = S.L.rings[s], th = springBadgeAt(s);
+    const x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r, color = ringColor(s);
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 17, 0, TAU); ctx.fill();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 15, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 11.5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const sq = REDUCED ? 1 : 1 + 0.08 * Math.sin(now / 200);
+    ctx.beginPath();
+    for (let k = 0; k <= 5; k++) {
+      const yy = y + (-7 + k * 2.8) * sq, xx = x + (k % 2 ? 5 : -5);
+      if (k) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSpringCoil(s, now) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target], dir = Math.sign(sp.kick.turn), color = ringColor(s);
+    const link = S.L.links.find(l => (l.a === s && l.b === t.id) || (l.b === s && l.a === t.id));
+    let phi0 = 0;
+    if (link) {
+      // iki kesişimden, yayın dışına doğru uzananı seç
+      for (const p of link.pts) {
+        phi0 = link.a === t.id ? p.angA : p.angB;
+        const probe = phi0 + dir * 25 * DEG;
+        if (Math.hypot(t.x + Math.cos(probe) * t.r - sp.x, t.y + Math.sin(probe) * t.r - sp.y) > sp.r) break;
+      }
+    } else phi0 = Math.atan2(sp.y - t.y, sp.x - t.x);
+    const span = (52 + (REDUCED ? 0 : 4 * Math.sin(now / 200))) * DEG;
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const [w, c] of [[7, 'rgba(10,8,20,.85)'], [3.5, color]]) {
+      ctx.strokeStyle = c; ctx.lineWidth = w;
+      ctx.beginPath();
+      for (let k = 0; k <= 72; k++) {
+        const u = k / 72, ph = phi0 + dir * (8 * DEG + u * span);
+        const R = t.r + (u < 0.9 ? Math.sin(u / 0.9 * 6 * TAU) * 8 : 0);
+        const x = t.x + Math.cos(ph) * R, y = t.y + Math.sin(ph) * R;
+        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    const end = phi0 + dir * (8 * DEG + span), hx = t.x + Math.cos(end) * t.r, hy = t.y + Math.sin(end) * t.r;
+    const tang = end + dir * Math.PI / 2;
+    for (const [grow, c] of [[3, 'rgba(10,8,20,.85)'], [0, color]]) {
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tang) * (13 + grow), hy + Math.sin(tang) * (13 + grow));
+      ctx.lineTo(hx + Math.cos(tang + 2.3) * (11 + grow), hy + Math.sin(tang + 2.3) * (11 + grow));
+      ctx.lineTo(hx + Math.cos(tang - 2.3) * (11 + grow), hy + Math.sin(tang - 2.3) * (11 + grow));
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
+    for (const g of t.gaps) {
+      const ga = S.angles[t.id] + g + sp.kick.turn;
+      ctx.beginPath(); ctx.arc(t.x + Math.cos(ga) * t.r, t.y + Math.sin(ga) * t.r, 9, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawSprings(now) {
+    S.L.rings.forEach((r, i) => {
+      if (!r.kick || !springLive(i)) return;
+      if (springLive(r.kick.target) && !S.kicks.length) drawSpringCoil(i, now);
+      drawSpringBadge(i, now);
+    });
+  }
+
   // Akıllı yardım: en iyi hamle sayısı aşıldıysa ya da uzun süre hamle yoksa ipucu düğmesi nabız atar
   function checkHelp(now) {
-    if (S.tut != null || S.won || S.failed || S.auto || S.hint || S.help.shown) return;
+    if (S.tut != null || S.won || S.failed || S.auto || S.kicks.length || S.hint || S.help.shown) return;
     if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
       S.help.lastAct = now;
       return;
@@ -3138,6 +3277,7 @@
       ctx.clearRect(0, 0, BOARD.w, BOARD.h);
       if (S.L && !$('game').hidden) {
         stepAuto(now);
+        stepKicks(now);
         checkHelp(now);
         drawCouples();
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
@@ -3145,6 +3285,7 @@
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
         drawOpenPoints(now);
+        drawSprings(now);
         drawCoins(now);
         drawLoot(now);
         drawKeys(now);
