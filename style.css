@@ -1018,6 +1018,10 @@ svg { display: block; }
 }
 .tabs button b { font-size: 13px; margin-left: 4px; opacity: .8; font-variant-numeric: tabular-nums; }
 .tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--text); box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
+/* Koleksiyonda dört sekme (2.4, Parçalar): sayı adın altına iner ki dar ekranda tek satıra sığsın */
+.tabs.tabs-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tabs.tabs-4 button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 6px 2px; font-size: 14px; line-height: 1.1; }
+.tabs.tabs-4 button b { margin-left: 0; font-size: 12px; }
 .trophy-list {
   flex: 1;
   min-height: 0;
@@ -1246,6 +1250,21 @@ svg { display: block; }
   min-width: 0;
 }
 .sticker-card svg { width: 96px; height: 96px; margin-bottom: 4px; }
+
+/* Parça kartı ve Parçalar sekmesi (2.4) */
+.piece-card { max-width: 340px; }
+.piece-demo { display: block; width: 100%; max-width: 260px; aspect-ratio: 260 / 190; margin: 8px auto 4px; border-radius: 18px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); }
+.piece-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.piece-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 10px; border-radius: 18px; min-width: 0;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: var(--text);
+  font: inherit; text-align: center; cursor: pointer;
+}
+.piece-tile canvas { width: 100%; max-width: 150px; aspect-ratio: 260 / 190; border-radius: 12px; background: rgba(0, 0, 0, .25); }
+.piece-tile b { font-family: var(--font-display); font-size: 15px; font-weight: 800; line-height: 1.15; }
+.piece-tile.locked { cursor: default; opacity: .55; }
+.piece-tile.locked canvas { filter: grayscale(1) brightness(.5); }
 .sticker-card b { font-family: var(--font-display); font-size: 15px; font-weight: 800; line-height: 1.15; }
 .sticker-card small { font-size: 11.5px; font-weight: 800; color: var(--muted); }
 .sticker-card span { font-size: 12.5px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }

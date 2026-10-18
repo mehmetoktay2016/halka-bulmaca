@@ -19,6 +19,7 @@
       for (const it of c.items) { it.name = tr(it.name); it.desc = tr(it.desc); }
     }
     for (const st of Object.values(window.RingStickers.SETS)) st.name = tr(st.name);
+    for (const p of window.RingPieces.PIECES) { p.name = tr(p.name); p.text = tr(p.text); }
     for (const d of window.RingLevels.TUTORIAL) { d.title = tr(d.title); d.text = tr(d.text); }
     for (const d of Object.values(window.RingLevels.MECH_LEVELS)) { d.title = tr(d.title); if (d.tip) d.tip = tr(d.tip); }
   }
@@ -61,6 +62,7 @@
   const GOLD_GATE_BULBS = ECO.goldGateBulbs;
   const R = window.RingRewards;
   const STK = window.RingStickers;
+  const PCS = window.RingPieces;
   const LOOT_DATA = window.RING_LOOT_DATA || {}; // bölüm kimliği -> ödül taşıyabilecek [halka, x, y]
   const CHEST_SHAKE_MS = 520; // halka kurtulunca sandık titrer...
   const CHEST_OPEN_MS = 900;  // ...sonra kapağı açılır, ışık saçar ve söner
@@ -452,10 +454,14 @@
     $('badgeCount').textContent = `${earned}/${B.BADGES.length}`;
     $('albumCount').textContent = `${ctx.shapes}/${ctx.shapesTotal}`;
     $('stickerCount').textContent = `${LIVE_WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${LIVE_WORLDS.length}`;
+    $('pieceCount').textContent = `${PCS.PIECES.filter(p => progress.seenPieces[p.id]).length}/${PCS.PIECES.length}`;
+    $('tabPieces').setAttribute('aria-selected', String(trophyTab === 'pieces'));
     $('tabBadges').setAttribute('aria-selected', String(trophyTab === 'badges'));
     $('tabAlbum').setAttribute('aria-selected', String(trophyTab === 'album'));
     $('tabStickers').setAttribute('aria-selected', String(trophyTab === 'stickers'));
-    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : trophyTab === 'album' ? albumHtml() : stickersHtml();
+    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : trophyTab === 'album' ? albumHtml()
+      : trophyTab === 'pieces' ? piecesHtml() : stickersHtml();
+    if (trophyTab === 'pieces') bindPieceTiles();
     // Görülen rozetlerin kırmızı noktası söner
     for (const id of fresh) progress.seenBadges[id] = true;
     if (fresh.size) saveProgress();
@@ -608,6 +614,7 @@
   $('tabBadges').onclick = () => { Sound.tap(); trophyTab = 'badges'; renderTrophies(); };
   $('tabAlbum').onclick = () => { Sound.tap(); trophyTab = 'album'; renderTrophies(); };
   $('tabStickers').onclick = () => { Sound.tap(); trophyTab = 'stickers'; renderTrophies(); };
+  $('tabPieces').onclick = () => { Sound.tap(); trophyTab = 'pieces'; renderTrophies(); };
 
   function renderHome() {
     const next = frontier();
@@ -1046,7 +1053,65 @@
       progress.rewards['world:' + world.id] = true;
       saveProgress();
       $('worldCard').classList.add('hidden');
+      if (pieceQueue.length) showPieceCard();
     };
+  }
+
+  // ---- Parça kartları (2.4): ilk görüşte kullanma kılavuzu, koleksiyonda tekrar açılır ----
+  // Parçanın tanıtım bölümünü bitirmiş eski oyuncular o parçayı biliyor sayılır.
+  if (!progress.seenPieces) progress.seenPieces = {};
+  for (const p of PCS.PIECES) if (progress.stars[String(p.intro)]) progress.seenPieces[p.id] = true;
+  let pieceQueue = [], pieceAnim = 0;
+  function maybePieceCard(def) {
+    const f = window.RingLevels.features(def);
+    pieceQueue = PCS.PIECES.filter(p => f.includes(p.id) && !progress.seenPieces[p.id]);
+    if (pieceQueue.length && $('worldCard').classList.contains('hidden')) showPieceCard();
+  }
+  function showPieceCard(replay) {
+    const p = pieceQueue.shift();
+    if (!p) return;
+    $('pieceEyebrow').textContent = replay ? tr('Parçalar') : tr('Yeni parça');
+    $('pieceTitle').textContent = p.name;
+    $('pieceText').textContent = p.text;
+    $('pieceCard').classList.remove('hidden');
+    const cv = $('pieceDemo'), g = cv.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = PCS.DEMO_W * dpr; cv.height = PCS.DEMO_H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const t0 = performance.now();
+    cancelAnimationFrame(pieceAnim);
+    const loop = now => {
+      if ($('pieceCard').classList.contains('hidden')) return;
+      PCS.drawDemo(g, p.id, REDUCED ? 1800 : now - t0, tr);
+      pieceAnim = requestAnimationFrame(loop);
+    };
+    pieceAnim = requestAnimationFrame(loop);
+    $('pieceGo').onclick = () => {
+      Sound.tap();
+      progress.seenPieces[p.id] = true;
+      saveProgress();
+      $('pieceCard').classList.add('hidden');
+      cancelAnimationFrame(pieceAnim);
+      if (pieceQueue.length) setTimeout(() => showPieceCard(replay), 250);
+      else if (trophyTab === 'pieces' && !$('trophies').hidden) renderTrophies();
+    };
+  }
+  function piecesHtml() {
+    const tiles = PCS.PIECES.map(p => {
+      const seen = !!progress.seenPieces[p.id];
+      return `<button type="button" class="piece-tile${seen ? '' : ' locked'}" data-piece="${p.id}" ${seen ? '' : 'disabled'}>
+        <canvas width="${PCS.DEMO_W}" height="${PCS.DEMO_H}" aria-hidden="true"></canvas><b>${seen ? p.name : '???'}</b></button>`;
+    });
+    return `<div class="piece-grid">${tiles.join('')}</div>
+      <p class="album-note">${tr('Oyunda karşılaştığın parçalar burada. Birine dokun, nasıl çalıştığını izle.')}</p>`;
+  }
+  // Sekmedeki her karede canlandırmanın durgun bir anı; dokununca kart açılıp oynar
+  function bindPieceTiles() {
+    for (const b of $('trophyList').querySelectorAll('.piece-tile')) {
+      const p = PCS.PIECES.find(q => q.id === b.dataset.piece);
+      PCS.drawDemo(b.querySelector('canvas').getContext('2d'), p.id, 1800, tr);
+      if (!b.disabled) b.onclick = () => { Sound.tap(); pieceQueue = [p]; showPieceCard(true); };
+    }
   }
 
   // ---- Boyutlandırma ----
@@ -1152,6 +1217,7 @@
     if (n !== failedLevel) failedLevel = null;
     startDef(def, n, null);
     maybeWorldCard(n);
+    maybePieceCard(def);
     if (dailyGift()) return;
     if (src === 1) showTip(tr('Halkayı sürükleyerek döndür'), 4000);
     else if (src === 2) showTip(tr('Parlayan nokta: halka oradan geçebilir'), 4000);
@@ -1911,6 +1977,7 @@
     const plan = window.RingLevels.SHAPE_PLAN[src];
     applyWorld(W.worldById(def.world) || (plan ? W.worldOfGate(plan.gate) : W.WORLDS[0]));
     startDef(def, 0, null, src);
+    maybePieceCard(def);
     if (def.tip) showTip(def.tip, 5000);
   }
 
@@ -2981,7 +3048,7 @@
   // Akıllı yardım: en iyi hamle sayısı aşıldıysa ya da uzun süre hamle yoksa ipucu düğmesi nabız atar
   function checkHelp(now) {
     if (S.tut != null || S.won || S.failed || S.auto || S.kicks.length || S.turn || S.hint || S.help.shown) return;
-    if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
+    if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('pieceCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
       S.help.lastAct = now;
       return;
     }
@@ -3758,6 +3825,7 @@
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
       if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
+      if (!$('pieceCard').classList.contains('hidden')) { $('pieceGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
       if (!$('ceremony').hidden) { $('ceremony').click(); return; }
       if (!$('fail').classList.contains('hidden')) { $('failRetry').click(); return; }

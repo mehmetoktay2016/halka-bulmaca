@@ -42,6 +42,9 @@ function dataSources() {
   for (const c of Object.values(R.SHOP)) { add(c.title, 'rewards.js'); add(c.tab, 'rewards.js'); for (const it of c.items) { add(it.name, 'rewards.js'); add(it.desc, 'rewards.js'); } }
   for (const m of read('rewards.js').match(/RARITY_NAMES = \{([^}]*)\}/)[1].matchAll(/'([^']+)'/g)) add(m[1], 'rewards.js (sandık)');
   for (const st of Object.values(STK.SETS)) add(st.name, 'stickers.js');
+  const PCS = require('../pieces.js');
+  for (const p of PCS.PIECES) { add(p.name, 'pieces.js'); add(p.text, 'pieces.js'); }
+  for (const l of PCS.LABELS) add(l, 'pieces.js (canlandırma)');
   for (const d of Lv.TUTORIAL) { add(d.title, 'levels.js (öğretici)'); add(d.text, 'levels.js (öğretici)'); }
   for (const d of Object.values(Lv.MECH_LEVELS)) { add(d.title, 'levels.js (tanıtım)'); add(d.tip, 'levels.js (tanıtım)'); }
   for (const a of Lv.ANIMALS) add(a.name, 'levels.js (şekil)');
