@@ -34,6 +34,7 @@ test('loot_data.js bugünkü bölümlerle uyumlu (değilse: node tools/build_loo
         if (j !== i && o.kind === 'ring') assert.ok(Math.abs(Math.hypot(x - o.x, y - o.y) - o.r) > 20, `bölüm ${src}: ödül halka ${j}'nin çizgisinde`);
       });
       assert.ok(!(def.deco || []).some(d => d.ring === i), `bölüm ${src}: halka ${i} süslü`);
+      assert.ok(!(def.table && def.table.carried.includes(i)), `bölüm ${src}: halka ${i} tablada taşınıyor`);
     }
   }
 });

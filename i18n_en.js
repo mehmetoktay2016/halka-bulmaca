@@ -115,6 +115,11 @@ var RING_LANG_EN = {
   '10 kapıyı bitir': 'Finish 10 gates',
   'Büyük Makine': 'The Great Machine',
   '20 kapının hepsini bitir': 'Finish all 20 gates',
+  'Fener Yolu': 'Lighthouse Road',
+  '25 kapıyı bitir': 'Finish 25 gates',
+  '30 kapının hepsini bitir': 'Finish all 30 gates',
+  'Samanyolu': 'Milky Way',
+  '600 yıldız topla': 'Collect 600 stars',
   'Yıldız Toplayıcı': 'Star Collector',
   '50 yıldız topla': 'Collect 50 stars',
   'Yıldız Avcısı': 'Star Hunter',
@@ -160,6 +165,10 @@ var RING_LANG_EN = {
   'Buhar Bacası': 'Steam Stack',
   'Uzay Roketi': 'Space Rocket',
   'Büyük Çark': 'Great Wheel',
+  'Uçan Balonlar': 'Floating Balloons',
+  'Yıldırım': 'Lightning Bolt',
+  'Gemi Çapası': 'Ship Anchor',
+  'Kuyruklu Yıldız': 'Comet',
 
   // ---- 2.4 şekilleri ----
   'Maymun': 'Monkey',
