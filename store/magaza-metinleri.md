@@ -27,8 +27,8 @@ NEDEN SEVECEKSİN
 • İnternet gerekmez. Her yerde oynayabilirsin.
 • Kişisel veri toplanmaz. İlerlemen yalnızca telefonunda saklanır.
 
-8 DÜNYA, 20 KAPI, 200 BÖLÜM
-Başlangıç Vadisi'nden Büyük Makine'ye uzanan bir yolculuk. Her kapı on bölümden oluşur ve kolaydan zora gider. Kapıyı geçtikçe yeni dünyalar açılır, unvanın yükselir: Çırak, Kalfa, Gezgin, Tamirci, Saatçi... ve sonunda Halka Ustası. Yolculuğun sonunda seni Büyük Makine bekliyor.
+12 DÜNYA, 30 KAPI, 300 BÖLÜM
+Başlangıç Vadisi'nden Rasathane'nin yıldızlarına uzanan bir yolculuk. Her kapı on bölümden oluşur ve kolaydan zora gider. Kapıyı geçtikçe yeni dünyalar açılır, unvanın yükselir: Çırak, Kalfa, Gezgin, Tamirci, Saatçi... Halka Ustası, Cambaz, Elektrikçi ve sonunda Gökbilimci. 200. bölümde Büyük Makine çalışır, yolculuğun sonunda seni Yıldız Haritası bekler.
 
 HER DÜNYANIN KENDİ KURALI
 • Atölye: Ters dişliler. Biri sağa dönerse eşi sola döner.
@@ -37,13 +37,17 @@ HER DÜNYANIN KENDİ KURALI
 • Şehir: Çerçeveler yerinden oynamaz. Halkaları onların etrafından kurtar.
 • Fabrika: Hızlı dişliler eşlerini iki kat çevirir.
 • Uzay ve Büyük Usta: Öğrendiğin her şey bir arada.
-Her dünyanın kendi görünüşü, arka plan sesi ve parçacıkları var: ahşap tezgâhta kıvılcımlar, saat kulesinde tik-taklar, uzayda kayan yıldızlar.
+• Lunapark: Yaylı halkalar kurtulunca komşusunu iter. Jetonlu halkalar jeton olmadan dönmez.
+• Santral: Şalter iki renkten yalnız birini döndürür.
+• Deniz Feneri: Nabız halkaların boşluğu her hamlede açılıp kapanır. Ritmi yakala.
+• Rasathane: Döner tabla üstündeki halkaların yerini değiştirir.
+Her yeni parçayı ilk gördüğünde animasyonlu bir kart anlatır. Her dünyanın kendi görünüşü, arka plan sesi ve parçacıkları var: ahşap tezgâhta kıvılcımlar, saat kulesinde tik-taklar, lunaparkta konfeti, uzayda kayan yıldızlar.
 
-39 ŞEKİL, BİR ALBÜM
-Kedi, ayıcık, ejderha, fil, robot, çalar saat, füze, gezegen... Halkalardan oluşan bu şekiller parmaklıkların arkasında seni bekliyor. Kurtardıkların albümünde toplanır.
+59 ŞEKİL, BİR ALBÜM
+Kedi, ayıcık, ejderha, fil, robot, füze, maymun, balina, deniz feneri, teleskop... Halkalardan oluşan bu şekiller parmaklıkların arkasında seni bekliyor. Kurtardıkların albümünde toplanır.
 
 YILDIZ, ROZET VE ALTIN
-Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 25 rozetle ilerlemeni taçlandır. Halkaların arasındaki altınları topla.
+Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 28 rozetle ilerlemeni taçlandır. Halkaların arasındaki altınları topla.
 
 SANDIKLAR VE ÇIKARTMALAR
 Bazı halkaların içinde sandık saklı. Halkayı kurtar, sandık açılsın: sıradan, nadir ya da efsane! Altın halka bölümün altınlarını ikiye katlar, ampul halkası sana ampul kazandırır. Her dünyanın 5 parçalı bir çıkartması var; parçaları topla, koleksiyonunu tamamla. Her gün oyunu açınca günlük sandığın seni bekler, yedinci gün efsane sandık!
@@ -59,7 +63,13 @@ Türkçe ve İngilizce oynanır.
 Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda saklanır.
 ```
 
-## Bu sürümdeki yenilikler (2.3, en fazla 500 karakter)
+## Bu sürümdeki yenilikler (2.4, en fazla 500 karakter)
+
+```
+Yeni dünyalar! 100 yeni bölüm ve 4 yeni dünya: Lunapark, Santral, Deniz Feneri, Rasathane. Beş yeni parça: yaylı halka, jetonlu halka, şalter, nabız halka ve döner tabla; her birini animasyonlu bir kart anlatır. 20 yeni şekil, 4 yeni çıkartma, 3 yeni rozet. 200. bölümde Büyük Makine yeni dünyaları açar, 300. bölümde seni Yıldız Haritası bekler. İlerlemen korunur.
+```
+
+## Önceki sürümün yenilikleri (2.3)
 
 ```
 İngilizce dil desteği! Oyun telefonunun diline göre açılır; ayarlardan Türkçe ve English arasında geçebilirsin. Başlıklardaki uzun "f" harfi düzeltildi.
@@ -136,8 +146,8 @@ WHY YOU'LL LOVE IT
 • No internet needed. Play anywhere.
 • No personal data collected. Your progress stays on your phone.
 
-8 WORLDS, 20 GATES, 200 LEVELS
-A journey from Beginner Valley to the Great Machine. Each gate has ten levels that go from easy to hard: the first levels are roomy and short, the last ones are tight and tricky, and every gate is a little harder than the one before. As you pass the gates, new worlds open and your title grows: Apprentice, Journeyman, Wanderer, Mechanic, Clockmaker... and finally Ring Master. The Great Machine is waiting at the end of the journey.
+12 WORLDS, 30 GATES, 300 LEVELS
+A journey from Beginner Valley to the stars of the Observatory. Each gate has ten levels that go from easy to hard: the first levels are roomy and short, the last ones are tight and tricky, and every gate is a little harder than the one before. As you pass the gates, new worlds open and your title grows: Apprentice, Journeyman, Wanderer, Mechanic, Clockmaker... Ring Master, Acrobat, Electrician and finally Astronomer. At level 200 the Great Machine starts running, and the Star Map is waiting at the end of the journey.
 
 EVERY WORLD HAS ITS OWN RULE
 • Workshop: Reverse gears. When one turns right, its partner turns left.
@@ -146,13 +156,17 @@ EVERY WORLD HAS ITS OWN RULE
 • City: Frames never move. Free the rings around them.
 • Factory: Fast gears turn their partners twice as far.
 • Space and Grand Master: Everything you have learned, all together.
-Every world has its own look, background sound and particles: sparks on the wooden workbench, ticking in the clock tower, shooting stars in space.
+• Funfair: Spring rings kick their neighbor as they fly off. Token rings won't turn without a token.
+• Power Plant: The switch lets only one of two colors turn.
+• Lighthouse: A pulse ring's gap opens and closes with every move. Catch the rhythm.
+• Observatory: Turntables swap the rings they carry.
+The first time you meet a new piece, an animated card shows you how it works. Every world has its own look, background sound and particles: sparks on the wooden workbench, ticking in the clock tower, confetti at the funfair, shooting stars in space.
 
-39 SHAPES, ONE ALBUM
-A cat, a teddy bear, a dragon, an elephant, a robot, an alarm clock, a rocket, a planet... These shapes made of rings are waiting behind bars. The ones you rescue are collected in your album.
+59 SHAPES, ONE ALBUM
+A cat, a teddy bear, a dragon, an elephant, a robot, a rocket, a monkey, a whale, a lighthouse, a telescope... These shapes made of rings are waiting behind bars. The ones you rescue are collected in your album.
 
 STARS, BADGES AND COINS
-Finish a level in the fewest moves to earn 3 stars. Finish every level of a gate with 3 stars to earn a gold gate reward. Crown your progress with 25 badges. Collect the coins between the rings. Free several rings in one move and the game cheers you on: Nice! Great! Amazing! Finish in the fewest moves without a hint: Flawless!
+Finish a level in the fewest moves to earn 3 stars. Finish every level of a gate with 3 stars to earn a gold gate reward. Crown your progress with 28 badges. Collect the coins between the rings. Free several rings in one move and the game cheers you on: Nice! Great! Amazing! Finish in the fewest moves without a hint: Flawless!
 
 CHESTS AND STICKERS
 Some rings hide a chest. Free the ring and the chest opens: common, rare or epic! A gold ring doubles the level's coins, and a bulb ring gives you a bulb. Every world has a 5-piece sticker; collect the pieces and complete your collection. Your daily chest waits for you every day, and on the seventh day it's an epic chest!
@@ -168,7 +182,13 @@ Plays in English and Turkish.
 Privacy: The game collects no personal data. Your progress is stored only on your phone.
 ```
 
-## What's new (2.3, max 500 characters)
+## What's new (2.4, max 500 characters)
+
+```
+New worlds! 100 new levels and 4 new worlds: Funfair, Power Plant, Lighthouse and Observatory. Five new pieces: spring rings, token rings, switches, pulse rings and turntables, each explained by an animated card. 20 new shapes, 4 new stickers and 3 new badges. At level 200 the Great Machine opens the new worlds, and the Star Map waits for you at level 300. Your progress is kept.
+```
+
+## Previous release (2.3)
 
 ```
 English is here! The game follows your phone’s language, and you can switch between English and Turkish in Settings. Levels now go from roomy and easy to tight and hard in every gate, and each gate is a step up from the last. Free several rings in one move to hear "Nice!", "Great!", "Amazing!"; finish in the fewest moves for "Flawless!".

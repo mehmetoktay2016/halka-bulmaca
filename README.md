@@ -33,13 +33,19 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
   bitirince "Kusursuz!" (ipucusuz) ya da "Mükemmel!".
 - Dil (2.3): Türkçe ve İngilizce. Oyun telefonun diline göre açılır (Türkçe değilse İngilizce), ayarlardan
   değişir. Metnin Türkçesi anahtardır: `tr('Türkçe metin')`, sözlük `i18n_en.js`. Yeni metin eklerken iki dili birlikte yaz.
+- Yeni dünyalar (2.4): 100 bölüm daha, 4 dünya ve 5 yeni parça. Yaylı halka kurtulunca değdiği halkayı çeyrek
+  tur iter; jetonlu halka jetonsuz dönmez, jetonu başka halka taşır; şalter iki renkten yalnız birini döndürür;
+  nabız halkanın boşluk kapağı her hamlede açılıp kapanır; döner tabla üstündeki iki halkanın yerini değiştirir.
+  Her parça ilk görüldüğünde animasyonlu bir kartla anlatılır, koleksiyonda Parçalar sekmesinde durur.
+  Kapı 21-30'un zorluğu artmaz, kapı 20 düzeyinde kalır (`PLATEAU`).
 
-200 bölüm 20 kapıya, kapılar 8 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
-Fabrika, Uzay, Büyük Usta). Her kapının 5. bölümü bir ara şekil, 10. bölümü bir şekil finalidir; her
-dünya kendi mekaniğinin tanıtımıyla açılır. 200. bölüm bitince Büyük Makine kapanış sahnesi gelir.
+300 bölüm 30 kapıya, kapılar 12 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
+Fabrika, Uzay, Büyük Usta, Lunapark, Santral, Deniz Feneri, Rasathane). Her kapının 5. bölümü bir ara şekil,
+10. bölümü bir şekil finalidir; her dünya kendi mekaniğinin tanıtımıyla açılır. 200. bölüm bitince Büyük
+Makine sahnesi gelir ve yeni dünyalar açılır; 300. bölüm bitince Yıldız Haritası finali gelir.
 
 Geliştirme adresleri: `?level=N` (N. bölüm), `?src=N` (kaynak numarasıyla önizleme, kayda yazmaz),
-`?world=atolye`, `?gallery` (bütün şekiller), `?ending` (kapanış sahnesi), `?debug`.
+`?world=atolye`, `?gallery` (bütün şekiller), `?ending` (Büyük Makine), `?ending=finale` (Yıldız Haritası), `?debug`.
 
 ## GitHub Pages ile yayınlama
 
@@ -63,15 +69,16 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 |---|---|
 | `index.html`, `style.css` | Sayfa ve tasarım |
 | `logic.js` | Kurallar: kesişimler, serbest kalma, çözücüler |
-| `levels.js` | El yapımı bölümler, mekanik tanıtımları (1001-1005), deneme bölümleri, 39 şekil ve şekil planı, bölüm üreticileri, kapı sırası |
+| `levels.js` | El yapımı bölümler, mekanik tanıtımları (1001-1010), deneme bölümleri, 59 şekil ve şekil planı, bölüm üreticileri, kapı sırası |
 | `levels_data.js` | Önceden üretilmiş bölümler (elle düzenlenmez) |
 | `worlds.js` | Yolculuk: dünyalar, kapılar, unvanlar, dünya temaları |
 | `save.js` | Oyuncu kaydı: yükleme, eski sürümden taşıma, kilit sınırı |
 | `i18n.js`, `i18n_en.js` | Dil desteği: `tr()` çevirisi, dil seçimi; İngilizce sözlük (tekil/çoğul) |
-| `achievements.js` | 25 rozet: kurallar ve ödüller |
+| `achievements.js` | 28 rozet: kurallar ve ödüller |
 | `rewards.js` | Ödül ekonomisi: fiyatlar, sandık/altın halka/ampul halkası yerleri ve içerikleri, çıkartma parçaları, günlük sandık, mağaza ürünleri |
 | `loot_data.js` | Her bölümde ödül taşıyabilecek halkalar ve konumları (`tools/build_loot.js` üretir, elle düzenlenmez) |
-| `stickers.js` | 8 dünyanın çıkartma çizimleri ve parça işareti |
+| `stickers.js` | 12 dünyanın çıkartma çizimleri ve parça işareti |
+| `pieces.js` | 10 parçanın kullanma kartları: adı, anlatımı ve animasyonlu çizimi |
 | `deco.js` | Şekil süsleri: hayvan yüzleri, ayarlanabilir yüz, eşyalar (tekerlek, saat, dişli...) |
 | `scenery.js` | Dünyaların tahta dokuları ve arka plan parçacıkları |
 | `ambience.js` | Dünyaların ortam sesleri (WebAudio ile üretilir) |
@@ -87,6 +94,7 @@ Telefonda bu adresi açıp "Ana ekrana ekle" dersen oyun kendi simgesiyle, tam e
 | `tools/balance.js` | Denge testi: 200 bölümü yalnızca ipucuyla oynar, ipucu hızını ve ekonomiyi ölçer |
 | `tools/build_levels.js` | `node tools/build_levels.js 90 195` → bölümleri yeniden üretir |
 | `tools/build_range.js` | Zor tek bir bölümü aday aralığında üretir (paralel arama için) |
+| `tools/build_parallel.js` | `node tools/build_parallel.js 2 21 30` → kapıları birkaç süreçte üretir; her bölümü bitince `tools/out`'a yazar, durursa kaldığı yerden devam eder |
 | `tools/store_shots.js` | Mağaza ekran görüntülerini ve öne çıkan görseli üretir |
 | `tools/autoplay.js` | Tarayıcıda otomatik oynatma testi (`index.html?level=5&debug&autoplay`) |
 
