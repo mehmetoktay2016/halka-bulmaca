@@ -2267,39 +2267,57 @@
       return;
     }
     if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
-    // Son bölüm ilk kez bitince: Büyük Makine kapanışı, sonra harita
-    if (S.levelNo === TOTAL && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding(); return; }
+    // 200. bölüm ilk kez bitince Büyük Makine (yeni dünyalar açılır), son bölüm ilk kez bitince Yıldız Haritası finali
+    if (S.levelNo === MACHINE_END && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding('machine'); return; }
+    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards.finale) { $('win').classList.add('hidden'); showEnding('finale'); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
-  // ---- Büyük Makine: yolculuğun kapanışı ----
-  // Oyunun halka renklerindeki 8 halka (bir dünyaya bir halka) dört bir yandan uçup altın merkez halkanın
-  // çevresinde makineyi kurar, makine dişliler gibi döner, kıvılcımlar saçılır; ardından yolculuğun özeti gelir.
-  const END_RINGS = COLORS.slice(0, LIVE_WORLDS.length);
+  // ---- Büyük Makine (200. bölüm) ve Yıldız Haritası (son bölüm): yolculuğun kapanışları ----
+  // Büyük Makine: ilk 8 dünyanın halkası dört bir yandan uçup altın merkez halkanın çevresinde makineyi kurar,
+  // makine dişliler gibi döner, kıvılcımlar saçılır. Ardından yeni dünyalar açılır.
+  // Yıldız Haritası: 12 dünyanın halkası (dünyanın kendi renginde) yıldız çemberine oturur, aralarına takımyıldız
+  // çizgileri çekilir, altın merkez halka hepsini döndürür. İkisinde de ardından yolculuğun özeti gelir.
+  const MACHINE_END = 20 * W.GATE_SIZE;
+  const END_RINGS = {
+    machine: COLORS.slice(0, 8),
+    finale: LIVE_WORLDS.map(w => w.theme.accent),
+  };
   let endingRun = null;
-  function showEnding(replay) {
+  function showEnding(kind, replay) {
     if (!replay) {
-      progress.rewards.ending = today();
+      progress.rewards[kind === 'finale' ? 'finale' : 'ending'] = today();
       saveProgress();
     }
     const el = $('ending');
-    el.className = 'ending';
+    el.className = 'ending ' + kind;
     el.hidden = false;
-    const shapes = shapeLevels();
+    // Büyük Makine yalnız ilk 200 bölümü sayar
+    const last = kind === 'finale' ? TOTAL : Math.min(TOTAL, MACHINE_END);
+    const nums = ORDER.map((_, i) => i + 1).filter(n => n <= last);
+    const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
-    const perfect = Object.values(progress.stars).filter(v => v === 3).length;
+    const perfect = nums.filter(n => starsOf(n) === 3).length;
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Yolculuğun sonu') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Yıldız Haritası tamamlandı!') : tr('Büyük Makine çalıştı!');
+    $('endingLead').textContent = kind === 'finale'
+      ? tr('{n} bölümün hepsini bitirdin. Bütün dünyaların ustası sensin.', { n: TOTAL })
+      : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
-      [`${totalStars()}`, tr('/ {n} yıldız', { n: TOTAL * 3 })],
+      [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],
       [`${earned}`, tr('/ {n} rozet', { n: B.BADGES.length })],
       [`${shapes.filter(n => starsOf(n)).length}`, tr('/ {n} şekil', { n: shapes.length })],
       [fmt(progress.stats.coinsTotal || 0), tr('altın')],
     ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
-    const missing = TOTAL - perfect;
-    $('endingMore').textContent = missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
+    const missing = last - perfect;
+    $('endingMore').textContent = kind === 'machine' && TOTAL > MACHINE_END
+      ? tr('Yeni dünyalar açıldı: {names}. Yolculuk sürüyor.', { names: LIVE_WORLDS.slice(8).map(w => tr(w.name)).join(', ') })
+      : missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
+    $('endingGo').textContent = kind === 'machine' && TOTAL > MACHINE_END ? tr('Yeni dünyalara') : tr('Haritaya dön');
     const quick = REDUCED || !fxOn();
     const t0 = performance.now();
-    endingRun = { t0, sparks: [] };
+    endingRun = { t0, sparks: [], kind };
     setTimeout(() => el.classList.add('show-title'), quick ? 0 : 2500);
     setTimeout(() => el.classList.add('show-stats'), quick ? 0 : 3300);
     setTimeout(() => el.classList.add('show-go'), quick ? 0 : 3900);
@@ -2325,7 +2343,7 @@
     g.clearRect(0, 0, w, h);
     const quick = REDUCED || !fxOn();
     const t = quick ? 99 : (now - run.t0) / 1000;
-    const cx = w / 2, cy = h * 0.34, R = Math.min(w * 0.33, 130), r = R * 0.36;
+    const cx = w / 2, cy = h * (run.kind === 'finale' ? 0.3 : 0.34), R = Math.min(w * 0.33, 130), r = R * 0.36;
     const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
     // Arkada dönen ışık hüzmeleri (makine çalışınca)
     const run2 = ease((t - 1.8) / 0.8);
@@ -2354,15 +2372,47 @@
       }
       g.restore();
     };
-    // 8 dünya halkası: dört bir yandan uçup yerine oturur, sonra dişli gibi zıt yönlerde döner
-    END_RINGS.forEach((col, k) => {
-      const a = -Math.PI / 2 + k * Math.PI / 4;
-      const tx = cx + Math.cos(a) * R, ty = cy + Math.sin(a) * R;
+    // Dünya halkaları: dört bir yandan uçup yerine oturur, sonra dişli gibi zıt yönlerde döner.
+    // Büyük Makine 8 halka; Yıldız Haritası 12 halka (daha küçük, daha geniş çember) ve aralarında takımyıldız çizgileri.
+    const finale = run.kind === 'finale';
+    const cols = END_RINGS[finale ? 'finale' : 'machine'], n = cols.length;
+    const RR = R, rr = finale ? R * 0.19 : r;
+    if (finale) {
+      // Arkada göz kırpan yıldızlar (yerleri sabit tohumdan)
+      const rnd = window.RingRewards.rng(300);
+      for (let k = 0; k < 70; k++) {
+        const sx = rnd() * w, sy = rnd() * h * 0.7, ph = rnd() * 6.28;
+        g.globalAlpha = Math.min(1, t / 1.5) * (0.35 + 0.35 * Math.sin(t * 2 + ph));
+        g.fillStyle = '#fff7d6';
+        g.beginPath(); g.arc(sx, sy, rnd() < 0.15 ? 1.8 : 1, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+    const spots = cols.map((_, k) => {
+      const a = -Math.PI / 2 + k * 2 * Math.PI / n;
+      const p = ease((t - k * (finale ? 0.1 : 0.14)) / 0.9);
+      const tx = cx + Math.cos(a) * RR, ty = cy + Math.sin(a) * RR;
       const fx = cx + Math.cos(a) * Math.max(w, h), fy = cy + Math.sin(a) * Math.max(w, h);
-      const p = ease((t - k * 0.14) / 0.9);
-      const x = fx + (tx - fx) * p, y = fy + (ty - fy) * p;
+      return { a, p, x: fx + (tx - fx) * p, y: fy + (ty - fy) * p };
+    });
+    if (finale) {
+      // Takımyıldız: komşu halkalar ve her üçüncü halka arası çizgiler sırayla çizilir
+      const line = ease((t - 2.0) / 1.6);
+      if (line > 0) {
+        g.save(); g.strokeStyle = 'rgba(255, 247, 214, .45)'; g.lineWidth = 1.5; g.setLineDash([4, 5]);
+        const pairs = cols.map((_, k) => [k, (k + 1) % n]).concat(cols.map((_, k) => [k, (k + 4) % n]).filter((_, k) => k % 2 === 0));
+        pairs.forEach(([i, j], q) => {
+          const f = Math.min(1, Math.max(0, line * pairs.length - q));
+          if (f <= 0) return;
+          const A = spots[i], Bp = spots[j];
+          g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(A.x + (Bp.x - A.x) * f, A.y + (Bp.y - A.y) * f); g.stroke();
+        });
+        g.restore();
+      }
+    }
+    spots.forEach((s, k) => {
       const spin = run2 * (t - 1.8) * (k % 2 ? -1.6 : 1.6);
-      ring(x, y, r, col, a + spin, 9, Math.min(1, p * 1.5));
+      ring(s.x, s.y, rr, cols[k], s.a + spin, finale ? 7 : 9, Math.min(1, s.p * 1.5));
     });
     // Altın merkez halka: halkalar yerleşince belirir, sonra hepsini döndürür
     const core = ease((t - 1.4) / 0.6);
@@ -3787,10 +3837,11 @@
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
   } else if (params.has('ending')) {
-    // Geliştirme: ?ending kapanış sahnesini kayda dokunmadan gösterir
-    applyWorld(W.worldOfGate(GATE_COUNT));
+    // Geliştirme: ?ending (Büyük Makine) ya da ?ending=finale kapanış sahnesini kayda dokunmadan gösterir
+    const kind = params.get('ending') === 'finale' ? 'finale' : 'machine';
+    applyWorld(W.worldOfGate(kind === 'finale' ? GATE_COUNT : Math.min(GATE_COUNT, MACHINE_END / W.GATE_SIZE)));
     showScreen('home');
-    showEnding(true);
+    showEnding(kind, true);
   } else if (params.has('src')) {
     // Geliştirme: ?src=1001 bir bölümü kaynak numarasıyla açar (kapıya yerleşmemiş tanıtımlar için)
     loadPreview(parseInt(params.get('src'), 10));
