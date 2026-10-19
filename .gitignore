@@ -4,3 +4,4 @@ www/
 dist/
 *.jks
 *.keystore
+tools/out/

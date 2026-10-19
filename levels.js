@@ -388,25 +388,27 @@
     88: { name: 'Zürafa', gate: 20, role: 'mid', target: 6.5, bars: 0 },
     89: { name: 'Büyük Makine', gate: 20, role: 'final', target: 10.5, bars: 2 },
     // 2.4 (Y8): kapı 21-30'un ara şekilleri ve finalleri. Kaynak numaraları 2001'den başlar (bölüm kimliği).
-    // Hedefler geçici; Y9'da her şeklin ulaşabildiği zorluğa göre ölçülerek ayarlanır.
-    2001: { name: 'Maymun', gate: 21, role: 'mid', target: 7.50, bars: 2 },
-    2002: { name: 'Dönme Dolap', gate: 21, role: 'final', target: 9.50, bars: 3 },
+    // Hedefler Y9'da ölçüldü (her çubuk/kafes ayarında ulaşılabilen en yüksek zorluk). Kafes (3 paralel çubuk)
+    // birçok şeklin etrafına sığmıyor: onlarda çubuklar serbest (cage: false). Kapı 21, 23 ve 27'de final
+    // şekli yeterince zorlaşamadığı için ara şekille rolü değiştirildi.
+    2001: { name: 'Maymun', gate: 21, role: 'final', target: 9.50, bars: 3 },
+    2002: { name: 'Dönme Dolap', gate: 21, role: 'mid', target: 7.20, bars: 2, cage: false },
     2003: { name: 'Fok', gate: 22, role: 'mid', target: 7.65, bars: 2 },
-    2004: { name: 'Atlıkarınca', gate: 22, role: 'final', target: 9.62, bars: 3 },
-    2005: { name: 'Kanguru', gate: 23, role: 'mid', target: 7.80, bars: 2 },
-    2006: { name: 'Flamingo', gate: 23, role: 'final', target: 9.74, bars: 3 },
+    2004: { name: 'Atlıkarınca', gate: 22, role: 'final', target: 9.62, bars: 2 },
+    2005: { name: 'Kanguru', gate: 23, role: 'final', target: 9.50, bars: 3 },
+    2006: { name: 'Flamingo', gate: 23, role: 'mid', target: 7.60, bars: 2, cage: false },
     2007: { name: 'Ateş Böceği', gate: 24, role: 'mid', target: 7.95, bars: 2 },
     2008: { name: 'Ampul', gate: 24, role: 'final', target: 9.86, bars: 3 },
-    2009: { name: 'Yılan Balığı', gate: 25, role: 'mid', target: 8.10, bars: 2 },
+    2009: { name: 'Yılan Balığı', gate: 25, role: 'mid', target: 8.10, bars: 2, cage: false },
     2010: { name: 'Kunduz', gate: 25, role: 'final', target: 9.98, bars: 3 },
     2011: { name: 'Yengeç', gate: 26, role: 'mid', target: 8.25, bars: 2 },
-    2012: { name: 'Deniz Feneri', gate: 26, role: 'final', target: 10.10, bars: 3 },
-    2013: { name: 'Martı', gate: 27, role: 'mid', target: 8.40, bars: 2 },
-    2014: { name: 'Balina', gate: 27, role: 'final', target: 10.22, bars: 3 },
+    2012: { name: 'Deniz Feneri', gate: 26, role: 'final', target: 9.10, bars: 3, cage: false },
+    2013: { name: 'Martı', gate: 27, role: 'final', target: 9.60, bars: 3 },
+    2014: { name: 'Balina', gate: 27, role: 'mid', target: 8.00, bars: 2 },
     2015: { name: 'Denizatı', gate: 28, role: 'mid', target: 8.55, bars: 2 },
-    2016: { name: 'Yunus', gate: 28, role: 'final', target: 10.34, bars: 3 },
+    2016: { name: 'Yunus', gate: 28, role: 'final', target: 9.30, bars: 3, cage: false },
     2017: { name: 'Rakun', gate: 29, role: 'mid', target: 8.70, bars: 2 },
-    2018: { name: 'Teleskop', gate: 29, role: 'final', target: 10.46, bars: 3 },
+    2018: { name: 'Teleskop', gate: 29, role: 'final', target: 10.40, bars: 3, cage: false },
     2019: { name: 'Kurt', gate: 30, role: 'mid', target: 8.85, bars: 2 },
     2020: { name: 'Gözlemevi', gate: 30, role: 'final', target: 10.58, bars: 3 },
   };
@@ -798,12 +800,13 @@
       couples: [[1, 2, -1], [3, 4, -1]],
       deco: [{ring: 0, type: 'gear'}, {ring: 1, type: 'gear', dir: -1}, {ring: 2, type: 'gear', dir: -1}, {ring: 3, type: 'gear', dir: -1}, {ring: 4, type: 'gear', dir: -1}] },
     // ---- 2.4 (Y8): kapı 21-30'un 20 yeni şekli ----
+    // Koyu renkler yeni dünyaların zemininde en az 3:1 kontrast için açıldı (Y9, tools/check_themes.js)
     { name: 'Maymun',
       rings: [
         {x: 0, y: 0, r: 70, color: '#c08552'},
         {x: -78, y: 0, r: 34, color: '#e0b48a'},
         {x: 78, y: 0, r: 34, color: '#e0b48a'},
-        {x: 0, y: 99, r: 62, color: '#a0673c'},
+        {x: 0, y: 99, r: 62, color: '#ab7953'},
         {x: 39.9, y: 146.5, r: 26, color: '#e0b48a', step: 45},
       ],
       couples: [[1, 2]],
@@ -823,8 +826,8 @@
         {x: 0, y: 0, r: 62, color: '#8d99ae'},
         {x: 0, y: -62, r: 26, color: '#ff6b6b'},
         {x: 0, y: 100.5, r: 72, color: '#a3b1c6'},
-        {x: -65.8, y: 138.5, r: 30, color: '#6c7a92'},
-        {x: 65.8, y: 138.5, r: 30, color: '#6c7a92'},
+        {x: -65.8, y: 138.5, r: 30, color: '#78859b'},
+        {x: 65.8, y: 138.5, r: 30, color: '#78859b'},
       ],
       couples: [[3, 4, -1]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'big', nose: 'oval', mouth: 'w', extras: ['whiskers', 'cheeks']}}, {ring: 1, type: 'ball'}] },
@@ -886,11 +889,11 @@
       deco: [{ring: 0, type: 'face', look: {eyes: 'big', nose: 'none', mouth: 'open', extras: ['cheeks']}}, {ring: 2, type: 'bolt'}] },
     { name: 'Kunduz',
       rings: [
-        {x: 0, y: 0, r: 66, color: '#a0673c'},
-        {x: -27.9, y: -59.8, r: 24, color: '#7a4a2a'},
-        {x: 59.8, y: -27.9, r: 24, color: '#7a4a2a'},
+        {x: 0, y: 0, r: 66, color: '#ab7953'},
+        {x: -27.9, y: -59.8, r: 24, color: '#9f7d66'},
+        {x: 59.8, y: -27.9, r: 24, color: '#9f7d66'},
         {x: 0, y: 103.4, r: 70, color: '#c08552'},
-        {x: 72.7, y: 145.4, r: 40, color: '#5a3d2b'},
+        {x: 72.7, y: 145.4, r: 40, color: '#927f73'},
       ],
       couples: [[1, 2]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'round', nose: 'oval', mouth: 'buckteeth', extras: ['cheeks']}}, {ring: 4, type: 'tailx'}] },
@@ -926,8 +929,8 @@
       rings: [
         {x: 0, y: 0, r: 92, color: '#4895ef'},
         {x: 0, y: -94, r: 28, color: '#cfefff'},
-        {x: 99.2, y: 36.1, r: 40, color: '#3a7bd5'},
-        {x: 137.3, y: 14.1, r: 30, color: '#3a7bd5', step: 60},
+        {x: 99.2, y: 36.1, r: 40, color: '#4683d8'},
+        {x: 137.3, y: 14.1, r: 30, color: '#4683d8', step: 60},
         {x: -86.5, y: 31.5, r: 26, color: '#7cc4ff'},
       ],
       deco: [{ring: 0, type: 'face', look: {eyes: 'round', nose: 'none', mouth: 'smile', extras: ['cheeks'], eyeX: 0.35}}, {ring: 1, type: 'spout'}] },
@@ -952,10 +955,10 @@
     { name: 'Rakun',
       rings: [
         {x: 0, y: 0, r: 66, color: '#9a9aaa'},
-        {x: -42.4, y: -50.6, r: 26, color: '#6c6c7c'},
-        {x: 42.4, y: -50.6, r: 26, color: '#6c6c7c'},
+        {x: -42.4, y: -50.6, r: 26, color: '#81818e'},
+        {x: 42.4, y: -50.6, r: 26, color: '#81818e'},
         {x: 0, y: 97.3, r: 62, color: '#b4b4c4'},
-        {x: 67, y: 85.5, r: 32, color: '#6c6c7c'},
+        {x: 67, y: 85.5, r: 32, color: '#81818e'},
         {x: 93, y: 63.6, r: 28, color: '#d6d6e2'},
       ],
       couples: [[1, 2, -1]],
@@ -964,7 +967,7 @@
       rings: [
         {x: 0, y: 0, r: 40, color: '#c3a6ff'},
         {x: -55.4, y: 32, r: 50, color: '#8a6cff'},
-        {x: -126.4, y: 73, r: 58, color: '#6a4fd0'},
+        {x: -126.4, y: 73, r: 58, color: '#8872d9'},
         {x: -126.4, y: 139, r: 34, color: '#c3cada'},
         {x: -68.6, y: 78.1, r: 26, color: '#ffc94a'},
       ],
@@ -973,8 +976,8 @@
     { name: 'Kurt',
       rings: [
         {x: 0, y: 0, r: 62, color: '#8d99ae'},
-        {x: -35.6, y: -50.8, r: 26, color: '#6c7a92'},
-        {x: 35.6, y: -50.8, r: 26, color: '#6c7a92'},
+        {x: -35.6, y: -50.8, r: 26, color: '#78859b'},
+        {x: 35.6, y: -50.8, r: 26, color: '#78859b'},
         {x: 0, y: 97.3, r: 66, color: '#a3b1c6'},
         {x: 75.2, y: -27.4, r: 44, color: '#fff3b0'},
       ],
@@ -986,8 +989,8 @@
         {x: 0, y: 113.9, r: 66, color: '#8a6cff'},
         {x: 67.4, y: -56.6, r: 34, color: '#ffc94a'},
         {x: -61.3, y: -51.4, r: 26, color: '#7cc4ff'},
-        {x: 64.1, y: 150.9, r: 34, color: '#6a4fd0'},
-        {x: -64.1, y: 150.9, r: 34, color: '#6a4fd0'},
+        {x: 64.1, y: 150.9, r: 34, color: '#8872d9'},
+        {x: -64.1, y: 150.9, r: 34, color: '#8872d9'},
       ],
       couples: [[2, 3, -1], [4, 5]],
       deco: [{ring: 0, type: 'dome'}, {ring: 1, type: 'door'}, {ring: 2, type: 'moon'}, {ring: 3, type: 'sparkle'}] },
@@ -1024,10 +1027,12 @@
       0.3 * n(r => r.fixed) + 0.3 * n(r => r.type === 'bar') + 0.2 * n(r => r.gaps && r.gaps.length > 1) +
       0.4 * ratios.filter(r => r === -1).length + 0.5 * ratios.filter(r => Math.abs(r) !== 1).length +
       0.4 * n(r => r.step) + 0.5 * n(r => r.lockedBy != null) + 0.4 * n(r => r.type === 'frame') +
-      0.5 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
-      0.5 * n(r => r.tokens != null) + 0.2 * n(r => r.token != null) +
-      (def.switch != null ? 0.6 + 0.1 * n(r => r.side != null) : 0) + 0.6 * n(r => r.pulse != null) +
-      (def.table ? 0.8 : 0);
+      // 2.4 parçaları: hamleyi az değiştirse de sırayı ve zamanlamayı önceden düşünmeyi gerektirir
+      // (Y9'da ölçüldü: daha küçük ağırlıklarla 10 hamlelik bölüm bile kapı zirvelerine ulaşamıyordu)
+      0.8 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
+      1.0 * n(r => r.tokens != null) + 0.3 * n(r => r.token != null) +
+      (def.switch != null ? 1.0 + 0.15 * n(r => r.side != null) : 0) + 1.0 * n(r => r.pulse != null) +
+      (def.table ? 1.5 : 0);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1192,7 +1197,7 @@
   // normal bölümler, 5. sırada ara şekil, sonda final. Normal bölümler 90'dan başlayan kaynak
   // numaralarıyla kendi kapılarının dünyasına göre üretilir (NORMAL_PLAN: kapı ve hedef zorluk).
   const OLD_GATES = 6;
-  const LAST_GATE = 20;
+  const LAST_GATE = 30; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane)
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
@@ -1200,8 +1205,12 @@
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
+  // 2.4 (kullanıcı kararı): kapı 21-30'da zorluk artmaz, kapı 20'de ulaşılan düzeyde sabit kalır. Her kapı
+  // kapı 20 gibi önceki zirvenin 2,5 altından başlar ve aynı zirveye (15,7) çıkar (kapı içi testere dişi korunur).
   const GATE_PEAK = { 7: 12.6, 8: 12.75, 9: 12.9, 10: 13.05, 11: 13.2, 12: 13.5, 13: 13.75, 14: 14.0,
-    15: 14.25, 16: 14.5, 17: 14.8, 18: 15.1, 19: 15.4, 20: 15.7 };
+    15: 14.25, 16: 14.5, 17: 14.8, 18: 15.1, 19: 15.4, 20: 15.7,
+    21: 15.7, 22: 15.7, 23: 15.7, 24: 15.7, 25: 15.7, 26: 15.7, 27: 15.7, 28: 15.7, 29: 15.7, 30: 15.7 };
+  const PLATEAU = 21; // bu kapıdan sonra zirveler artmaz (check_levels de buna göre denetler)
   const OLD_PEAK = 12.5; // 6. kapının zirvesi
   const GATE_DROP = 2.5; // yeni kapının ilk normal bölümü önceki zirvenin bu kadar altından başlar
   const maxParOfGate = g => (g >= 17 ? 10 : g >= 12 ? 9 : MAX_PAR);
@@ -1220,7 +1229,7 @@
       for (let j = 0; j < slots; j++) {
         const f = j / (slots - 1);
         NORMAL_PLAN[src++] = { gate: g, target: Math.round((start + (peak - start) * f) * 100) / 100, peak: j === slots - 1,
-          top: GATE_PEAK[g + 1] || peak + 0.3, near: NEAR_EASY + (NEAR_HARD - NEAR_EASY) * f };
+          top: GATE_PEAK[g + 1] > peak ? GATE_PEAK[g + 1] : peak + 0.4, near: NEAR_EASY + (NEAR_HARD - NEAR_EASY) * f };
       }
       prevPeak = peak;
     }
@@ -1251,6 +1260,11 @@
     180, 181, 182, 183, 86, 184, 185, 186, 187, 87,
     188, 189, 190, 191, 88, 192, 193, 194, 195, 89,
   ];
+  // 2.4: kapı 21-30 sona eklenir: (tanıtım) + normal bölümler + ara şekil + final
+  for (let g = 21; g <= LAST_GATE; g++) {
+    const normals = Object.keys(NORMAL_PLAN).map(Number).filter(s => NORMAL_PLAN[s].gate === g);
+    LAYOUT.push(...(WORLD_INTRO[g] ? [WORLD_INTRO[g]] : []), ...normals.slice(0, 4), shapeOf(g, 'mid'), ...normals.slice(4), shapeOf(g, 'final'));
+  }
   // Kapının normal bölümleri (şekiller ve dünya tanıtımı hariç), LAYOUT'taki sırayla
   const gateNormals = g => LAYOUT.slice((g - 1) * GATE_LEN, g * GATE_LEN)
     .filter(s => !SHAPE_PLAN[s] && s !== WORLD_INTRO[g]);
@@ -1332,8 +1346,22 @@
   // Dünyaya göre mekanikler: Atölye ters dişli, Saat Kulesi tıklı halka, Zindan kilit,
   // Şehir çerçeve, Fabrika hızlı dişli; Uzay ve Büyük Usta hepsini karıştırır.
   const WORLD_MECH = { 7: ['reverse'], 8: ['reverse'], 9: ['click'], 10: ['click'], 11: ['key'], 12: ['key'],
-    13: ['frame'], 14: ['frame'], 15: ['fast'], 16: ['fast'] };
+    13: ['frame'], 14: ['frame'], 15: ['fast'], 16: ['fast'],
+    // 2.4: Lunapark yay ve jeton, Santral şalter, Deniz Feneri nabız, Rasathane döner tabla
+    21: ['kick'], 22: ['token'], 23: ['kick', 'token'], 24: ['switch'], 25: ['switch'], 26: ['pulse'], 27: ['pulse'], 28: ['pulse'],
+    29: ['table'], 30: ['table'] };
+  // Kapı 21-30'da dünyanın kendi parçasına yarı yarıya daha önce tanıtılmış bir parça eşlik eder
+  const NEW_MECH_GATE = { kick: 21, token: 22, switch: 24, pulse: 26, table: 29 };
   function mechanicsFor(gate, rnd) {
+    if (gate >= 21) {
+      const own = WORLD_MECH[gate].slice();
+      if (rnd() < 0.5) {
+        const pool = ['reverse', 'click', 'key', 'fast', ...Object.keys(NEW_MECH_GATE).filter(m => NEW_MECH_GATE[m] < gate && m !== 'table')]
+          .filter(m => !own.includes(m));
+        own.push(pool[Math.floor(rnd() * pool.length)]);
+      }
+      return own;
+    }
     if (WORLD_MECH[gate]) {
       const own = WORLD_MECH[gate].slice();
       // Dünyanın ikinci kapısında arada önceki dünyaların mekaniklerinden biri de gelir
@@ -1356,7 +1384,13 @@
     const maxPar = maxParOfGate(plan.gate);
     const near = plan.near;
     let best = null, bestErr = Infinity;
-    for (let attempt = first; attempt < first + count && bestErr > (plan.peak ? 0 : 0.15); attempt++) {
+    // 2.4 (kapı 21+): süre sınırı (normal 3, zirve 6 dk) dolunca o ana kadarki en iyi bölüm alınır;
+    // hedefe uzaklık eşiği 0,3 (parçalar arama uzayını büyüttü, 2000 adayın hepsi saatler sürüyordu)
+    // Hiç aday bulunamasa da en çok 10 dakika aranır (bir zirve bölümü gece 8 saat takılı kaldı)
+    const late = plan.gate >= 21, deadline = Date.now() + (plan.peak ? 360000 : 180000), hardStop = Date.now() + 600000;
+    for (let attempt = first; attempt < first + count && bestErr > (plan.peak ? 0 : late ? 0.3 : 0.15); attempt++) {
+      if (late && best && Date.now() > deadline) break;
+      if (late && Date.now() > hardStop) break;
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 77);
       const mech = mechanicsFor(plan.gate, rnd);
       // Çerçeve çok halkalı zor yerleşimlerde kenarlarına yer bulamayabilir: uzun süre olmazsa
@@ -1391,9 +1425,59 @@
         if (key === lock) key = (key + 1) % rings.length;
         rings[lock].lockedBy = key;
       }
+      // Yaylı halka: bir halka kesiştiği bir halkayı tekmeler (hedef kilitsiz ve sabit olmayan bir halka)
+      const crossing = (i, j) => { const A = rings[i], B = rings[j], d = Math.hypot(A.x - B.x, A.y - B.y); return i !== j && d < A.r + B.r && d > Math.abs(A.r - B.r); };
+      if (mech.includes('kick')) {
+        for (let n = t > 12.5 && rnd() < 0.5 ? 2 : 1; n > 0 && idx.length >= 2; n--) {
+          const s = take();
+          const ti = idx.findIndex(j => crossing(s, j));
+          if (ti < 0) continue;
+          const tg = idx.splice(ti, 1)[0];
+          rings[s].kick = [tg, rnd() < 0.5 ? 90 : -90];
+        }
+      }
+      // Jetonlu halka: jetonu yok (ya da 1), bir iki halka ona jeton taşır
+      if (mech.includes('token') && idx.length >= 2) {
+        const tr = take();
+        rings[tr].tokens = rnd() < 0.3 ? 1 : 0;
+        const others = rings.map((_, i) => i).filter(i => i !== tr).sort(() => rnd() - 0.5);
+        for (const c of others.slice(0, rnd() < 0.5 ? 1 : 2)) rings[c].token = tr;
+      }
       if (idx.length && rnd() < 0.3) rings[take()].fixed = true;
       for (const i of idx) if (rnd() < 0.12) rings[i].gaps = [0, 180];
       for (const c of couples) if (c[2] === 1) c.length = 2;
+      // Nabız: bir iki halkanın boşluk kapağı her hamlede açılıp kapanır
+      if (mech.includes('pulse')) {
+        const cand = rings.map((_, i) => i).filter(i => !rings[i].fixed).sort(() => rnd() - 0.5);
+        for (const i of cand.slice(0, t > 12.5 && rnd() < 0.5 ? 2 : 1)) rings[i].pulse = rnd() < 0.5 ? 0 : 1;
+      }
+      // Şalter: dönebilen halkaların çoğu mavi ya da turuncu; eşler aynı renkte
+      let sw = null;
+      if (mech.includes('switch')) {
+        const side = rings.map(() => null);
+        for (const c of couples) { const v = rnd() < 0.5 ? 0 : 1; side[c[0]] = v; side[c[1]] = v; }
+        rings.forEach((r, i) => { if (side[i] == null && !r.fixed && rnd() < 0.8) side[i] = rnd() < 0.5 ? 0 : 1; });
+        if (!side.includes(0) || !side.includes(1)) continue;
+        side.forEach((v, i) => { if (v != null && !rings[i].fixed) rings[i].side = v; });
+        sw = 0;
+      }
+      // Döner tabla: birbirini kesen iki halkanın tam ortasına kurulur ve ikisini taşır (prototipteki gibi).
+      // 180°'de iki halka yer değiştirir, 90° ve 270°'de aynı dik konuma gelir: denetlenecek düzen azdır.
+      let table = null;
+      if (mech.includes('table')) {
+        const pairs = [];
+        for (let i = 0; i < rings.length; i++) for (let j = i + 1; j < rings.length; j++) {
+          if (rings[i].fixed || rings[j].fixed || !crossing(i, j) || Math.abs(rings[i].r - rings[j].r) > 10) continue;
+          pairs.push([i, j]);
+        }
+        // Çiftler karışık sırayla denenir; tablanın her konumunda düzeni temiz kalan ilk çift seçilir
+        for (const [i, j] of pairs.sort(() => rnd() - 0.5)) {
+          const A = rings[i], B = rings[j], d = Math.hypot(A.x - B.x, A.y - B.y);
+          const tb = { x: Math.round((A.x + B.x) / 2 * 10) / 10, y: Math.round((A.y + B.y) / 2 * 10) / 10, r: Math.round(d / 2 + Math.max(A.r, B.r) * 0.95), step: 90, carried: [i, j] };
+          if (tableFits({ rings, table: tb })) { table = tb; break; }
+        }
+        if (!table) continue;
+      }
       let extra = [];
       if (mech.includes('frame')) {
         const f = placeFrame(rnd, rings);
@@ -1409,9 +1493,12 @@
         if (bars) extra = bars;
       }
       const def = { rings: rings.concat(extra), couples };
+      if (sw != null) def.switch = sw;
+      if (table) def.table = table;
       let L;
       try { L = Logic.buildLevel(def); } catch (e) { continue; }
       if (!connected(L)) continue;
+      if (table && !tableFits(def)) continue;
       for (let re = 0; re < 20 && !noRingFreeAtStart(L); re++) {
         for (const r of def.rings) if (!r.type) r.a = Math.round(rnd() * 360);
         L = Logic.buildLevel(def);
@@ -1423,17 +1510,65 @@
       if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) continue;
       def.par = quick.moves;
       if (difficultyScore(def) < t - 1.0) continue; // en iyi çözüm bundan da kısa olabilir: zaten kolay
-      const exact = Logic.solve(L, L.startAngles, 0, count >= 9 ? 60000 : 150000);
-      def.par = exact ? exact.moves : quick.moves;
+      // 2.4 (kapı 21+): yeni parçalar arama uzayını büyüttüğü için tam arama kısa tutulur; bulamazsa
+      // titiz hızlı çözücünün (ipucunun) sonucu alınır. Sınırda vazgeçen tam aramalar sürenin %90'ını yiyordu.
+      const exact = plan.gate >= 21 ? Logic.solve(L, L.startAngles, 0, 12000) : Logic.solve(L, L.startAngles, 0, count >= 9 ? 60000 : 150000);
+      const careful = !exact && plan.gate >= 21 ? Logic.solveFast(L, L.startAngles, 0, 40000, 0.8) : null;
+      def.par = exact ? exact.moves : careful ? Math.min(careful.moves, quick.moves) : quick.moves;
       if (def.par > maxPar || def.par < 3) continue;
       if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) continue; // ipucu çözebilmeli
+      // Dünyanın kendi parçası bu bölümde gerçekten işe yaramalı: o parça olmadan en iyi çözüm değişmeli
+      if (plan.gate >= 21 && !mattersAll(def, WORLD_MECH[plan.gate].filter(m => features(def).includes(m)))) continue;
       const sc = difficultyScore(def);
       // Zirve: bu kapının hedefi ile sonraki kapının hedefi arasında (zirveler kesin artar)
-      if (plan.peak && (sc < t || sc >= plan.top)) continue;
+      // Kapı 21+ zorluk sabit (kapı 20 düzeyi): zirve 0,4 aşağıya kadar kabul (check_levels ±0,5 izin verir)
+      if (plan.peak && (sc < t - (late ? 0.4 : 0) || sc >= plan.top)) continue;
       const err = plan.peak ? 0 : Math.abs(sc - t);
       if (err < bestErr) { best = def; bestErr = err; }
     }
     return best;
+  }
+
+  // Bir parçanın kaldırılmış hali (bölümde o parça gerçekten işe yarıyor mu sınamak için)
+  function withoutFeature(def, f) {
+    const out = { ...def, rings: def.rings.map(r => ({ ...r })), couples: (def.couples || []).map(c => c.slice()) };
+    if (f === 'kick') out.rings.forEach(r => delete r.kick);
+    if (f === 'token') out.rings.forEach(r => { delete r.tokens; delete r.token; });
+    if (f === 'switch') { delete out.switch; out.rings.forEach(r => delete r.side); }
+    if (f === 'pulse') out.rings.forEach(r => delete r.pulse);
+    if (f === 'table') delete out.table;
+    return out;
+  }
+  function mattersAll(def, feats) {
+    for (const f of feats) {
+      const P = Logic.buildLevel(withoutFeature(def, f));
+      if (Logic.cascade(P, P.startAngles, 0).mask) continue; // parçasız hali baştan çözülüyorsa parça şart
+      // Hızlı ve titiz arama yeter: parçasız hali aynı hamlede çözülüyorsa parça işe yaramıyor demektir
+      const s = Logic.solveFast(P, P.startAngles, 0, 20000, 0.8);
+      if (s && s.moves <= def.par) return false;
+    }
+    return true;
+  }
+  // Tablanın her konumunda taşınan halkalar tahtada kalmalı ve kesişimler seçilebilir olmalı. Dönmüş konumlar
+  // geçici olduğundan eşik başlangıç düzeninden yumuşak: kesişim en az 14 derin, kesişmeyenler değmesin.
+  function tableFits(def) {
+    const T = def.table;
+    for (let t = 1; t < 360 / T.step; t++) {
+      const a = t * T.step * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const R = def.rings.map((r, i) => (T.carried.includes(i) ? { ...r, x: T.x + (r.x - T.x) * c - (r.y - T.y) * s, y: T.y + (r.x - T.x) * s + (r.y - T.y) * c } : r));
+      for (const i of T.carried) {
+        const A = R[i];
+        if (A.x - A.r < 12 || A.x + A.r > BOARD.w - 12 || A.y - A.r < 12 || A.y + A.r > BOARD.h - 12) return false;
+        for (let j = 0; j < R.length; j++) {
+          const B = R[j];
+          if (j === i || B.type) continue;
+          const d = Math.hypot(A.x - B.x, A.y - B.y), crosses = d < A.r + B.r && d > Math.abs(A.r - B.r);
+          if (crosses && (d > A.r + B.r - 14 || d < Math.abs(A.r - B.r) + 14)) return false;
+          if (!crosses && d < A.r + B.r + 2) return false;
+        }
+      }
+    }
+    return true;
   }
 
   // Kapı içi sıra: kapının bölümleri LAYOUT'tan gelir; dünya tanıtımı başta, normal bölümler zorluk
@@ -1507,7 +1642,7 @@
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
     difficultyScore, parScore, closeness, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars,
-    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO,
+    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLevels = api;
