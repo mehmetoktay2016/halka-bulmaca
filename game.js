@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate } = window.RingLogic;
+          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -19,6 +19,7 @@
       for (const it of c.items) { it.name = tr(it.name); it.desc = tr(it.desc); }
     }
     for (const st of Object.values(window.RingStickers.SETS)) st.name = tr(st.name);
+    for (const p of window.RingPieces.PIECES) { p.name = tr(p.name); p.text = tr(p.text); }
     for (const d of window.RingLevels.TUTORIAL) { d.title = tr(d.title); d.text = tr(d.text); }
     for (const d of Object.values(window.RingLevels.MECH_LEVELS)) { d.title = tr(d.title); if (d.tip) d.tip = tr(d.tip); }
   }
@@ -29,6 +30,9 @@
   const ORDER = window.RingLevels.gateOrder(getLevel);
   const TOTAL = ORDER.length;
   const GATE_COUNT = TOTAL / W.GATE_SIZE; // bölümleri hazır olan kapı sayısı
+  // Bölümleri hazır olan dünyalar: yolculuğa yeni eklenen ama henüz bölümü olmayan dünyalar
+  // haritada yalnızca kapalı kemer olarak görünür; çıkartma, sayaç ve kapanışa girmez
+  const LIVE_WORLDS = W.WORLDS.filter(w => W.GATES.slice(0, GATE_COUNT).some(g => g.world === w.id));
   const srcOf = n => ORDER[n - 1];
   const BAR_COLOR = W.PIECE_COLORS.bar;
   const COLORS = W.PIECE_COLORS.rings;
@@ -38,6 +42,15 @@
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const KEY_MS = 560;   // anahtarın kilide uçuşu
+  const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
+  const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
+  const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
+  // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
+  const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
+  const SWITCH_W = 84, SWITCH_H = 40, SWITCH_MS = 180;
+  const PULSE_MS = 260; // nabız kapağının açılıp kapanması
+  const TURN_MS = 620, HUB = 26, TABLE_COLOR = '#c3a6ff'; // döner tabla: dönüş süresi, göbek düğmesi
+  const LAMP = '#ffd27a';
   const OPEN_MS = 420;  // kilidin açılışı
   const KEY_ICON = 1.3; // kilit ve anahtar simgesinin büyüklüğü
   const HELP_IDLE_MS = 30000; // bu kadar süre hamle yapılmazsa ipucu düğmesi nabız atar
@@ -49,6 +62,7 @@
   const GOLD_GATE_BULBS = ECO.goldGateBulbs;
   const R = window.RingRewards;
   const STK = window.RingStickers;
+  const PCS = window.RingPieces;
   const LOOT_DATA = window.RING_LOOT_DATA || {}; // bölüm kimliği -> ödül taşıyabilecek [halka, x, y]
   const CHEST_SHAKE_MS = 520; // halka kurtulunca sandık titrer...
   const CHEST_OPEN_MS = 900;  // ...sonra kapağı açılır, ışık saçar ve söner
@@ -188,6 +202,16 @@
       // Ampul kazanınca: kısa bir ışıltı; düğmeye konunca: yumuşak bir tın
       gift: () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.3, 'sine', 0.08, null, k * 0.07)),
       bulb: () => { tone(1046, 0.18, 'sine', 0.1, 1568); tone(2093, 0.25, 'sine', 0.04, null, 0.05); },
+      // Tabla: ağır bir dönüş uğultusu ve yerine oturan iki tık
+      turn: () => { tone(70, 0.6, 'sawtooth', 0.035, 95); tone(1500, 0.03, 'square', 0.04, null, 0.05); tone(1200, 0.04, 'square', 0.05, null, 0.6); },
+      // Nabız: kapak açılınca yükselen, kapanınca alçalan yumuşak bir çan
+      lamp: open => tone(open ? 880 : 587, 0.22, 'sine', 0.05, open ? 1175 : 440),
+      // Şalter: kısa mekanik şak ve elektrik vızıltısı
+      flip: () => { tone(1400, 0.03, 'square', 0.06); tone(95, 0.16, 'sawtooth', 0.05, 110, 0.02); tone(3200, 0.05, 'square', 0.02, 2400, 0.04); },
+      // Jeton jetonlu halkaya girdi: oyun makinesine atılan jeton gibi çınlama
+      token: () => { tone(2637, 0.06, 'square', 0.03); tone(1319, 0.18, 'triangle', 0.07, null, 0.04); tone(1760, 0.3, 'sine', 0.05, null, 0.1); },
+      // Yay tekmesi: yukarı kayan "boing" ve titreşen kısa bir kuyruk
+      boing: () => { tone(170, 0.22, 'sine', 0.13, 430); tone(430, 0.24, 'triangle', 0.06, 260, 0.09); tone(1300, 0.05, 'square', 0.025); },
       // Tıklı halka her adımda: saat tıkırtısı
       clack: () => { tone(2200, 0.025, 'square', 0.035); tone(900, 0.05, 'triangle', 0.05, 600); },
       // Anahtar kilide girdi: metalik çıt ve küçük bir çan
@@ -332,7 +356,7 @@
   function pieceAt(n) {
     if (!pieceMap) {
       pieceMap = {};
-      for (const w of W.WORLDS) {
+      for (const w of LIVE_WORLDS) {
         const levels = [];
         for (let m = 1; m <= TOTAL; m++) if (W.worldOfGate(W.gateOf(m)).id === w.id) levels.push(m);
         if (levels.length) R.stickerLevels(levels, W.GATE_SIZE).forEach((m, k) => { pieceMap[m] = { world: w.id, k, id: w.id + ':' + k }; });
@@ -429,11 +453,15 @@
     const earned = B.BADGES.filter(b => progress.badges[b.id]).length;
     $('badgeCount').textContent = `${earned}/${B.BADGES.length}`;
     $('albumCount').textContent = `${ctx.shapes}/${ctx.shapesTotal}`;
-    $('stickerCount').textContent = `${W.WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${W.WORLDS.length}`;
+    $('stickerCount').textContent = `${LIVE_WORLDS.filter(w => piecesOf(w.id).every(Boolean)).length}/${LIVE_WORLDS.length}`;
+    $('pieceCount').textContent = `${PCS.PIECES.filter(p => progress.seenPieces[p.id]).length}/${PCS.PIECES.length}`;
+    $('tabPieces').setAttribute('aria-selected', String(trophyTab === 'pieces'));
     $('tabBadges').setAttribute('aria-selected', String(trophyTab === 'badges'));
     $('tabAlbum').setAttribute('aria-selected', String(trophyTab === 'album'));
     $('tabStickers').setAttribute('aria-selected', String(trophyTab === 'stickers'));
-    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : trophyTab === 'album' ? albumHtml() : stickersHtml();
+    $('trophyList').innerHTML = trophyTab === 'badges' ? badgesHtml(ctx, fresh) : trophyTab === 'album' ? albumHtml()
+      : trophyTab === 'pieces' ? piecesHtml() : stickersHtml();
+    if (trophyTab === 'pieces') bindPieceTiles();
     // Görülen rozetlerin kırmızı noktası söner
     for (const id of fresh) progress.seenBadges[id] = true;
     if (fresh.size) saveProgress();
@@ -470,7 +498,7 @@
   }
 
   function stickersHtml() {
-    const cards = W.WORLDS.map(w => {
+    const cards = LIVE_WORLDS.map(w => {
       const have = piecesOf(w.id).filter(Boolean).length;
       const done = have === STK.PIECES;
       return `<div class="sticker-card${done ? ' done' : ''}">${stickerSvg(w.id)}
@@ -586,6 +614,7 @@
   $('tabBadges').onclick = () => { Sound.tap(); trophyTab = 'badges'; renderTrophies(); };
   $('tabAlbum').onclick = () => { Sound.tap(); trophyTab = 'album'; renderTrophies(); };
   $('tabStickers').onclick = () => { Sound.tap(); trophyTab = 'stickers'; renderTrophies(); };
+  $('tabPieces').onclick = () => { Sound.tap(); trophyTab = 'pieces'; renderTrophies(); };
 
   function renderHome() {
     const next = frontier();
@@ -598,7 +627,7 @@
     $('homeScore').textContent = fmt(totalScore());
     $('homeTitle').textContent = tr(progress.title || currentTitle());
     $('promiseLevels').textContent = TOTAL;
-    $('promiseWorlds').textContent = W.WORLDS.length;
+    $('promiseWorlds').textContent = LIVE_WORLDS.length;
     $('promiseBadges').textContent = B.BADGES.length;
   }
 
@@ -692,6 +721,14 @@
     return `<span class="num">${n}</span><span class="tier-dot ${tierOf(n).id}"></span>` + (state === 'done' ? stars : '');
   }
 
+  // Dünya adı kemerin üstünde, kapının ilk durağının hemen altında durur: durağın ters yanına kayar
+  function worldNameShift(g, geo) {
+    const first = geo.nodes[W.gateStart(g)];
+    if (!first) return 0;
+    const dx = first.x - geo.arches[g].x;
+    return -(Math.sign(dx) || 1) * Math.max(15, 95 - Math.abs(dx));
+  }
+
   function archHtml(g, geo) {
     const gate = W.GATES[g - 1];
     const world = W.worldById(gate.world);
@@ -702,7 +739,7 @@
       ? `<span class="arch-sub">${tr('Yakında')}</span>`
       : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
     return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
-      ${W.isWorldStart(g) ? `<span class="arch-world">${world.name}</span>` : ''}
+      ${W.isWorldStart(g) ? `<span class="arch-world" style="transform:translateX(${worldNameShift(g, geo)}px)">${world.name}</span>` : ''}
       <svg viewBox="0 0 230 100" aria-hidden="true">
         <path class="arch-shadow" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
         <path class="arch-line" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
@@ -1016,7 +1053,65 @@
       progress.rewards['world:' + world.id] = true;
       saveProgress();
       $('worldCard').classList.add('hidden');
+      if (pieceQueue.length) showPieceCard();
     };
+  }
+
+  // ---- Parça kartları (2.4): ilk görüşte kullanma kılavuzu, koleksiyonda tekrar açılır ----
+  // Parçanın tanıtım bölümünü bitirmiş eski oyuncular o parçayı biliyor sayılır.
+  if (!progress.seenPieces) progress.seenPieces = {};
+  for (const p of PCS.PIECES) if (progress.stars[String(p.intro)]) progress.seenPieces[p.id] = true;
+  let pieceQueue = [], pieceAnim = 0;
+  function maybePieceCard(def) {
+    const f = window.RingLevels.features(def);
+    pieceQueue = PCS.PIECES.filter(p => f.includes(p.id) && !progress.seenPieces[p.id]);
+    if (pieceQueue.length && $('worldCard').classList.contains('hidden')) showPieceCard();
+  }
+  function showPieceCard(replay) {
+    const p = pieceQueue.shift();
+    if (!p) return;
+    $('pieceEyebrow').textContent = replay ? tr('Parçalar') : tr('Yeni parça');
+    $('pieceTitle').textContent = p.name;
+    $('pieceText').textContent = p.text;
+    $('pieceCard').classList.remove('hidden');
+    const cv = $('pieceDemo'), g = cv.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = PCS.DEMO_W * dpr; cv.height = PCS.DEMO_H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const t0 = performance.now();
+    cancelAnimationFrame(pieceAnim);
+    const loop = now => {
+      if ($('pieceCard').classList.contains('hidden')) return;
+      PCS.drawDemo(g, p.id, REDUCED ? 1800 : now - t0, tr);
+      pieceAnim = requestAnimationFrame(loop);
+    };
+    pieceAnim = requestAnimationFrame(loop);
+    $('pieceGo').onclick = () => {
+      Sound.tap();
+      progress.seenPieces[p.id] = true;
+      saveProgress();
+      $('pieceCard').classList.add('hidden');
+      cancelAnimationFrame(pieceAnim);
+      if (pieceQueue.length) setTimeout(() => showPieceCard(replay), 250);
+      else if (trophyTab === 'pieces' && !$('trophies').hidden) renderTrophies();
+    };
+  }
+  function piecesHtml() {
+    const tiles = PCS.PIECES.map(p => {
+      const seen = !!progress.seenPieces[p.id];
+      return `<button type="button" class="piece-tile${seen ? '' : ' locked'}" data-piece="${p.id}" ${seen ? '' : 'disabled'}>
+        <canvas width="${PCS.DEMO_W}" height="${PCS.DEMO_H}" aria-hidden="true"></canvas><b>${seen ? p.name : '???'}</b></button>`;
+    });
+    return `<div class="piece-grid">${tiles.join('')}</div>
+      <p class="album-note">${tr('Oyunda karşılaştığın parçalar burada. Birine dokun, nasıl çalıştığını izle.')}</p>`;
+  }
+  // Sekmedeki her karede canlandırmanın durgun bir anı; dokununca kart açılıp oynar
+  function bindPieceTiles() {
+    for (const b of $('trophyList').querySelectorAll('.piece-tile')) {
+      const p = PCS.PIECES.find(q => q.id === b.dataset.piece);
+      PCS.drawDemo(b.querySelector('canvas').getContext('2d'), p.id, 1800, tr);
+      if (!b.disabled) b.onclick = () => { Sound.tap(); pieceQueue = [p]; showPieceCard(true); };
+    }
   }
 
   // ---- Boyutlandırma ----
@@ -1065,13 +1160,18 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1,
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
+      tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
     closeHintMenu();
     $('hint').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
+    S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
+    S.sw = S.L.startSw;           // şalterin gösterdiği renk
+    S.ph = 0;                     // nabız kapakları: hamle sayısının teki/çifti
+    S.swPos = S.L.hasSwitch ? switchSpot() : null;
     const loot = tut == null && !preview && levelNo ? lootWaiting(levelNo) : null;
     if (loot) S.loot = { ...loot, t0: null, done: false, phase: Math.random() * TAU };
     // Bölüm altınları yalnız ilk bitirişte: tekrar oynayarak altın toplanmasın (alınmamış altın halka hariç)
@@ -1105,7 +1205,7 @@
   // Denemede sıradaki hamleyi her zaman göster
   function guide() {
     if (S.tut == null || S.won) return;
-    const sol = solveFast(S.L, S.angles, S.mask, 20000);
+    const sol = solveFast(S.L, S.angles, S.mask, 20000, undefined, S.left, S.sw, S.ph);
     S.hint = sol && sol.first ? { ...sol.first, t0: performance.now(), guide: true } : null;
   }
 
@@ -1117,6 +1217,7 @@
     if (n !== failedLevel) failedLevel = null;
     startDef(def, n, null);
     maybeWorldCard(n);
+    maybePieceCard(def);
     if (dailyGift()) return;
     if (src === 1) showTip(tr('Halkayı sürükleyerek döndür'), 4000);
     else if (src === 2) showTip(tr('Parlayan nokta: halka oradan geçebilir'), 4000);
@@ -1189,12 +1290,32 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves } = cascade(S.L, S.angles, S.mask);
+    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
+    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
+    const at = [];
+    waves.reduce((t, _, w) => { at[w] = t; return t + (kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS); }, 0);
+    let before = S.angles;
+    kicks.forEach((ks, w) => {
+      for (const k of ks) {
+        S.kicks.push({ ring: k.target, delta: k.turn, t0: now + at[w] + KICK_WAIT, done: 0 });
+        setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
+        before = rotate(S.L, before, k.target, k.turn);
+      }
+    });
+    if (S.kicks.length) S.kickEnd = angles;
+    // Kurtulan halkanın jetonu jetonlu halkaya uçar; sayı jeton varınca artar (mantıkta hemen geçerli)
+    tokens.forEach((ts, w) => {
+      for (const t of ts) {
+        S.tokenFly.push({ ...t, t0: now + at[w] + 80, from: tokenPos(t.from, 'carry') });
+        setTimeout(() => Sound.token(), at[w] + 80 + TOKEN_FLY_MS);
+      }
+    });
+    S.left = left;
     waves.forEach((wave, w) => {
       const last = finale && w === waves.length - 1;
-      if (last) setTimeout(() => finaleBlast(wave), w * WAVE_MS);
+      if (last) setTimeout(() => finaleBlast(wave), at[w]);
       for (const i of wave) {
         const r = S.L.rings[i];
         let dx = r.x - BOARD.w / 2, dy = r.y - BOARD.h / 2;
@@ -1206,8 +1327,8 @@
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + w * WAVE_MS, dx, dy };
-        setTimeout(() => { Sound.pop(w); burst(i, last); }, w * WAVE_MS);
+        S.fly[i] = { t0: now + at[w], dx, dy };
+        setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
     // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
@@ -1215,29 +1336,29 @@
       for (const k of wave) {
         S.L.rings.forEach((r, l) => {
           if (r.lockedBy !== k || (mask & (1 << l))) return;
-          S.keyFly.push({ key: k, lock: l, t0: now + w * WAVE_MS });
-          setTimeout(() => Sound.keyOpen(), w * WAVE_MS + KEY_MS);
+          S.keyFly.push({ key: k, lock: l, t0: now + at[w] });
+          setTimeout(() => Sound.keyOpen(), at[w] + KEY_MS);
         });
       }
     });
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), (waves.length - 1) * WAVE_MS);
-    if (endWord) setTimeout(() => showEndPraise(endWord), (waves.length - 1) * WAVE_MS + 260);
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), at[waves.length - 1]);
+    if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
       if (c.taken) continue;
-      const k = S.L.links[c.link];
+      const k = c;
       if (!(mask & (1 << k.a)) && !(mask & (1 << k.b))) continue;
       c.taken = true;
       const w = waves.findIndex(wv => wv.includes(k.a) || wv.includes(k.b));
-      collectCoin(c, Math.max(w, 0) * WAVE_MS);
+      collectCoin(c, at[Math.max(w, 0)]);
     }
     const loot = S.loot;
     if (loot && loot.t0 == null && (mask & (1 << loot.ring))) {
       const w = waves.findIndex(wv => wv.includes(loot.ring));
-      const t0 = now + Math.max(w, 0) * WAVE_MS;
+      const t0 = now + at[Math.max(w, 0)];
       if (loot.type === 'chest') openChest(t0);
       else if (loot.type === 'gold') openGold(t0);
       else openBulbRing(t0);
@@ -1247,7 +1368,7 @@
       S.won = true;
       // Ödül açılıyorsa bölüm sonu ekranı onun ardından gelir
       const lootEnd = loot && loot.t0 != null ? loot.t0 + (loot.type === 'chest' ? CHEST_SHAKE_MS + 750 : TOKEN_MS + 500) - now : 0;
-      setTimeout(showWin, Math.max(waves.length * WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
+      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
     }
     updateHud();
   }
@@ -1271,6 +1392,7 @@
       if (out.length >= want) break;
       const k = L.links[li];
       if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2) continue;
+      if (L.table && (L.table.carried.includes(k.a) || L.table.carried.includes(k.b))) continue;
       const x = (k.pts[0].x + k.pts[1].x) / 2;
       const y = (k.pts[0].y + k.pts[1].y) / 2;
       const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
@@ -1278,7 +1400,7 @@
       const offMark = marks.every(m => Math.hypot(m.x - x, m.y - y) > 30) &&
         (!S.loot || Math.hypot(S.loot.x - x, S.loot.y - y) > 46);
       if (clear && offMark && !out.some(c => Math.hypot(c.x - x, c.y - y) < 30)) {
-        out.push({ link: li, x, y, taken: false, phase: Math.random() * TAU });
+        out.push({ a: k.a, b: k.b, x, y, taken: false, phase: Math.random() * TAU });
       }
     }
     return out;
@@ -1855,6 +1977,7 @@
     const plan = window.RingLevels.SHAPE_PLAN[src];
     applyWorld(W.worldById(def.world) || (plan ? W.worldOfGate(plan.gate) : W.WORLDS[0]));
     startDef(def, 0, null, src);
+    maybePieceCard(def);
     if (def.tip) showTip(def.tip, 5000);
   }
 
@@ -1986,13 +2109,15 @@
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
+    if (S.L.table && Math.hypot(p.x - S.L.table.x, p.y - S.L.table.y) < HUB + 10) { spinTable(); return; }
+    if (S.swPos && Math.abs(p.x - S.swPos.x) < SWITCH_W / 2 + 8 && Math.abs(p.y - S.swPos.y) < SWITCH_H / 2 + 8) { flipSwitch(); return; }
     const i = hitRing(p);
     if (i < 0) return;
-    if (!canRotate(S.L, i, S.mask)) {
+    if (!canRotate(S.L, i, S.mask, S.left, S.sw)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
@@ -2001,6 +2126,14 @@
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
         showTip(tr('Kilitli: önce anahtarlı halkayı kurtar'));
+      } else if (S.L.rings[i].side >= 0 && S.L.rings[i].side !== S.sw) {
+        S.swPulse = performance.now();
+        showTip(tr('Bu renk kapalı: şalteri çevir'));
+      } else if (S.left[i] === 0) {
+        // Jetonsuz halka: ona jeton taşıyan ilk halka kısa bir süre parlar
+        const carrier = S.L.rings.findIndex((r, k) => r.token === i && present(k));
+        if (carrier >= 0) S.keyPulse = { ring: carrier, t0: performance.now() };
+        showTip(tr('Jeton yok: önce jeton taşıyan halkayı kurtar'));
       }
       return;
     }
@@ -2048,14 +2181,17 @@
     S.drag = null;
     const stepped = S.L.rings[drag.ring].step;
     if (stepped ? !drag.applied : Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
-    commitMove(drag.before);
+    commitMove(drag.before, drag.ring);
   }
 
   const snapshot = () => ({ angles: S.angles.slice(), mask: S.mask, moves: S.moves, taken: S.coins.map(c => c.taken) });
 
   // Bir hamle tamamlandı (elle ya da "Hamleyi yap" ile)
-  function commitMove(before) {
+  function commitMove(before, ring) {
     S.moves++;
+    S.left = spend(S.L, S.left, ring);
+    // Her hamle nabız kapaklarını çevirir (serbest kalma kapakların yeni haline göre)
+    if (S.L.hasPulse) { S.ph ^= 1; S.phT0 = performance.now(); Sound.lamp(S.ph); }
     S.help.lastAct = performance.now();
     const el = $('movesNum');
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
@@ -2131,39 +2267,57 @@
       return;
     }
     if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
-    // Son bölüm ilk kez bitince: Büyük Makine kapanışı, sonra harita
-    if (S.levelNo === TOTAL && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding(); return; }
+    // 200. bölüm ilk kez bitince Büyük Makine (yeni dünyalar açılır), son bölüm ilk kez bitince Yıldız Haritası finali
+    if (S.levelNo === MACHINE_END && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding('machine'); return; }
+    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards.finale) { $('win').classList.add('hidden'); showEnding('finale'); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
   };
-  // ---- Büyük Makine: yolculuğun kapanışı ----
-  // Oyunun halka renklerindeki 8 halka (bir dünyaya bir halka) dört bir yandan uçup altın merkez halkanın
-  // çevresinde makineyi kurar, makine dişliler gibi döner, kıvılcımlar saçılır; ardından yolculuğun özeti gelir.
-  const END_RINGS = COLORS.slice(0, W.WORLDS.length);
+  // ---- Büyük Makine (200. bölüm) ve Yıldız Haritası (son bölüm): yolculuğun kapanışları ----
+  // Büyük Makine: ilk 8 dünyanın halkası dört bir yandan uçup altın merkez halkanın çevresinde makineyi kurar,
+  // makine dişliler gibi döner, kıvılcımlar saçılır. Ardından yeni dünyalar açılır.
+  // Yıldız Haritası: 12 dünyanın halkası (dünyanın kendi renginde) yıldız çemberine oturur, aralarına takımyıldız
+  // çizgileri çekilir, altın merkez halka hepsini döndürür. İkisinde de ardından yolculuğun özeti gelir.
+  const MACHINE_END = 20 * W.GATE_SIZE;
+  const END_RINGS = {
+    machine: COLORS.slice(0, 8),
+    finale: LIVE_WORLDS.map(w => w.theme.accent),
+  };
   let endingRun = null;
-  function showEnding(replay) {
+  function showEnding(kind, replay) {
     if (!replay) {
-      progress.rewards.ending = today();
+      progress.rewards[kind === 'finale' ? 'finale' : 'ending'] = today();
       saveProgress();
     }
     const el = $('ending');
-    el.className = 'ending';
+    el.className = 'ending ' + kind;
     el.hidden = false;
-    const shapes = shapeLevels();
+    // Büyük Makine yalnız ilk 200 bölümü sayar
+    const last = kind === 'finale' ? TOTAL : Math.min(TOTAL, MACHINE_END);
+    const nums = ORDER.map((_, i) => i + 1).filter(n => n <= last);
+    const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
-    const perfect = Object.values(progress.stars).filter(v => v === 3).length;
+    const perfect = nums.filter(n => starsOf(n) === 3).length;
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Yolculuğun sonu') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Yıldız Haritası tamamlandı!') : tr('Büyük Makine çalıştı!');
+    $('endingLead').textContent = kind === 'finale'
+      ? tr('{n} bölümün hepsini bitirdin. Bütün dünyaların ustası sensin.', { n: TOTAL })
+      : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
-      [`${totalStars()}`, tr('/ {n} yıldız', { n: TOTAL * 3 })],
+      [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],
       [`${earned}`, tr('/ {n} rozet', { n: B.BADGES.length })],
       [`${shapes.filter(n => starsOf(n)).length}`, tr('/ {n} şekil', { n: shapes.length })],
       [fmt(progress.stats.coinsTotal || 0), tr('altın')],
     ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
-    const missing = TOTAL - perfect;
-    $('endingMore').textContent = missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
+    const missing = last - perfect;
+    $('endingMore').textContent = kind === 'machine' && TOTAL > MACHINE_END
+      ? tr('Yeni dünyalar açıldı: {names}. Yolculuk sürüyor.', { names: LIVE_WORLDS.slice(8).map(w => tr(w.name)).join(', ') })
+      : missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
+    $('endingGo').textContent = kind === 'machine' && TOTAL > MACHINE_END ? tr('Yeni dünyalara') : tr('Haritaya dön');
     const quick = REDUCED || !fxOn();
     const t0 = performance.now();
-    endingRun = { t0, sparks: [] };
+    endingRun = { t0, sparks: [], kind };
     setTimeout(() => el.classList.add('show-title'), quick ? 0 : 2500);
     setTimeout(() => el.classList.add('show-stats'), quick ? 0 : 3300);
     setTimeout(() => el.classList.add('show-go'), quick ? 0 : 3900);
@@ -2189,7 +2343,7 @@
     g.clearRect(0, 0, w, h);
     const quick = REDUCED || !fxOn();
     const t = quick ? 99 : (now - run.t0) / 1000;
-    const cx = w / 2, cy = h * 0.34, R = Math.min(w * 0.33, 130), r = R * 0.36;
+    const cx = w / 2, cy = h * (run.kind === 'finale' ? 0.3 : 0.34), R = Math.min(w * 0.33, 130), r = R * 0.36;
     const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
     // Arkada dönen ışık hüzmeleri (makine çalışınca)
     const run2 = ease((t - 1.8) / 0.8);
@@ -2218,15 +2372,47 @@
       }
       g.restore();
     };
-    // 8 dünya halkası: dört bir yandan uçup yerine oturur, sonra dişli gibi zıt yönlerde döner
-    END_RINGS.forEach((col, k) => {
-      const a = -Math.PI / 2 + k * Math.PI / 4;
-      const tx = cx + Math.cos(a) * R, ty = cy + Math.sin(a) * R;
+    // Dünya halkaları: dört bir yandan uçup yerine oturur, sonra dişli gibi zıt yönlerde döner.
+    // Büyük Makine 8 halka; Yıldız Haritası 12 halka (daha küçük, daha geniş çember) ve aralarında takımyıldız çizgileri.
+    const finale = run.kind === 'finale';
+    const cols = END_RINGS[finale ? 'finale' : 'machine'], n = cols.length;
+    const RR = R, rr = finale ? R * 0.19 : r;
+    if (finale) {
+      // Arkada göz kırpan yıldızlar (yerleri sabit tohumdan)
+      const rnd = window.RingRewards.rng(300);
+      for (let k = 0; k < 70; k++) {
+        const sx = rnd() * w, sy = rnd() * h * 0.7, ph = rnd() * 6.28;
+        g.globalAlpha = Math.min(1, t / 1.5) * (0.35 + 0.35 * Math.sin(t * 2 + ph));
+        g.fillStyle = '#fff7d6';
+        g.beginPath(); g.arc(sx, sy, rnd() < 0.15 ? 1.8 : 1, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+    const spots = cols.map((_, k) => {
+      const a = -Math.PI / 2 + k * 2 * Math.PI / n;
+      const p = ease((t - k * (finale ? 0.1 : 0.14)) / 0.9);
+      const tx = cx + Math.cos(a) * RR, ty = cy + Math.sin(a) * RR;
       const fx = cx + Math.cos(a) * Math.max(w, h), fy = cy + Math.sin(a) * Math.max(w, h);
-      const p = ease((t - k * 0.14) / 0.9);
-      const x = fx + (tx - fx) * p, y = fy + (ty - fy) * p;
+      return { a, p, x: fx + (tx - fx) * p, y: fy + (ty - fy) * p };
+    });
+    if (finale) {
+      // Takımyıldız: komşu halkalar ve her üçüncü halka arası çizgiler sırayla çizilir
+      const line = ease((t - 2.0) / 1.6);
+      if (line > 0) {
+        g.save(); g.strokeStyle = 'rgba(255, 247, 214, .45)'; g.lineWidth = 1.5; g.setLineDash([4, 5]);
+        const pairs = cols.map((_, k) => [k, (k + 1) % n]).concat(cols.map((_, k) => [k, (k + 4) % n]).filter((_, k) => k % 2 === 0));
+        pairs.forEach(([i, j], q) => {
+          const f = Math.min(1, Math.max(0, line * pairs.length - q));
+          if (f <= 0) return;
+          const A = spots[i], Bp = spots[j];
+          g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(A.x + (Bp.x - A.x) * f, A.y + (Bp.y - A.y) * f); g.stroke();
+        });
+        g.restore();
+      }
+    }
+    spots.forEach((s, k) => {
       const spin = run2 * (t - 1.8) * (k % 2 ? -1.6 : 1.6);
-      ring(x, y, r, col, a + spin, 9, Math.min(1, p * 1.5));
+      ring(s.x, s.y, rr, cols[k], s.a + spin, finale ? 7 : 9, Math.min(1, s.p * 1.5));
     });
     // Altın merkez halka: halkalar yerleşince belirir, sonra hepsini döndürür
     const core = ease((t - 1.4) / 0.6);
@@ -2261,12 +2447,12 @@
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
   // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
-  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',');
+  const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw + S.ph;
   function bestMove() {
     const key = boardKey();
     if (hintCache && hintCache.key === key) return hintCache.sol;
     // 2000 düğüm: denge testinde (tools/balance.js) 40000 ile aynı sonuç, en yavaş adım ~0,2 sn
-    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8) || solveFast(S.L, S.angles, S.mask, 30000);
+    const sol = solveFast(S.L, S.angles, S.mask, 2000, 0.8, S.left, S.sw, S.ph) || solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left, S.sw, S.ph);
     hintCache = { key, sol };
     return sol;
   }
@@ -2395,7 +2581,7 @@
   function closeHintMenu() { $('hintMenu').hidden = true; }
 
   function useHint(tier) {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
     closeHintMenu();
@@ -2419,7 +2605,12 @@
     }
     Sound.tap();
     const now = performance.now();
-    if (tier === 'nudge') {
+    if (sol.first.toggle) {
+      // Sıradaki hamle şalter: dürtme ve ipucu şalteri gösterir, "Hamleyi yap" çevirir
+      if (tier === 'move') { S.hint = null; hideTip(); flipSwitch(); } else { S.hint = { toggle: true, ring: -1, t0: now }; showTip(tr('Şalteri çevir')); }
+    } else if (sol.first.table) {
+      if (tier === 'move') { S.hint = null; hideTip(); spinTable(); } else { S.hint = { table: true, ring: -1, t0: now }; showTip(tr('Tablayı çevir')); }
+    } else if (tier === 'nudge') {
       S.hint = { ...sol.first, t0: now, nudge: true };
       showTip(tr('Parlayan halkayı çevir'));
     } else if (tier === 'hint') {
@@ -2435,7 +2626,7 @@
   }
 
   $('hint').onclick = () => {
-    if (S.won || S.failed || S.auto) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     if (S.tut != null) { guide(); return; }
     Sound.tap();
     if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
@@ -2458,13 +2649,456 @@
     const unit = S.L.rings[a.ring].step || 15 * DEG;
     const notch = Math.round(a.done / unit);
     if (notch !== a.notch) { a.notch = notch; S.L.rings[a.ring].step ? Sound.clack() : Sound.tick(); }
-    if (t >= 1) { S.auto = null; commitMove(a.before); }
+    if (t >= 1) { S.auto = null; commitMove(a.before, a.ring); }
+  }
+
+  // Yay tekmesi: hedef halka (ve eşleri) çeyrek tur döner, sonunda hafif geri yaylanır.
+  // Dönüş adım adım uygulanır; hepsi bitince açılar mantıktaki son hale eşitlenir.
+  const easeBack = t => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+  function stepKicks(now) {
+    if (!S.kicks.length) return;
+    for (const k of S.kicks) {
+      const t = Math.min(1, (now - k.t0) / KICK_MS);
+      if (t < 0) continue;
+      const d = k.delta * (t >= 1 ? 1 : easeBack(t)) - k.done;
+      S.angles = rotate(S.L, S.angles, k.ring, d);
+      k.done += d;
+      k.over = t >= 1;
+    }
+    S.kicks = S.kicks.filter(k => !k.over);
+    if (!S.kicks.length && S.kickEnd) { S.angles = S.kickEnd; S.kickEnd = null; }
+  }
+
+  // Tekmenin değdiği yerde yayın renginde küçük kıvılcımlar
+  function kickSpark(from, target) {
+    if (REDUCED) return;
+    const s = S.L.rings[from], t = S.L.rings[target];
+    const th = Math.atan2(s.y - t.y, s.x - t.x);
+    const x = t.x + Math.cos(th) * t.r, y = t.y + Math.sin(th) * t.r;
+    for (let k = 0; k < 16; k++) {
+      const a = Math.random() * TAU, sp = 1.5 + Math.random() * 2.5;
+      particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, size: 2 + Math.random() * 2, color: ringColor(from) });
+    }
+  }
+
+  // ---- Yaylı halka çizimi (2.4) ----
+  // Rozet: yaylı halkanın en boş yerinde, içinde dik bir yay olan madalyon (yaylı olduğunu söyler).
+  // Sarmal yay: yayın hedefe değdiği kesişimden başlar, hedefin kenarı boyunca tekme yönüne uzanır, ucu ok.
+  // Boş daire: tekmeden sonra hedefin boşluğunun geleceği yer.
+  const springLive = i => present(i) && !S.fly[i] && !(S.turn && S.L.table.carried.includes(i));
+  function springBadgeAt(s) {
+    const r = S.L.rings[s];
+    const key = s + ':' + S.mask + ':' + Math.round(S.angles[s] / (10 * DEG));
+    if (S.springSpot[key] != null) return S.springSpot[key];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, i) => {
+        if (i === s || !present(i) || o.kind !== 'ring') return;
+        d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r));
+      });
+      for (const g of r.gaps) d = Math.min(d, angDist(S.angles[s] + g, th) * r.r);
+      if (y < 18 || y > BOARD.h - 18 || x < 18 || x > BOARD.w - 18) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return (S.springSpot[key] = best);
+  }
+
+  function drawSpringBadge(s, now) {
+    const r = S.L.rings[s], th = springBadgeAt(s);
+    const x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r, color = ringColor(s);
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 17, 0, TAU); ctx.fill();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 15, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 11.5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const sq = REDUCED ? 1 : 1 + 0.08 * Math.sin(now / 200);
+    ctx.beginPath();
+    for (let k = 0; k <= 5; k++) {
+      const yy = y + (-7 + k * 2.8) * sq, xx = x + (k % 2 ? 5 : -5);
+      if (k) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSpringCoil(s, now) {
+    const sp = S.L.rings[s], t = S.L.rings[sp.kick.target], dir = Math.sign(sp.kick.turn), color = ringColor(s);
+    const link = S.L.links.find(l => (l.a === s && l.b === t.id) || (l.b === s && l.a === t.id));
+    let phi0 = 0;
+    if (link) {
+      // iki kesişimden, yayın dışına doğru uzananı seç
+      for (const p of link.pts) {
+        phi0 = link.a === t.id ? p.angA : p.angB;
+        const probe = phi0 + dir * 25 * DEG;
+        if (Math.hypot(t.x + Math.cos(probe) * t.r - sp.x, t.y + Math.sin(probe) * t.r - sp.y) > sp.r) break;
+      }
+    } else phi0 = Math.atan2(sp.y - t.y, sp.x - t.x);
+    const span = (52 + (REDUCED ? 0 : 4 * Math.sin(now / 200))) * DEG;
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const [w, c] of [[7, 'rgba(10,8,20,.85)'], [3.5, color]]) {
+      ctx.strokeStyle = c; ctx.lineWidth = w;
+      ctx.beginPath();
+      for (let k = 0; k <= 72; k++) {
+        const u = k / 72, ph = phi0 + dir * (8 * DEG + u * span);
+        const R = t.r + (u < 0.9 ? Math.sin(u / 0.9 * 6 * TAU) * 8 : 0);
+        const x = t.x + Math.cos(ph) * R, y = t.y + Math.sin(ph) * R;
+        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    const end = phi0 + dir * (8 * DEG + span), hx = t.x + Math.cos(end) * t.r, hy = t.y + Math.sin(end) * t.r;
+    const tang = end + dir * Math.PI / 2;
+    for (const [grow, c] of [[3, 'rgba(10,8,20,.85)'], [0, color]]) {
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tang) * (13 + grow), hy + Math.sin(tang) * (13 + grow));
+      ctx.lineTo(hx + Math.cos(tang + 2.3) * (11 + grow), hy + Math.sin(tang + 2.3) * (11 + grow));
+      ctx.lineTo(hx + Math.cos(tang - 2.3) * (11 + grow), hy + Math.sin(tang - 2.3) * (11 + grow));
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
+    for (const g of t.gaps) {
+      const ga = S.angles[t.id] + g + sp.kick.turn;
+      ctx.beginPath(); ctx.arc(t.x + Math.cos(ga) * t.r, t.y + Math.sin(ga) * t.r, 9, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---- Döner tabla (2.4) ----
+  // Tabla dönerken taşınan halkalar göbek etrafında döner, boşlukları da (adım adım) dönerek gelir.
+  // Dönüş bitince mantık tablanın sonraki konumuna geçer ve hamle sayılır.
+  function tableOffset(now) {
+    if (!S.turn) return 0;
+    const t = Math.min(1, (now - S.turn.t0) / TURN_MS);
+    return (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) * S.L.table.step * DEG;
+  }
+
+  function spinTable() {
+    if (!S.L.table || S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
+    const before = snapshot();
+    S.turn = { t0: performance.now(), base: S.angles.slice() };
+    S.hint = null;
+    Sound.turn();
+    setTimeout(() => {
+      const t = turnTable(S.L, S.turn.base);
+      S.L = t.L; S.angles = t.angles; S.turn = null;
+      S.springSpot = {}; // rozet ve fiş yerleri yeni konuma göre
+      commitMove(before, -1);
+    }, REDUCED ? 0 : TURN_MS);
+  }
+
+  // Dönüş sırasında taşınan halkaların boşlukları tablayla birlikte döner
+  function stepTable(now) {
+    if (!S.turn) return;
+    const off = tableOffset(now);
+    S.angles = S.turn.base.map((a, i) => (S.L.table.carried.includes(i) ? a + off : a));
+  }
+
+  // Tabla: koyu disk, kesik kenar, dört çentik; taşınan halkalar göbeğe bir kolla bağlı
+  function drawTable(now) {
+    const T = S.L.table;
+    if (!T) return;
+    const off = S.L.tableIdx * T.step * DEG + tableOffset(now);
+    ctx.save();
+    const g = ctx.createRadialGradient(T.x, T.y - 20, 10, T.x, T.y, T.r);
+    g.addColorStop(0, 'rgba(120,96,220,.30)'); g.addColorStop(1, 'rgba(60,44,140,.22)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(T.x, T.y, T.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.arc(T.x, T.y, T.r, off, off + TAU); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(195,166,255,.8)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const a = off + k * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(T.x + Math.cos(a) * (T.r - 10), T.y + Math.sin(a) * (T.r - 10));
+      ctx.lineTo(T.x + Math.cos(a) * (T.r + 4), T.y + Math.sin(a) * (T.r + 4));
+      ctx.stroke();
+    }
+    for (const i of T.carried) {
+      if (!present(i) || S.fly[i]) continue;
+      const P = ringPose(i, now);
+      ctx.strokeStyle = 'rgba(195,166,255,.55)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(T.x, T.y); ctx.lineTo(P.cx, P.cy); ctx.stroke();
+      ctx.fillStyle = TABLE_COLOR; ctx.beginPath(); ctx.arc(P.cx, P.cy, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(P.cx, P.cy, 3, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Göbek düğmesi: beyaz disk, içinde saat yönünde iki ok (tabla dönerken oklar da döner)
+  function drawHub(now) {
+    const T = S.L.table;
+    if (!T) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,3,12,.9)'; ctx.beginPath(); ctx.arc(T.x, T.y + 3, HUB + 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = TABLE_COLOR; ctx.beginPath(); ctx.arc(T.x, T.y, HUB, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(T.x, T.y, HUB - 4, 0, TAU); ctx.fill();
+    const spin = tableOffset(now);
+    ctx.strokeStyle = '#6a4fd0'; ctx.fillStyle = '#6a4fd0'; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+    for (const base of [0, Math.PI]) {
+      const a0 = base + spin - 1.05, a1 = base + spin + 0.75, R = 12;
+      ctx.beginPath(); ctx.arc(T.x, T.y, R, a0, a1); ctx.stroke();
+      const hx = T.x + Math.cos(a1) * R, hy = T.y + Math.sin(a1) * R, tg = a1 + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(tg) * 6, hy + Math.sin(tg) * 6);
+      ctx.lineTo(hx + Math.cos(tg + 2.3) * 5.5, hy + Math.sin(tg + 2.3) * 5.5);
+      ctx.lineTo(hx + Math.cos(tg - 2.3) * 5.5, hy + Math.sin(tg - 2.3) * 5.5);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawHubPulse(now, t0) {
+    const T = S.L.table;
+    if (!T) return;
+    const p = 0.5 + 0.5 * Math.sin((now - t0) / 200);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,201,74,${0.5 + 0.5 * p})`; ctx.lineWidth = 4;
+    ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(T.x, T.y, HUB + 9 + 4 * p, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- Nabız halka (2.4) ----
+  // Kapak kapalıyken boşluğu koyu gri bir kepenk doldurur (amber çizgili; halka renkleriyle karışmaz);
+  // açıkken boşluğun iki ucunda lamba ışığı yanar. Her hamlede kapak ortadan açılır ya da kapanır.
+  function drawPulseCover(i, cx, cy, now) {
+    const ring = S.L.rings[i], open = ring.pulse === S.ph;
+    const t = Math.min(1, (now - S.phT0) / PULSE_MS), e = 1 - Math.pow(1 - t, 3);
+    const shut = open ? 1 - e : e; // 1 = kapak tam kapalı
+    for (const g of ring.gaps) {
+      const mid = S.angles[i] + g, half = (GAP_HALF - 2 * DEG) * shut;
+      if (half > 0.01) {
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#141826'; ctx.lineWidth = STROKE + 3;
+        ctx.beginPath(); ctx.arc(cx, cy, ring.r, mid - half, mid + half); ctx.stroke();
+        ctx.strokeStyle = '#4a516e'; ctx.lineWidth = STROKE - 3;
+        ctx.beginPath(); ctx.arc(cx, cy, ring.r, mid - half, mid + half); ctx.stroke();
+        ctx.strokeStyle = LAMP; ctx.lineWidth = 2.2;
+        for (let k = -2; k <= 2; k++) {
+          const a = mid + k * half / 2.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(a) * (ring.r - 4), cy + Math.sin(a) * (ring.r - 4));
+          ctx.lineTo(cx + Math.cos(a) * (ring.r + 4), cy + Math.sin(a) * (ring.r + 4));
+          ctx.stroke();
+        }
+        ctx.lineCap = 'round';
+      }
+      if (shut < 1) {
+        // açık: boşluğun iki ucunda yanan lambalar
+        const glow = (1 - shut) * (0.75 + 0.25 * Math.sin(now / 160));
+        for (const s of [-1, 1]) {
+          const a = mid + s * GAP_HALF, x = cx + Math.cos(a) * ring.r, y = cy + Math.sin(a) * ring.r;
+          const gr = ctx.createRadialGradient(x, y, 0, x, y, 16);
+          gr.addColorStop(0, `rgba(255,236,170,${0.95 * glow})`); gr.addColorStop(1, 'rgba(255,210,122,0)');
+          ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 16, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    drawLampBadge(i, open, now);
+  }
+
+  // Fener rozeti: nabız halkanın en boş yerinde küçük bir lamba; açıkken ışınları yanar
+  function drawLampBadge(i, open, now) {
+    const p = tokenPos(i, 'lamp');
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(p.x, p.y + 2, 15, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? LAMP : '#5d6488'; ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? '#fff7dc' : '#2a2f48'; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 5.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = open ? '#b0701a' : '#1a1e30'; ctx.fillRect(p.x - 4, p.y + 5, 8, 3.5);
+    if (open) {
+      ctx.strokeStyle = 'rgba(255,240,190,.9)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      const spin = REDUCED ? 0 : now / 900;
+      for (let k = 0; k < 6; k++) {
+        const a = spin + k * Math.PI / 3;
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(a) * 16, p.y + Math.sin(a) * 16); ctx.lineTo(p.x + Math.cos(a) * 21, p.y + Math.sin(a) * 21);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---- Şalter (2.4) ----
+  // Şalter halkalardan uzak bir yere konur: önce tahtanın üst ortası (alttaki uyarı balonu örtmesin),
+  // sonra alt ortası, sonra köşeler; yer yetecek kadar boşsa sıradaki aday denenmez.
+  function switchSpot() {
+    const spots = [[BOARD.w / 2, 30], [BOARD.w / 2, BOARD.h - 34], [70, 30], [BOARD.w - 70, 30], [70, BOARD.h - 34], [BOARD.w - 70, BOARD.h - 34]];
+    let best = spots[0], bestD = -1;
+    for (const [x, y] of spots) {
+      let d = Infinity;
+      for (const r of S.L.table ? [...S.L.rings, S.L.table] : S.L.rings) {
+        if (r.kind && r.kind !== 'ring') continue;
+        // kutunun halkaya en yakın noktası
+        const qx = Math.max(x - SWITCH_W / 2, Math.min(r.x, x + SWITCH_W / 2)), qy = Math.max(y - SWITCH_H / 2, Math.min(r.y, y + SWITCH_H / 2));
+        d = Math.min(d, Math.hypot(qx - r.x, qy - r.y) - r.r - STROKE);
+      }
+      if (d >= 24) return { x, y };
+      if (d > bestD) { bestD = d; best = [x, y]; }
+    }
+    return { x: best[0], y: best[1] };
+  }
+
+  function flipSwitch() {
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
+    const before = snapshot();
+    S.sw ^= 1;
+    S.swT0 = performance.now();
+    S.hint = null;
+    Sound.flip();
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { /* yok say */ } }
+    commitMove(before, -1);
+  }
+
+  // Şalter: iki renkli kızak, beyaz topuz açık rengin üstünde, topuzda şimşek
+  function drawSwitch(now) {
+    if (!S.swPos) return;
+    const { x, y } = S.swPos, w = SWITCH_W, h = SWITCH_H, r = h / 2;
+    const t = Math.min(1, (now - S.swT0) / SWITCH_MS), e = 1 - Math.pow(1 - t, 3);
+    const from = S.sw ? 0 : 1, pos = from + (S.sw - from) * e; // 0 sol (mavi), 1 sağ (turuncu)
+    const pill = (ox, oy, ww, hh, rr) => {
+      ctx.beginPath();
+      ctx.moveTo(ox + rr, oy); ctx.lineTo(ox + ww - rr, oy); ctx.arc(ox + ww - rr, oy + rr, rr, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(ox + rr, oy + hh); ctx.arc(ox + rr, oy + rr, rr, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+    };
+    ctx.save();
+    pill(x - w / 2, y - h / 2 + 3, w, h, r); ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fill();
+    pill(x - w / 2, y - h / 2, w, h, r);
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = SIDE_COLORS[0]; ctx.globalAlpha = S.sw === 0 ? 1 : 0.35; ctx.fillRect(x - w / 2, y - h / 2, w / 2, h);
+    ctx.fillStyle = SIDE_COLORS[1]; ctx.globalAlpha = S.sw === 1 ? 1 : 0.35; ctx.fillRect(x, y - h / 2, w / 2, h);
+    ctx.restore();
+    pill(x - w / 2, y - h / 2, w, h, r); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+    const kx = x - w / 2 + r + pos * (w - h);
+    ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 6;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(kx, y, r - 4, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    drawBolt(kx, y, 9, SIDE_COLORS[S.sw]);
+    ctx.restore();
+  }
+
+  function drawBolt(x, y, s, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.15 * s, y - s); ctx.lineTo(x - 0.55 * s, y + 0.15 * s); ctx.lineTo(x - 0.05 * s, y + 0.15 * s);
+    ctx.lineTo(x - 0.2 * s, y + s); ctx.lineTo(x + 0.55 * s, y - 0.2 * s); ctx.lineTo(x + 0.05 * s, y - 0.2 * s);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function drawSwitchPulse(now, t0) {
+    if (!S.swPos) return;
+    const p = 0.5 + 0.5 * Math.sin((now - t0) / 200);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,201,74,${0.5 + 0.5 * p})`; ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.ellipse(S.swPos.x, S.swPos.y, SWITCH_W / 2 + 8 + 4 * p, SWITCH_H / 2 + 8 + 4 * p, 0, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- Jetonlu halka çizimi (2.4) ----
+  // Jetonlu halkanın rozeti: pirinç oyun jetonu, içinde kalan jeton sayısı; jetonu yoksa sönük.
+  // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
+  function tokenSpot(i, kind) {
+    const r = S.L.rings[i];
+    const springAt = r.kick ? springBadgeAt(i) : null;
+    const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
+    if (S.springSpot[key] != null) return S.springSpot[key];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, j) => {
+        if (j === i || !present(j) || o.kind !== 'ring') return;
+        d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r));
+      });
+      for (const g of r.gaps) d = Math.min(d, angDist(S.angles[i] + g, th) * r.r);
+      if (springAt != null) d = Math.min(d, angDist(springAt, th) * r.r * 0.6);
+      if (y < 18 || y > BOARD.h - 18 || x < 18 || x > BOARD.w - 18) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return (S.springSpot[key] = best);
+  }
+  function tokenPos(i, kind) {
+    const r = S.L.rings[i], th = tokenSpot(i, kind);
+    return { x: r.x + Math.cos(th) * r.r, y: r.y + Math.sin(th) * r.r };
+  }
+
+  // Jeton: altıgen fiş (altın paralarla karışmasın diye yuvarlak değil), rengi gideceği halkanın rengi.
+  // Jetonlu halkanın rozetinde kalan sayı yazar; taşınan jetonda küçük bir yıldız.
+  function drawTokenCoin(x, y, R, color, label, dim) {
+    const hex = rr => {
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 6 + k * Math.PI / 3;
+        if (k) ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+    };
+    ctx.save();
+    ctx.globalAlpha *= dim ? 0.6 : 1;
+    ctx.translate(0, 2); hex(R + 2); ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.fill(); ctx.translate(0, -2);
+    hex(R); ctx.fillStyle = '#fff'; ctx.fill();
+    hex(R - 2.6); ctx.fillStyle = dim ? '#5d6488' : color; ctx.fill();
+    hex(R * 0.62); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    if (label != null) {
+      ctx.font = `900 ${Math.round(R * 1.05)}px Nunito, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,20,.55)';
+      ctx.strokeText(String(label), x, y + 1); ctx.fillText(String(label), x, y + 1);
+    } else {
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? R * 0.2 : R * 0.48;
+        if (k) ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTokens(now) {
+    const arriving = {};
+    S.tokenFly = S.tokenFly.filter(f => now < f.t0 + TOKEN_FLY_MS);
+    for (const f of S.tokenFly) arriving[f.to] = (arriving[f.to] || 0) + 1;
+    S.L.rings.forEach((r, i) => {
+      if (r.kind !== 'ring' || !springLive(i)) return;
+      if (r.tokens != null) {
+        const p = tokenPos(i, 'bank'), shown = S.left[i] - (arriving[i] || 0);
+        drawTokenCoin(p.x, p.y, 17, ringColor(i), shown, shown <= 0);
+      }
+      if (r.token >= 0 && present(r.token)) {
+        const p = tokenPos(i, 'carry');
+        drawTokenCoin(p.x, p.y, 12.5, ringColor(r.token), null, false);
+      }
+    });
+    // Uçan jetonlar: taşıyan halkadan hedefin rozetine yay çizerek gider, dönerek küçülür
+    for (const f of S.tokenFly) {
+      const t = (now - f.t0) / TOKEN_FLY_MS;
+      if (t < 0) { drawTokenCoin(f.from.x, f.from.y, 12.5, ringColor(f.to), null, false); continue; }
+      const to = tokenPos(f.to, 'bank'), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const x = f.from.x + (to.x - f.from.x) * e, y = f.from.y + (to.y - f.from.y) * e - Math.sin(Math.PI * e) * 60;
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(Math.abs(Math.cos(t * Math.PI * 3)) * 0.7 + 0.3, 1); ctx.translate(-x, -y);
+      drawTokenCoin(x, y, 13 + 4 * Math.sin(Math.PI * t), ringColor(f.to), null, false);
+      ctx.restore();
+    }
+  }
+
+  function drawSprings(now) {
+    S.L.rings.forEach((r, i) => {
+      if (!r.kick || !springLive(i)) return;
+      if (springLive(r.kick.target) && !S.kicks.length) drawSpringCoil(i, now);
+      drawSpringBadge(i, now);
+    });
   }
 
   // Akıllı yardım: en iyi hamle sayısı aşıldıysa ya da uzun süre hamle yoksa ipucu düğmesi nabız atar
   function checkHelp(now) {
-    if (S.tut != null || S.won || S.failed || S.auto || S.hint || S.help.shown) return;
-    if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
+    if (S.tut != null || S.won || S.failed || S.auto || S.kicks.length || S.turn || S.hint || S.help.shown) return;
+    if (!$('win').classList.contains('hidden') || !$('worldCard').classList.contains('hidden') || !$('pieceCard').classList.contains('hidden') || !$('settings').classList.contains('hidden')) {
       S.help.lastAct = now;
       return;
     }
@@ -2483,6 +3117,7 @@
   function ringColor(i) {
     if (S.L.rings[i].kind !== 'ring') return BAR_COLOR;
     if (S.L.rings[i].fixed) return FIXED_COLOR;
+    if (S.L.rings[i].side >= 0) return SIDE_COLORS[S.L.rings[i].side];
     return S.def.rings[i].color || COLORS[i % COLORS.length];
   }
 
@@ -2510,6 +3145,11 @@
   function ringPose(i, now) {
     const ring = S.L.rings[i];
     let cx = ring.x, cy = ring.y, alpha = 1, grow = 1;
+    const off = tableOffset(now);
+    if (off && S.L.table.carried.includes(i)) {
+      const T = S.L.table, dx = cx - T.x, dy = cy - T.y, c = Math.cos(off), s = Math.sin(off);
+      cx = T.x + dx * c - dy * s; cy = T.y + dx * s + dy * c;
+    }
     const f = S.fly[i];
     if (f) {
       const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
@@ -2576,7 +3216,7 @@
     const { cx, cy, alpha, grow } = ringPose(i, now);
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
     const color = ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
@@ -2590,6 +3230,7 @@
     ctx.shadowBlur = 0;
     strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
     strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    if (ring.pulse >= 0) drawPulseCover(i, cx, cy, now);
     if (ring.fixed) drawLock(cx, cy);
     if (ring.lockedBy >= 0) {
       const open = lockOpening(i, now);
@@ -2788,7 +3429,7 @@
     S.L.links.forEach(k => {
       if (!present(k.a) || !present(k.b)) return;
       for (const p of k.pts) {
-        if (!pointOpen(S.L, k, p, S.angles)) continue;
+        if (!pointOpen(S.L, k, p, S.angles, S.ph)) continue;
         ctx.save();
         ctx.shadowColor = '#fff';
         ctx.shadowBlur = 14;
@@ -2873,7 +3514,7 @@
   // Denemede: parmak, halkayı tutup gösterilen yöne sürükler (döngü halinde)
   function drawFinger(now) {
     const h = S.hint;
-    if (!h || !h.guide || !present(h.ring) || S.drag) return;
+    if (!h || !h.guide || h.toggle || h.table || !present(h.ring) || S.drag) return;
     const ring = S.L.rings[h.ring];
     const t = ((now - h.t0) % 1900) / 1900;
     const move = Math.min(1, Math.max(0, (t - 0.18) / 0.55));
@@ -2901,6 +3542,8 @@
 
   function drawHint(now) {
     const h = S.hint;
+    if (h && h.toggle) { drawSwitchPulse(now, h.t0); return; }
+    if (h && h.table) { drawHubPulse(now, h.t0); return; }
     if (!h || !present(h.ring)) return;
     const ring = S.L.rings[h.ring];
     const pulse = 0.5 + 0.5 * Math.sin((now - h.t0) / 200);
@@ -3127,13 +3770,21 @@
       ctx.clearRect(0, 0, BOARD.w, BOARD.h);
       if (S.L && !$('game').hidden) {
         stepAuto(now);
+        stepKicks(now);
+        stepTable(now);
         checkHelp(now);
+        drawTable(now);
         drawCouples();
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
-        drawOpenPoints(now);
+        if (!S.turn) drawOpenPoints(now);
+        drawSprings(now);
+        drawTokens(now);
+        drawSwitch(now);
+        drawHub(now);
+        if (S.swPulse && now - S.swPulse < 900) drawSwitchPulse(now, S.swPulse);
         drawCoins(now);
         drawLoot(now);
         drawKeys(now);
@@ -3186,10 +3837,11 @@
     if (params.has('hint')) $('hint').click();
     if (params.has('win')) { S.moves = S.def.par || 0; showWin(); }
   } else if (params.has('ending')) {
-    // Geliştirme: ?ending kapanış sahnesini kayda dokunmadan gösterir
-    applyWorld(W.worldOfGate(W.GATES.length));
+    // Geliştirme: ?ending (Büyük Makine) ya da ?ending=finale kapanış sahnesini kayda dokunmadan gösterir
+    const kind = params.get('ending') === 'finale' ? 'finale' : 'machine';
+    applyWorld(W.worldOfGate(kind === 'finale' ? GATE_COUNT : Math.min(GATE_COUNT, MACHINE_END / W.GATE_SIZE)));
     showScreen('home');
-    showEnding(true);
+    showEnding(kind, true);
   } else if (params.has('src')) {
     // Geliştirme: ?src=1001 bir bölümü kaynak numarasıyla açar (kapıya yerleşmemiş tanıtımlar için)
     loadPreview(parseInt(params.get('src'), 10));
@@ -3224,6 +3876,7 @@
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
       if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
+      if (!$('pieceCard').classList.contains('hidden')) { $('pieceGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
       if (!$('ceremony').hidden) { $('ceremony').click(); return; }
       if (!$('fail').classList.contains('hidden')) { $('failRetry').click(); return; }

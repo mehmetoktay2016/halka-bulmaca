@@ -70,6 +70,34 @@
           <circle cx="50" cy="50" r="11" fill="${c.hi}"/><circle cx="50" cy="50" r="4" fill="${c.ink}"/>`;
       },
     },
+    // 2.4: yeni dünyalar
+    lunapark: {
+      name: 'Uçan Balonlar',
+      art: c => `<g stroke="${c.ink}" stroke-width="2" fill="none"><path d="M33 52Q36 70 48 86M50 44Q50 66 48 86M67 52Q62 70 48 86"/></g>
+        <ellipse cx="33" cy="36" rx="13" ry="16" fill="${c.ink}"/><path d="M30 52h6l-3 4z" fill="${c.ink}"/>
+        <ellipse cx="67" cy="36" rx="13" ry="16" fill="${c.ink}"/><path d="M64 52h6l-3 4z" fill="${c.ink}"/>
+        <ellipse cx="50" cy="27" rx="14" ry="17" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/><path d="M47 44h6l-3 4z" fill="${c.ink}"/>
+        <path d="M44 20q2-5 7-6" stroke="${c.ink}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+    },
+    santral: {
+      name: 'Yıldırım',
+      art: c => `<path d="M58 8L26 54h20L38 92L74 40H53L64 8Z" fill="${c.ink}"/>
+        <path d="M57 16L36 48h16L46 76" stroke="${c.hi}" stroke-width="3.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`,
+    },
+    fener: {
+      name: 'Gemi Çapası',
+      art: c => `<g stroke="${c.ink}" stroke-width="7" stroke-linecap="round" fill="none">
+          <path d="M50 30V82M36 40h28M22 60Q24 82 50 84Q76 82 78 60"/></g>
+        <path d="M14 64l8-8 8 8ZM70 64l8-8 8 8Z" fill="${c.ink}"/>
+        <circle cx="50" cy="21" r="8" fill="none" stroke="${c.ink}" stroke-width="6"/><circle cx="50" cy="21" r="3" fill="${c.hi}"/>`,
+    },
+    rasathane: {
+      name: 'Kuyruklu Yıldız',
+      art: c => `<path d="M12 84L56 36L64 44Z" fill="${c.hi}" opacity=".55"/><path d="M20 90L58 42L62 48Z" fill="${c.hi}" opacity=".35"/>
+        <path d="M8 72L52 32L58 40Z" fill="${c.hi}" opacity=".35"/>
+        <path d="M64 18l5 11 12 1.5-9 8 2.5 12L64 45l-10.5 5.5 2.5-12-9-8 12-1.5Z" fill="${c.ink}"/>
+        <circle cx="82" cy="70" r="3" fill="${c.ink}"/><circle cx="30" cy="22" r="2.5" fill="${c.ink}"/>`,
+    },
   };
   const PIECES = 5;
 

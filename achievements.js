@@ -21,10 +21,14 @@
     { id: 'kasif', group: 'Yolculuk', name: 'Kâşif', desc: '3 dünyaya ayak bas', tier: 'gumus', icon: 'dunya', goal: 3, value: c => c.worldsSeen },
     { id: 'yolun-yarisi', group: 'Yolculuk', name: 'Yolun Yarısı', desc: '10 kapıyı bitir', tier: 'gumus', icon: 'kapi', goal: 10, value: c => c.gatesDone },
     { id: 'buyuk-makine', group: 'Yolculuk', name: 'Büyük Makine', desc: '20 kapının hepsini bitir', tier: 'altin', icon: 'disli', goal: 20, value: c => c.gatesDone },
+    // 2.4: kapı 21-30
+    { id: 'fener-yolu', group: 'Yolculuk', name: 'Fener Yolu', desc: '25 kapıyı bitir', tier: 'gumus', icon: 'kapi', goal: 25, value: c => c.gatesDone },
+    { id: 'yildiz-haritasi', group: 'Yolculuk', name: 'Yıldız Haritası', desc: '30 kapının hepsini bitir', tier: 'altin', icon: 'teleskop', goal: 30, value: c => c.gatesDone },
     // Yıldız
     { id: 'yildiz-50', group: 'Yıldız', name: 'Yıldız Toplayıcı', desc: '50 yıldız topla', tier: 'bronz', icon: 'yildiz', goal: 50, value: c => c.stars },
     { id: 'yildiz-150', group: 'Yıldız', name: 'Yıldız Avcısı', desc: '150 yıldız topla', tier: 'gumus', icon: 'yildiz', goal: 150, value: c => c.stars },
     { id: 'yildiz-300', group: 'Yıldız', name: 'Gökyüzü', desc: '300 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 300, value: c => c.stars },
+    { id: 'yildiz-600', group: 'Yıldız', name: 'Samanyolu', desc: '600 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 600, value: c => c.stars },
     { id: 'kusursuz', group: 'Yıldız', name: 'Kusursuz', desc: '10 bölümü 3 yıldızla bitir', tier: 'bronz', icon: 'uc-yildiz', goal: 10, value: c => c.perfect },
     { id: 'altin-kapi', group: 'Yıldız', name: 'Altın Kapı', desc: 'Bir kapının bütün bölümlerini 3 yıldızla bitir', tier: 'gumus', icon: 'kapi-altin', goal: 1, value: c => c.goldGates },
     { id: 'altin-yol', group: 'Yıldız', name: 'Altın Yol', desc: '5 altın kapı', tier: 'altin', icon: 'kapi-altin', goal: 5, value: c => c.goldGates },
@@ -52,6 +56,7 @@
     kapi: '<path d="M5 20V11a7 7 0 0 1 14 0v9M9 20v-7a3 3 0 0 1 6 0v7M3 20h18"/>',
     'kapi-altin': '<path d="M5 20V11a7 7 0 0 1 14 0v9M3 20h18"/><path d="M12 9.5l1.2 2.4 2.6.4-1.9 1.8.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.8 2.6-.4z"/>',
     dunya: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/>',
+    teleskop: '<path d="M4 12.5l12-5 1.8 4.2-12 5zM15 8.2l3.5-1.5 1.8 4.2-3.5 1.5M10 15l-3 6M11 15l3 6"/><circle cx="10.5" cy="14.4" r="1"/>',
     disli: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
     yildiz: '<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
     'uc-yildiz': '<path d="M6 13l1 2 2.2.3-1.6 1.5.4 2.2L6 18l-2 1 .4-2.2-1.6-1.5L5 15zM18 13l1 2 2.2.3-1.6 1.5.4 2.2L18 18l-2 1 .4-2.2-1.6-1.5L17 15zM12 4l1.3 2.6 2.9.4-2.1 2 .5 2.9L12 10.5l-2.6 1.4.5-2.9-2.1-2 2.9-.4z"/>',

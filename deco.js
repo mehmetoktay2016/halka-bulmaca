@@ -183,7 +183,8 @@
   // { type: 'face', look: { eyes, nose, mouth, extras, fill, eyeY, eyeX, eyeS, noseColor, tint } }
   // eyes: round | big | happy | visor | three   nose: triangle | oval | snout | beak | duck | trunk | none
   // mouth: smile | w | open | fangs | tongue | grill | none
-  // extras: whiskers, cheeks, antennae, spots, stripes, mask, horns, freckles, brows
+  // extras: whiskers, cheeks, antennae, spots, stripes, mask, horns, freckles, brows, muzzle, bandit
+  // (2.4: nose hook (flamingo) ve tube (denizatı), mouth buckteeth (kunduz) ve howl (uluyan kurt))
   function drawLook(g, r, now, color, L) {
     const ex = new Set(L.extras || []);
     const ey = (L.eyeY ?? -0.08) * r, exx = (L.eyeX ?? 0.3) * r, es = (L.eyeS ?? 0.1) * r;
@@ -207,6 +208,16 @@
       // Tilki/rakun maskesi: göz çevresinde açık renkli yanaklar
       ellipse(g, -0.36 * r, 0.16 * r, 0.3 * r, 0.24 * r, 0.4, 'rgba(255,248,236,.85)');
       ellipse(g, 0.36 * r, 0.16 * r, 0.3 * r, 0.24 * r, -0.4, 'rgba(255,248,236,.85)');
+    }
+    if (ex.has('muzzle')) {
+      // Maymun: alt yüzde açık renkli kalp biçimi ağız bölgesi
+      ellipse(g, -0.2 * r, 0.22 * r, 0.3 * r, 0.26 * r, 0.3, 'rgba(255,240,220,.8)');
+      ellipse(g, 0.2 * r, 0.22 * r, 0.3 * r, 0.26 * r, -0.3, 'rgba(255,240,220,.8)');
+      ellipse(g, 0, -0.06 * r, 0.5 * r, 0.28 * r, 0, 'rgba(255,240,220,.55)');
+    }
+    if (ex.has('bandit')) {
+      // Rakun: gözlerin üstünden geçen koyu bant
+      ellipse(g, 0, (L.eyeY ?? -0.08) * r, 0.62 * r, 0.17 * r, 0, 'rgba(36,32,58,.75)');
     }
     if (ex.has('spots')) {
       for (const [x, y, s] of [[-0.5, -0.45, 0.13], [0.48, -0.5, 0.1], [0.55, 0.35, 0.12], [-0.6, 0.3, 0.09], [0.05, -0.68, 0.08]]) {
@@ -265,6 +276,19 @@
         g.fillStyle = nc === INK ? '#ff9f1c' : nc;
         g.beginPath(); g.moveTo(-0.13 * r, 0.06 * r); g.lineTo(0.13 * r, 0.06 * r); g.lineTo(0, 0.3 * r); g.closePath(); g.fill();
         break;
+      case 'hook':
+        // Flamingo gagası: aşağı kıvrık, ucu koyu
+        g.fillStyle = '#fff3e0';
+        g.beginPath(); g.moveTo(-0.1 * r, 0.06 * r); g.quadraticCurveTo(0.34 * r, 0.02 * r, 0.3 * r, 0.36 * r);
+        g.quadraticCurveTo(0.16 * r, 0.2 * r, -0.04 * r, 0.2 * r); g.closePath(); g.fill();
+        g.fillStyle = INK;
+        g.beginPath(); g.moveTo(0.2 * r, 0.22 * r); g.quadraticCurveTo(0.33 * r, 0.2 * r, 0.3 * r, 0.36 * r); g.quadraticCurveTo(0.24 * r, 0.28 * r, 0.16 * r, 0.27 * r); g.closePath(); g.fill();
+        break;
+      case 'tube':
+        // Denizatı: halkanın dışına uzanan ince burun borusu
+        g.strokeStyle = hexA(color, 0.95); g.lineWidth = 0.16 * r; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(0.2 * r, 0.12 * r); g.lineTo(0.95 * r, 0.3 * r); g.stroke();
+        break;
       case 'duck':
         ellipse(g, 0, 0.24 * r, 0.3 * r, 0.12 * r, 0, nc === INK ? '#ff9f1c' : nc);
         line(g, [[-0.22 * r, 0.24 * r], [0.22 * r, 0.24 * r]], Math.max(1.2, r * 0.018), 'rgba(140,70,0,.6)');
@@ -302,6 +326,16 @@
         g.beginPath(); g.moveTo(-0.2 * r, 0.3 * r); g.lineTo(0.2 * r, 0.3 * r); g.stroke();
         g.fillStyle = '#fff';
         for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(sx * 0.14 * r, 0.3 * r); g.lineTo(sx * 0.06 * r, 0.3 * r); g.lineTo(sx * 0.1 * r, 0.42 * r); g.closePath(); g.fill(); }
+        break;
+      case 'buckteeth':
+        smallMouth(g, r, 0.24);
+        g.fillStyle = '#fff'; g.strokeStyle = 'rgba(36,32,58,.5)'; g.lineWidth = Math.max(1, r * 0.015);
+        for (const sx of [-1, 1]) { g.beginPath(); g.rect(sx === -1 ? -0.1 * r : 0.005 * r, 0.27 * r, 0.095 * r, 0.14 * r); g.fill(); g.stroke(); }
+        break;
+      case 'howl':
+        // Uluyan ağız: yukarı açılmış yuvarlak
+        ellipse(g, 0, 0.33 * r, 0.11 * r, 0.14 * r, 0, INK);
+        ellipse(g, 0, 0.38 * r, 0.06 * r, 0.05 * r, 0, PINK);
         break;
       case 'grill':
         g.fillStyle = '#1d2238';
@@ -495,6 +529,115 @@
       g.closePath(); g.fill();
     },
     // Kanat zarı (yarasa, arı): halkanın içi yarı saydam
+    // ---- 2.4: yeni şekillerin süsleri ----
+    // Fokun burnundaki top: renkli dilimli, yavaşça döner
+    ball(g, r, now) {
+      g.save(); g.rotate(now / 1400);
+      const cols = ['#ff6b6b', '#fff', '#4cc9f0', '#fff', '#ffc94a', '#fff'];
+      for (let k = 0; k < 6; k++) { g.fillStyle = cols[k]; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r - 7, k * TAU / 6, (k + 1) * TAU / 6); g.closePath(); g.fill(); }
+      g.restore();
+    },
+    // Atlıkarınca çadır tepesi: dilimli şerit ve tepede bayrak
+    canopy(g, r, now, color) {
+      fillFace(g, r, color, 0.3);
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      for (let k = 0; k < 8; k += 2) { g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(0, -r); g.lineTo((k - 4) * 0.25 * r, r); g.lineTo((k - 3) * 0.25 * r, r); g.closePath(); g.fill(); }
+      g.restore();
+      const wv = Math.sin(now / 300) * 0.06 * r;
+      line(g, [[0, -0.2 * r], [0, -0.75 * r]], Math.max(2, r * 0.03), INK);
+      g.fillStyle = '#ffc94a'; g.beginPath(); g.moveTo(0, -0.75 * r); g.lineTo(0.3 * r, -0.66 * r + wv); g.lineTo(0, -0.56 * r); g.closePath(); g.fill();
+    },
+    // Ateş böceğinin karnı: nabız gibi parlayan ışık
+    glow(g, r, now) {
+      const p = 0.8 + 0.2 * Math.sin(now / 420);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r - 7);
+      gr.addColorStop(0, `rgba(255,250,200,${0.95 * p})`); gr.addColorStop(1, `rgba(255,224,102,${0.25 * p})`);
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.fill();
+    },
+    // Ampul teli: iki tel ve titreyen kıvrımlı filaman
+    filament(g, r, now) {
+      fillFace(g, r, '#fff3b0', 0.62);
+      const fl = 0.8 + 0.2 * Math.sin(now / 90);
+      line(g, [[-0.2 * r, 0.7 * r], [-0.2 * r, 0.05 * r]], Math.max(1.5, r * 0.025), 'rgba(36,32,58,.6)');
+      line(g, [[0.2 * r, 0.7 * r], [0.2 * r, 0.05 * r]], Math.max(1.5, r * 0.025), 'rgba(36,32,58,.6)');
+      g.save(); g.shadowColor = '#ffb347'; g.shadowBlur = 14 * fl;
+      g.strokeStyle = `rgba(255,170,60,${fl})`; g.lineWidth = Math.max(2, r * 0.04); g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(-0.2 * r, 0.05 * r);
+      for (let k = 0; k <= 8; k++) g.lineTo(-0.2 * r + k * 0.05 * r, 0.05 * r + (k % 2 ? -0.1 : 0) * r);
+      g.stroke(); g.restore();
+    },
+    // Yılan balığının şimşeği
+    bolt(g, r, now) {
+      const f = 0.7 + 0.3 * Math.abs(Math.sin(now / 160));
+      g.fillStyle = `rgba(255,236,120,${f})`;
+      g.beginPath();
+      g.moveTo(0.1 * r, -0.6 * r); g.lineTo(-0.32 * r, 0.08 * r); g.lineTo(-0.02 * r, 0.08 * r);
+      g.lineTo(-0.14 * r, 0.6 * r); g.lineTo(0.32 * r, -0.12 * r); g.lineTo(0.02 * r, -0.12 * r);
+      g.closePath(); g.fill();
+    },
+    // Kunduz kuyruğu: çapraz çizgili yassı kuyruk
+    tailx(g, r, now, color) {
+      fillFace(g, r, '#5a3d2b', 0.6);
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = Math.max(1.2, r * 0.04);
+      for (let k = -4; k <= 4; k++) { line(g, [[k * 0.25 * r - r, -r], [k * 0.25 * r + r, r]], g.lineWidth, g.strokeStyle); line(g, [[k * 0.25 * r + r, -r], [k * 0.25 * r - r, r]], g.lineWidth, g.strokeStyle); }
+      g.restore();
+    },
+    // Yengeç kıskacı: halkanın içinde açılıp kapanan iki çene
+    pincer(g, r, now, color, d) {
+      const open = 0.25 + 0.15 * Math.sin(now / 500), s = d.side || 1;
+      g.fillStyle = 'rgba(255,240,235,.7)';
+      for (const k of [-1, 1]) {
+        g.beginPath(); g.moveTo(-s * 0.3 * r, 0);
+        g.quadraticCurveTo(s * 0.2 * r, k * (open + 0.25) * r, s * 0.5 * r, k * open * 0.4 * r);
+        g.quadraticCurveTo(s * 0.1 * r, k * 0.1 * r, -s * 0.3 * r, 0);
+        g.fill();
+      }
+    },
+    // Fener lambası: dönen ışık huzmesi ve sıcak parıltı
+    lamp(g, r, now) {
+      const a = now / 1200;
+      g.save();
+      g.fillStyle = 'rgba(255,226,160,.35)';
+      for (const s of [0, Math.PI]) { g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r * 2.2, a + s - 0.2, a + s + 0.2); g.closePath(); g.fill(); }
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r - 7);
+      gr.addColorStop(0, 'rgba(255,250,215,1)'); gr.addColorStop(1, 'rgba(255,210,122,.4)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.fill();
+      g.restore();
+    },
+    // Balinanın fıskiyesi: halkanın üstünden yükselen su damlaları
+    spout(g, r, now) {
+      for (let k = 0; k < 5; k++) {
+        const t = ((now / 900) + k / 5) % 1, x = Math.sin(k * 2.1) * 0.5 * r * t, y = -t * 1.4 * r;
+        circle(g, x, y, (0.16 - 0.1 * t) * r, `rgba(160,220,255,${1 - t})`);
+      }
+      fillFace(g, r, '#cfefff', 0.35);
+    },
+    // Teleskop merceği: cam ve parıltı çizgisi
+    lens(g, r, now) {
+      const gr = g.createRadialGradient(-0.2 * r, -0.2 * r, 1, 0, 0, r - 7);
+      gr.addColorStop(0, 'rgba(220,240,255,.9)'); gr.addColorStop(1, 'rgba(90,120,220,.5)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.fill();
+      const sh = ((now / 2600) % 1) * 2 - 0.5;
+      line(g, [[(sh - 0.3) * r, -0.5 * r], [(sh + 0.1) * r, 0.5 * r]], Math.max(2, r * 0.08), 'rgba(255,255,255,.5)');
+    },
+    // Ay: hilal
+    moon(g, r) {
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      circle(g, 0, 0, r - 7, '#fff3b0');
+      circle(g, 0.38 * r, -0.2 * r, r - 7, 'rgba(36,32,58,.85)');
+      g.restore();
+      circle(g, -0.3 * r, 0.15 * r, 0.08 * r, 'rgba(200,180,110,.6)');
+    },
+    // Gözlemevi kubbesi: yarım küre, ortasında açılan yarık ve görünen yıldız
+    dome(g, r, now, color) {
+      fillFace(g, r, color, 0.35);
+      g.fillStyle = 'rgba(36,32,58,.85)';
+      roundBox(g, -0.12 * r, -0.75 * r, 0.24 * r, 0.9 * r, 0.1 * r); g.fill();
+      const tw = 0.6 + 0.4 * Math.sin(now / 500);
+      circle(g, 0, -0.45 * r, 0.05 * r * (1 + tw), `rgba(255,255,255,${tw})`);
+      for (let k = -3; k <= 3; k++) line(g, [[k * 0.22 * r, 0.25 * r], [k * 0.22 * r, 0.7 * r]], Math.max(1, r * 0.02), 'rgba(255,255,255,.25)');
+    },
     wing(g, r, now, color, d) {
       fillFace(g, r, d.light ? '#e8f4ff' : color, d.light ? 0.5 : 0.45);
       g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = Math.max(1.4, r * 0.03);

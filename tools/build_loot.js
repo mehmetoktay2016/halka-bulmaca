@@ -3,6 +3,7 @@
 // Ödülün hangi bölümde olacağı, nadirliği ve içeriği burada değil, rewards.js'te belirlenir.
 // Seçim kuralları:
 // - Ödül halkanın içinde, yalnızca o halkaya ait boş bir yere çizilir (başka halkanın içi değil, çizgilerden uzak).
+// - Döner tablanın taşıdığı halkalar olmaz (tabla dönünce yer değiştirir); ödül tablanın göbeğinden ve kenarından uzak durur.
 // - Süslü (şekil yüzü) halkalar olmaz; kilitli, anahtar, sabit ve dişli işaretli halkalarda ortadaki simgeden uzak durulur.
 // - Her aday için o bölüme kaç altın sığdığı da yazılır (game.js placeCoins kuralları, ödüle 46'dan yakın olmayan):
 //   altın halka yalnız en az LOOT.goldCoins altın sığan yere konur.
@@ -27,14 +28,20 @@ const segDist = (px, py, b) => {
 const pieceDist = (px, py, r) => (r.kind === 'frame' ? Math.min(...r.segs.map(s => segDist(px, py, s))) : segDist(px, py, r));
 
 // İpucuna uyarak oynar (balance.js ile aynı); her halkanın kaçıncı hamlede kurtulduğunu döner
-function releaseMoves(L) {
-  let a = L.startAngles.slice(), m = Logic.cascade(L, a, 0).mask, moves = 0;
+function releaseMoves(L0) {
+  let L = L0;
+  let { mask: m, angles: a, left } = Logic.cascade(L, L.startAngles.slice(), 0), moves = 0, sw = L.startSw, ph = 0;
   const at = {};
   while (m !== L.full && moves < 30) {
-    const s = Logic.solveFast(L, a, m, 2000, 0.8) || Logic.solveFast(L, a, m, 30000);
+    const s = Logic.solveFast(L, a, m, 2000, 0.8, left, sw, ph) || Logic.solveFast(L, a, m, 30000, undefined, left, sw, ph);
     if (!s || !s.first) break;
-    a = Logic.rotate(L, a, s.first.ring, s.first.delta);
-    const next = Logic.cascade(L, a, m).mask;
+    if (L.hasPulse) ph ^= 1;
+    if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, a, m, left, ph)); continue; }
+    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, t.angles, m, left, ph)); continue; }
+    const c = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph);
+    const next = c.mask;
+    a = c.angles;
+    left = c.left;
     moves++;
     for (let i = 0; i < L.rings.length; i++) if ((next & (1 << i)) && !(m & (1 << i))) at[i] = moves;
     m = next;
@@ -44,7 +51,7 @@ function releaseMoves(L) {
 
 // Halkanın içinde, yalnızca bu halkaya ait (başka halkanın içinde olmayan) ve her çizgiden uzak en iyi nokta.
 // Ortadaki simgelerden (kilit, anahtar, dişli işareti) de uzak durur.
-function spot(L, i, centerBusy) {
+function spot(L, i, centerBusy, table) {
   const r = L.rings[i];
   let best = null;
   for (let y = r.y - r.r; y <= r.y + r.r; y += 4) {
@@ -54,6 +61,11 @@ function spot(L, i, centerBusy) {
       if (centerBusy && Math.hypot(x - r.x, y - r.y) < 30) continue;
       if (x < CLEAR || y < CLEAR || x > Levels.BOARD.w - CLEAR || y > Levels.BOARD.h - CLEAR) continue;
       let clear = own;
+      if (table) {
+        const dt = Math.hypot(x - table.x, y - table.y);
+        if (dt < 34) continue; // göbek düğmesi
+        clear = Math.min(clear, Math.abs(dt - table.r));
+      }
       for (let j = 0; j < L.rings.length && clear >= CLEAR; j++) {
         if (j === i) continue;
         const o = L.rings[j];
@@ -104,13 +116,14 @@ for (const src of order) {
   const def = get(src), L = Logic.buildLevel(def);
   const deco = new Set((def.deco || []).map(d => d.ring));
   const marked = new Set(L.couples.filter(c => c.ratio !== 1).flatMap(c => [c.a, c.b]));
+  const carried = new Set(def.table ? def.table.carried : []);
   const { at, total } = releaseMoves(L);
   const spots = coinSpots(L);
   const cands = [];
   L.rings.forEach((r, i) => {
-    if (r.kind !== 'ring' || deco.has(i) || !at[i]) return;
+    if (r.kind !== 'ring' || deco.has(i) || carried.has(i) || !at[i]) return;
     const busy = r.fixed || r.lockedBy >= 0 || marked.has(i) || L.rings.some(k => k.lockedBy === i);
-    const p = spot(L, i, busy);
+    const p = spot(L, i, busy, def.table);
     if (p) cands.push({ i, x: p.x, y: p.y, room: coinRoom(spots, p.x, p.y), rank: at[i] === total ? -1 : at[i] });
   });
   // Önce son hamleden önce kurtulanlar (geç olan önde), sonra son hamlede kurtulanlar

@@ -39,6 +39,7 @@
       streak: null,       // günlük seri: { day: 'YYYY-AA-GG', count }
       owned: {},          // mağazadan alınan süsler (ürün kimliği -> true)
       equip: {},          // kullanılan süs: { burst, pop, win } (yoksa her bölümün bedava ilki)
+      seenPieces: {},     // kartı görülmüş parçalar (pieces.js kimliği -> true)
     };
   }
 

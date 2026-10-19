@@ -34,6 +34,7 @@ test('loot_data.js bugünkü bölümlerle uyumlu (değilse: node tools/build_loo
         if (j !== i && o.kind === 'ring') assert.ok(Math.abs(Math.hypot(x - o.x, y - o.y) - o.r) > 20, `bölüm ${src}: ödül halka ${j}'nin çizgisinde`);
       });
       assert.ok(!(def.deco || []).some(d => d.ring === i), `bölüm ${src}: halka ${i} süslü`);
+      assert.ok(!(def.table && def.table.carried.includes(i)), `bölüm ${src}: halka ${i} tablada taşınıyor`);
     }
   }
 });
@@ -102,8 +103,9 @@ const worldLevels = id => order.map((_, i) => i + 1).filter(n => W.worldOfGate(W
 
 test('her dünyanın çıkartması ve 5 parçası var; parçalar farklı bölümlerde, sonuncusu dünyanın son bölümünde', () => {
   for (const w of W.WORLDS) {
-    assert.ok(STK.SETS[w.id] && STK.SETS[w.id].name, w.id + ' çıkartması yok');
     const levels = worldLevels(w.id);
+    if (!levels.length) continue; // bölümleri henüz eklenmemiş dünya
+    assert.ok(STK.SETS[w.id] && STK.SETS[w.id].name, w.id + ' çıkartması yok');
     const at = R.stickerLevels(levels);
     assert.strictEqual(at.length, STK.PIECES, w.id);
     assert.strictEqual(new Set(at).size, STK.PIECES, w.id + ' aynı bölümde iki parça');

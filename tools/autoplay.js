@@ -47,8 +47,8 @@
     await wait(400);
     const S = window.__halka.S;
     for (let guard = 0; guard < 30 && !S.won; guard++) {
-      const sol = solveFast(S.L, S.angles, S.mask, 30000);
-      if (!sol || !sol.first) break;
+      const sol = solveFast(S.L, S.angles, S.mask, 30000, undefined, S.left, S.sw, S.ph);
+      if (!sol || !sol.first || sol.first.ring < 0) break; // şalter ve tabla hamleleri bu araçta yok
       const ring = S.L.rings[sol.first.ring];
       // halkayı boşluğun tam karşısından tut
       await drag(ring, S.angles[sol.first.ring] + Math.PI, sol.first.delta);

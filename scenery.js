@@ -210,6 +210,91 @@
       g.lineWidth = 1.5;
       for (const inset of [12, 18]) { roundRect(g, inset, inset, w - inset * 2, h - inset * 2, 26 - inset); g.stroke(); }
     },
+    // Lunapark (2.4): çapraz çizgili çadır bezi, kenar boyunca ampul dizisi
+    cadir(g, w, h, c, a) {
+      const s = 34, D = Math.hypot(w, h);
+      g.save();
+      g.translate(w / 2, h / 2); g.rotate(-0.35);
+      g.fillStyle = rgba(c, a * 0.5);
+      for (let x = -D, k = 0; x < D; x += s, k++) if (k % 2 === 0) g.fillRect(x, -D, s, 2 * D);
+      g.restore();
+      for (const [x0, y0, x1, y1] of [[18, 18, w - 18, 18], [18, h - 18, w - 18, h - 18], [18, 18, 18, h - 18], [w - 18, 18, w - 18, h - 18]]) {
+        const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / 30);
+        for (let k = 0; k <= n; k++) {
+          const x = x0 + (x1 - x0) * k / n, y = y0 + (y1 - y0) * k / n;
+          const gr = g.createRadialGradient(x, y, 0, x, y, 9);
+          gr.addColorStop(0, rgba(c, a)); gr.addColorStop(1, rgba(c, 0));
+          g.fillStyle = gr; g.beginPath(); g.arc(x, y, 9, 0, TAU); g.fill();
+          g.fillStyle = rgba(c, a); g.beginPath(); g.arc(x, y, 2.6, 0, TAU); g.fill();
+        }
+      }
+    },
+    // Santral (2.4): devre kartı; dik açılı yollar, uçlarında lehim noktaları, birkaç yonga
+    devre(g, w, h, c, a, R) {
+      const s = 22;
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      for (let k = 0; k < 26; k++) {
+        let x = Math.floor(R() * w / s) * s + s / 2, y = Math.floor(R() * h / s) * s + s / 2;
+        g.strokeStyle = rgba(c, a * (0.5 + R() * 0.5)); g.lineWidth = 2;
+        g.beginPath(); g.moveTo(x, y);
+        let dir = R() < 0.5 ? 0 : 1;
+        for (let st = 0; st < 4 + Math.floor(R() * 5); st++) {
+          const len = (1 + Math.floor(R() * 4)) * s;
+          if (dir === 0) x += R() < 0.5 ? len : -len; else y += R() < 0.5 ? len : -len;
+          g.lineTo(x, y);
+          dir = 1 - dir;
+        }
+        g.stroke();
+        g.fillStyle = rgba(c, a);
+        g.beginPath(); g.arc(x, y, 3.6, 0, TAU); g.fill();
+      }
+      for (let k = 0; k < 4; k++) {
+        const cw = 36 + R() * 30, ch = 24 + R() * 16, x = R() * (w - cw), y = R() * (h - ch);
+        roundRect(g, x, y, cw, ch, 4);
+        g.fillStyle = rgba(c, a * 0.45); g.fill();
+        g.fillStyle = rgba(c, a * 0.8);
+        for (let px = x + 5; px < x + cw - 3; px += 7) { g.fillRect(px, y - 4, 3, 4); g.fillRect(px, y + ch, 3, 4); }
+      }
+    },
+    // Deniz Feneri (2.4): üst üste dalga çizgileri, tepelerde köpük noktaları
+    dalga(g, w, h, c, a, R) {
+      g.lineCap = 'round';
+      for (let y = 10, row = 0; y < h + 10; y += 20, row++) {
+        const amp = 3 + R() * 3, len = 50 + R() * 30, ph = R() * TAU;
+        g.strokeStyle = rgba(c, a * (0.45 + R() * 0.55)); g.lineWidth = 1.6;
+        g.beginPath();
+        for (let x = 0; x <= w; x += 6) {
+          const yy = y + Math.sin(x / len * TAU + ph) * amp;
+          if (x === 0) g.moveTo(x, yy); else g.lineTo(x, yy);
+        }
+        g.stroke();
+        g.fillStyle = rgba(c, a * 0.8);
+        for (let x = (ph / TAU) * len; x < w; x += len) {
+          if (R() < 0.5) continue;
+          for (let d = 0; d < 3; d++) { g.beginPath(); g.arc(x + len / 4 + (R() - 0.5) * 8, y - amp - 2 - R() * 3, 0.8 + R(), 0, TAU); g.fill(); }
+        }
+      }
+    },
+    // Rasathane (2.4): gök haritası; merkez etrafında yörüngeler, açı çizgileri, yörüngede küçük gezegenler
+    gokkure(g, w, h, c, a, R) {
+      const cx = w * 0.5, cy = h * 0.55, R0 = Math.hypot(w, h) * 0.6;
+      g.strokeStyle = rgba(c, a * 0.55); g.lineWidth = 1;
+      for (let k = 0; k < 12; k++) {
+        const ang = k / 12 * TAU;
+        g.beginPath(); g.moveTo(cx + Math.cos(ang) * 30, cy + Math.sin(ang) * 30); g.lineTo(cx + Math.cos(ang) * R0, cy + Math.sin(ang) * R0); g.stroke();
+      }
+      for (let r = 46, k = 0; r < R0; r += 52, k++) {
+        g.strokeStyle = rgba(c, a * (k % 2 ? 0.6 : 0.95)); g.lineWidth = k % 2 ? 1 : 1.8;
+        g.setLineDash(k % 2 ? [3, 6] : []);
+        g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke();
+        g.setLineDash([]);
+        const p = R() * TAU, pr = 2.5 + R() * 4;
+        g.fillStyle = rgba(c, a);
+        g.beginPath(); g.arc(cx + Math.cos(p) * r, cy + Math.sin(p) * r, pr, 0, TAU); g.fill();
+      }
+      g.fillStyle = rgba(c, a * 0.7);
+      for (let k = 0; k < 40; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R() * 1.1, 0, TAU); g.fill(); }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -361,6 +446,103 @@
           g.strokeStyle = acc; g.lineWidth = 1;
           g.beginPath(); g.moveTo(p.x - 6, p.y); g.lineTo(p.x + 6, p.y); g.moveTo(p.x, p.y - 6); g.lineTo(p.x, p.y + 6); g.stroke();
         }
+      },
+    },
+    // Lunapark (2.4): yavaşça düşen, dönen konfeti; arada bir yükselen balon
+    konfeti: {
+      count: 22,
+      make: (w, h, fresh) => (rand() < 0.05 && !fresh
+        ? { balloon: true, x: rand() * w, y: h + 40, v: 18 + rand() * 12, c: ['#ff6fb5', '#ffd34a', '#4cc9f0'][Math.floor(rand() * 3)], ph: rand() * TAU }
+        : { x: rand() * w, y: fresh ? rand() * h : -10, vy: 16 + rand() * 22, ph: rand() * TAU, spin: 1 + rand() * 3,
+            c: ['#ff6fb5', '#ffd34a', '#4cc9f0', '#90be6d', '#b388ff'][Math.floor(rand() * 5)] }),
+      step: (p, dt, w, h) => {
+        if (p.balloon) { p.y -= p.v * dt; p.x += Math.sin(p.y / 40 + p.ph) * 10 * dt; return p.y > -60; }
+        p.y += p.vy * dt; p.x += Math.sin(p.y / 25 + p.ph) * 18 * dt; return p.y < h + 10;
+      },
+      draw: (g, p, now) => {
+        if (p.balloon) {
+          g.globalAlpha = 0.28;
+          g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(p.x, p.y + 15); g.quadraticCurveTo(p.x + 5, p.y + 30, p.x - 2, p.y + 44); g.stroke();
+          g.fillStyle = p.c; g.beginPath(); g.ellipse(p.x, p.y, 11, 14, 0, 0, TAU); g.fill();
+          return;
+        }
+        g.globalAlpha = 0.45;
+        g.translate(p.x, p.y); g.rotate(now / 1000 * p.spin + p.ph); g.scale(1, Math.abs(Math.cos(now / 400 + p.ph)) + 0.15);
+        g.fillStyle = p.c; g.fillRect(-4, -2, 8, 4);
+      },
+    },
+    // Santral (2.4): süzülen toz ve ara ara çakan küçük elektrik arkları
+    elektrik: {
+      count: 18,
+      make: (w, h, fresh) => (rand() < 0.12 && !fresh
+        ? { arc: true, x: rand() * w, y: rand() * h, len: 20 + rand() * 30, ang: rand() * TAU, life: 1, seed: rand() * 1000 }
+        : { x: rand() * w, y: fresh ? rand() * h : h + 5, r: 0.8 + rand() * 1.4, v: 5 + rand() * 9, ph: rand() * TAU }),
+      step: (p, dt) => {
+        if (p.arc) { p.life -= 4 * dt; return p.life > 0; }
+        p.y -= p.v * dt; p.x += Math.sin(p.y / 40 + p.ph) * 6 * dt; return p.y > -5;
+      },
+      draw: (g, p, now, acc) => {
+        if (p.arc) {
+          g.globalAlpha = p.life * 0.7; g.strokeStyle = acc; g.lineWidth = 1.6; g.shadowColor = acc; g.shadowBlur = 10;
+          g.beginPath(); g.moveTo(p.x, p.y);
+          for (let k = 1; k <= 6; k++) {
+            const d = p.len * k / 6, j = Math.sin(p.seed + k * 7.1 + now / 30) * 5;
+            g.lineTo(p.x + Math.cos(p.ang) * d - Math.sin(p.ang) * j, p.y + Math.sin(p.ang) * d + Math.cos(p.ang) * j);
+          }
+          g.stroke();
+          return;
+        }
+        g.globalAlpha = 0.3; g.fillStyle = acc;
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Deniz Feneri (2.4): sağ üstteki fenerden yavaşça tarayan ışık huzmesi ve yatay süzülen sis
+    fener: {
+      count: 9,
+      init: (w, h) => [{ beam: true, x: w * 0.88, y: h * 0.06 }],
+      make: (w, h, fresh) => ({ x: fresh ? rand() * w : -60, y: rand() * h, vx: 8 + rand() * 10, r: 30 + rand() * 30, ph: rand() * TAU }),
+      step: (p, dt, w) => { if (p.beam) return true; p.x += p.vx * dt; return p.x < w + 70; },
+      draw: (g, p, now, acc) => {
+        if (p.beam) {
+          const ang = Math.PI * 0.75 + Math.sin(now / 5200) * 0.55, L = 900, half = 0.13;
+          const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, L);
+          gr.addColorStop(0, 'rgba(255,226,160,.16)'); gr.addColorStop(1, 'rgba(255,226,160,0)');
+          g.globalAlpha = 1; g.fillStyle = gr;
+          g.beginPath(); g.moveTo(p.x, p.y); g.arc(p.x, p.y, L, ang - half, ang + half); g.closePath(); g.fill();
+          g.fillStyle = acc; g.globalAlpha = 0.8; g.shadowColor = acc; g.shadowBlur = 16;
+          g.beginPath(); g.arc(p.x, p.y, 4, 0, TAU); g.fill();
+          return;
+        }
+        const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+        gr.addColorStop(0, 'rgba(200,220,235,.06)'); gr.addColorStop(1, 'rgba(200,220,235,0)');
+        g.globalAlpha = 1; g.fillStyle = gr;
+        g.beginPath(); g.ellipse(p.x, p.y, p.r * 1.8, p.r, 0, 0, TAU); g.fill();
+      },
+    },
+    // Rasathane (2.4): uzakta yavaşça dolanan üç gezegen ve göz kırpan yıldızlar
+    gezegen: {
+      count: 30,
+      init: (w, h) => [
+        { planet: true, cx: w * 0.15, cy: h * 0.2, R: 70, r: 7, sp: 0.12, ph: 0, c: '#ffb38a' },
+        { planet: true, cx: w * 0.85, cy: h * 0.75, R: 90, r: 10, sp: -0.08, ph: 2, c: '#9cc8ff', ring: true },
+        { planet: true, cx: w * 0.8, cy: h * 0.15, R: 40, r: 4, sp: 0.2, ph: 4, c: '#c3a6ff' },
+      ],
+      make: (w, h) => ({ x: rand() * w, y: rand() * h, r: 0.5 + rand() * 1.3, ph: rand() * TAU, life: 1, decay: 0.03 + rand() * 0.04 }),
+      step: (p, dt) => { if (p.planet) return true; p.life -= p.decay * dt; return p.life > 0; },
+      draw: (g, p, now, acc) => {
+        if (p.planet) {
+          const a = p.ph + now / 1000 * p.sp, x = p.cx + Math.cos(a) * p.R, y = p.cy + Math.sin(a) * p.R * 0.45;
+          g.globalAlpha = 0.08; g.strokeStyle = acc; g.lineWidth = 1;
+          g.beginPath(); g.ellipse(p.cx, p.cy, p.R, p.R * 0.45, 0, 0, TAU); g.stroke();
+          g.globalAlpha = 0.35; g.fillStyle = p.c;
+          g.beginPath(); g.arc(x, y, p.r, 0, TAU); g.fill();
+          if (p.ring) { g.strokeStyle = p.c; g.lineWidth = 1.5; g.beginPath(); g.ellipse(x, y, p.r * 1.9, p.r * 0.6, -0.3, 0, TAU); g.stroke(); }
+          return;
+        }
+        g.globalAlpha = Math.sin(Math.PI * p.life) * (0.3 + 0.35 * Math.sin(now / 450 + p.ph) ** 2);
+        g.fillStyle = '#e8e0ff';
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
       },
     },
   };

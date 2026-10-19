@@ -233,6 +233,54 @@
         });
         return 2.1;
       },
+      // Lunapark (2.4): uzaktan atlıkarınca orgu (üç zamanlı vals), kalabalık uğultusu, ara sıra zil
+      lunapark(k) {
+        const crowd = k.bed('bandpass', 700, 0.8, 0.03);
+        k.lfo(crowd.gain.gain, 0.08, 0.012);
+        const hall = k.echo(0.3, 0.3, 2200);
+        const waltz = [[392, 523.3, 659.3], [440, 587.3, 698.5], [392, 493.9, 587.3], [349.2, 440, 523.3]];
+        k.every(10, 16, t => {
+          const bar = pick(waltz);
+          for (let b = 0; b < 2; b++) {
+            k.blip(t + b * 1.2, bar[0] / 2, 0.5, 0.03, 'triangle', 0, hall);
+            k.blip(t + b * 1.2 + 0.4, bar[1], 0.3, 0.018, 'triangle', 0, hall);
+            k.blip(t + b * 1.2 + 0.8, bar[2], 0.3, 0.018, 'triangle', 0, hall);
+          }
+        });
+        k.every(15, 28, t => { for (let i = 0; i < 3; i++) k.blip(t + i * 0.12, 2093, 0.4, 0.015, 'sine', 0, hall); });
+        return 3.4;
+      },
+      // Santral (2.4): trafo vızıltısı (50 Hz ve harmonikleri), ara sıra elektrik çatırtısı
+      santral(k) {
+        k.drone('sawtooth', 50, 0.02, 220);
+        const buzz = k.drone('square', 100, 0.006, 600);
+        k.lfo(buzz.gain.gain, 0.15, 0.004);
+        k.every(3, 8, t => {
+          const n = 3 + Math.floor(rand() * 6);
+          for (let i = 0; i < n; i++) k.puff(t + i * (0.02 + rand() * 0.05), 'highpass', 4000, 0.7, 0.03, 0.03);
+        });
+        return 3.2;
+      },
+      // Deniz Feneri (2.4): kabarıp çekilen dalgalar, uzakta martı, arada bir sis düdüğü
+      fener(k) {
+        const sea = k.bed('lowpass', 600, 0.7, 0.07);
+        k.lfo(sea.gain.gain, 0.11, 0.05);
+        k.lfo(sea.filter.frequency, 0.11, 250);
+        k.every(7, 15, t => {
+          const n = 2 + Math.floor(rand() * 2);
+          for (let i = 0; i < n; i++) k.blip(t + i * 0.32, 1700 + rand() * 300, 0.28, 0.012, 'sine', 1100);
+        });
+        k.every(25, 45, t => { k.blip(t, 92, 2.6, 0.04, 'sawtooth', 88); k.blip(t, 138, 2.6, 0.015, 'sawtooth', 132); });
+        return 2.6;
+      },
+      // Rasathane (2.4): gece cırcır böcekleri, yumuşak pad, arada teleskop motoru
+      rasathane(k) {
+        const pad = [146.8, 220, 329.6].map(f => k.drone('sine', f, 0.016));
+        pad.forEach((p, i) => k.lfo(p.gain.gain, 0.04 + i * 0.03, 0.01));
+        k.pulse(0.9, (t, n) => { if (n % 4 !== 3) for (let i = 0; i < 3; i++) k.blip(t + i * 0.045, 4200, 0.03, 0.008, 'sine'); });
+        k.every(18, 32, t => k.blip(t, 180, 1.4, 0.02, 'sawtooth', 260));
+        return 2.4;
+      },
     };
 
     function stopScene(scene, fade) {

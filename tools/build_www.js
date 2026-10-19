@@ -7,7 +7,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const www = path.join(root, 'www');
 const FILES = [
-  'index.html', 'style.css', 'i18n_en.js', 'i18n.js', 'logic.js', 'levels_data.js', 'levels.js', 'worlds.js', 'save.js', 'achievements.js', 'rewards.js', 'loot_data.js', 'stickers.js', 'deco.js', 'scenery.js', 'ambience.js', 'game.js',
+  'index.html', 'style.css', 'i18n_en.js', 'i18n.js', 'logic.js', 'levels_data.js', 'levels.js', 'worlds.js', 'save.js', 'achievements.js', 'rewards.js', 'loot_data.js', 'stickers.js', 'pieces.js', 'deco.js', 'scenery.js', 'ambience.js', 'game.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
 ];
 

@@ -128,5 +128,137 @@ test('çerçeve: köşesi halkanın içinde kalırsa hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 120, y: 200, r: 40 }, { type: 'frame', points: box }] }), /köşesi/);
 });
 
+// Yaylı halka: Büyük domino deneme bölümü (yol 0-1-2-3-4, yaylar 0→1, 1→2, 2→3)
+const DOMINO = [{ x: 80, y: 160, r: 58, a: 30, kick: [1, 90] }, { x: 150, y: 220, r: 60, a: 220.7, kick: [2, 90] },
+  { x: 235, y: 210, r: 58, a: 285, kick: [3, 90] }, { x: 290, y: 285, r: 60, a: 342.8 }, { x: 255, y: 375, r: 62, a: 0 }];
+
+test('yaylı halka: çıkarken hedefini döndürür, zincir tek hamlede dalga dalga sürer', () => {
+  const L = Logic.buildLevel({ rings: DOMINO });
+  assert.strictEqual(Logic.cascade(L, L.startAngles, 0).mask, 0);
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.strictEqual(c.mask, L.full);
+  assert.deepStrictEqual(c.waves, [[0], [1], [2], [3, 4]]);
+  assert.deepStrictEqual(c.kicks.map(w => w.map(k => k.target)), [[1], [2], [3], []]);
+  close(c.angles[1], Logic.norm((220.7 + 90) * DEG));
+});
+
+test('yaylı halka: yaysız aynı düzen daha çok hamle ister', () => {
+  const L = Logic.buildLevel({ rings: DOMINO.map(({ kick, ...r }) => r) });
+  assert.ok(Logic.solve(L, L.startAngles, 0).moves > 1);
+});
+
+test('yaylı halka: tahtadan çıkmış hedefe tekme atılmaz', () => {
+  const L = Logic.buildLevel({ rings: DOMINO });
+  const a = L.startAngles.slice();
+  const c = Logic.cascade(L, a, 2); // hedef (1) zaten çıkmış
+  assert.ok(c.kicks.flat().every(k => k.target !== 1));
+});
+
+test('yaylı halka: geçersiz hedef hata verir (kendisi, sabit, anahtarlı, tık adımına uymayan)', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ kick: [0, 90] }, {}), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { fixed: true }), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { lockedBy: 0 }), /hedefi geçersiz/);
+  assert.throws(() => two({ kick: [1, 90] }, { step: 60 }), /tık adımına/);
+  assert.doesNotThrow(() => two({ kick: [1, 90] }, { step: 45 }));
+});
+
+// Jetonlu halka: tanıtım düzeni (0 jetonlu üst halka, sol alt jeton taşır)
+const TOKEN = [{ x: 200, y: 215, r: 70, a: 165, tokens: 0 }, { x: 140, y: 320, r: 64, a: 60, token: 0 }, { x: 260, y: 320, r: 64, a: 195 }];
+
+test('jetonlu halka: jetonsuz dönmez, jeton taşıyan kurtulunca jeton gelir, döndürünce harcanır', () => {
+  const L = Logic.buildLevel({ rings: TOKEN });
+  assert.ok(!Logic.canRotate(L, 0, 0));
+  assert.ok(Logic.canRotate(L, 0, 0, [2, null, null]));
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  assert.strictEqual(sol.first.ring, 1, 'önce jeton taşıyan halka');
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 1, sol.first.delta), 0, Logic.spend(L, L.tokens, 1));
+  assert.ok(c.mask & 2, 'taşıyan kurtuldu');
+  assert.deepStrictEqual(c.tokens.flat(), [{ from: 1, to: 0 }]);
+  assert.strictEqual(c.left[0], 1);
+  assert.strictEqual(Logic.spend(L, c.left, 0)[0], 0);
+});
+
+test('jetonlu halka: kural olmasa daha kısa', () => {
+  const L = Logic.buildLevel({ rings: TOKEN.map(({ tokens, token, ...r }) => r) });
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 1);
+});
+
+test('jetonlu halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b, couples) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }], couples });
+  assert.throws(() => two({ token: 1 }, {}), /jetonlu değil/);
+  assert.throws(() => two({ tokens: 1 }, {}, [[0, 1]]), /jetonlu halka/);
+  assert.throws(() => two({ tokens: 1, kick: [1, 90] }, {}), /jetonlu halka/);
+  assert.doesNotThrow(() => two({ tokens: 0 }, { token: 0 }));
+});
+
+// Şalter: tanıtım düzeni (başta mavi; 2 mavi, kalanlar turuncu)
+const CROSS = [{ x: 145, y: 280, r: 66 }, { x: 200, y: 375, r: 60 }, { x: 255, y: 280, r: 66 }, { x: 200, y: 185, r: 60 }];
+const SWITCH = { switch: 0, rings: CROSS.map((r, i) => ({ ...r, a: [75, 180, 345, 315][i], side: [1, 1, 0, 1][i] })) };
+
+test('şalter: yalnızca gösterdiği renk döner; şalter bir hamle, çözücü onu da kullanır', () => {
+  const L = Logic.buildLevel(SWITCH);
+  assert.ok(Logic.canRotate(L, 2, 0) && !Logic.canRotate(L, 0, 0));
+  assert.ok(Logic.canRotate(L, 0, 0, null, 1) && !Logic.canRotate(L, 2, 0, null, 1));
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 3);
+  const plain = Logic.buildLevel({ rings: SWITCH.rings.map(({ side, ...r }) => r) });
+  assert.strictEqual(Logic.solve(plain, plain.startAngles, 0).moves, 2);
+  // turuncu açıkken ilk hamle şalter olmalı (hiçbir halka tek başına işe yaramıyorsa)
+  const s = Logic.solve(L, Logic.rotate(L, L.startAngles, 2, 0), 0, 100000, null, 0);
+  assert.ok(s.first.toggle || s.first.ring === 2);
+});
+
+test('şalter: eşler aynı renkte olmalı, renkli halka şaltersiz bölümde olamaz', () => {
+  const two = (a, b, extra) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }], ...extra });
+  assert.throws(() => two({ side: 0 }, { side: 1 }, { switch: 0, couples: [[0, 1]] }), /aynı şalter/);
+  assert.throws(() => two({ side: 0 }, {}, {}), /şalter yok/);
+  assert.doesNotThrow(() => two({ side: 1 }, { side: 1 }, { switch: 0, couples: [[0, 1]] }));
+});
+
+// Nabız halka: tanıtım düzeni (üst halkanın kapağı başta açık)
+const PULSE = [{ x: 200, y: 215, r: 70, a: 195, pulse: 0 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }];
+
+test('nabız halka: kapak kapalıyken boşluk sayılmaz, her hamle kapağı çevirir, ritmi yakalamak gerekir', () => {
+  const L = Logic.buildLevel({ rings: PULSE });
+  assert.ok(L.hasPulse);
+  const plain = Logic.buildLevel({ rings: PULSE.map(({ pulse, ...r }) => r) });
+  const p = Logic.solve(plain, plain.startAngles, 0);
+  assert.strictEqual(p.moves, 1);
+  // aynı hamle nabızlı bölümde: kapak kapanır (ph 1), hiçbir halka çıkmaz
+  const a = Logic.rotate(L, L.startAngles, p.first.ring, p.first.delta);
+  assert.strictEqual(Logic.cascade(L, a, 0, null, 1).mask, 0);
+  assert.strictEqual(Logic.cascade(L, a, 0, null, 0).mask, L.full, 'kapak açık olsaydı hepsi çıkardı');
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
+// Döner tabla: tanıtım düzeni (iki halka tablada)
+const TABLE = { rings: [{ x: 159, y: 321, r: 52, a: 270 }, { x: 241, y: 239, r: 52, a: 120 }, { x: 328, y: 280, r: 56, a: 90 },
+  { x: 105, y: 375, r: 64, a: 30 }, { x: 295, y: 185, r: 60, a: 270 }], table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } };
+
+test('döner tabla: her konum ayrı düzen, çevirmek taşınan halkaları ve boşluklarını döndürür', () => {
+  const L = Logic.buildLevel(TABLE);
+  assert.strictEqual(L.table.k, 4);
+  assert.strictEqual(L.variants.length, 4);
+  const t = Logic.turnTable(L, L.startAngles);
+  assert.strictEqual(t.L.tableIdx, 1);
+  close(t.angles[0], Logic.norm(L.startAngles[0] + 90 * DEG));
+  close(t.angles[2], L.startAngles[2]);
+  // taşınan halka 0: (159,321) -> göbek (200,280) etrafında saat yönünde 90°: (159,239)
+  assert.ok(Math.abs(t.L.rings[0].x - 159) < 1e-6 && Math.abs(t.L.rings[0].y - 239) < 1e-6);
+  let tt = t; for (let k = 0; k < 3; k++) tt = Logic.turnTable(tt.L, tt.angles);
+  assert.strictEqual(tt.L, L, 'dört turda başa döner');
+});
+
+test('döner tabla: çözücü tablayı da kullanır; tablasız daha uzun', () => {
+  const L = Logic.buildLevel(TABLE);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  const P = Logic.buildLevel({ rings: TABLE.rings });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 3);
+  assert.strictEqual(Logic.solveFast(L, L.startAngles, 0, 30000, 0.8).moves, 2);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

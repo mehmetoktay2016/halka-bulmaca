@@ -11,11 +11,14 @@ const pre = fs.existsSync(dataFile)
   ? new Function(fs.readFileSync(dataFile, 'utf8') + '; return RING_LEVEL_DATA;')()
   : {};
 
-const last = Number(process.argv[2] || Math.max(8, ...Object.keys(pre).map(Number)));
+// 2.4 şekilleri 2001'den başlar: aradaki boş numaralar üretilmesin diye ayrı eklenir
+const last = Number(process.argv[2] || Math.max(8, ...Object.keys(pre).map(Number).filter(n => n < 1000)));
+const numbers = Array.from({ length: last }, (_, i) => i + 1)
+  .concat(process.argv[2] ? [] : Object.keys(Levels.SHAPE_PLAN).map(Number).filter(n => n >= 2000));
 let failed = 0;
 const seen = new Set();
 
-for (let n = 1; n <= last; n++) {
+for (const n of numbers) {
   const t0 = Date.now();
   const def = (n > Levels.HAND_LEVELS.length && pre[n]) || Levels.getLevel(n);
   const ms = Date.now() - t0;
@@ -81,6 +84,10 @@ let prevPeak = -Infinity, prevAvg = -Infinity;
 // Bilinen istisna (2.2): kapı 11'in zirvesi (126) üretimi uzun sürdüğü için aralık şartsız üretildi;
 // zirvesi ve ortalaması kapı 10'un biraz altında kalır. Kapı içi sıra ve yakınlık kuralları yine geçerli.
 const RISE_EXCEPT = new Set([11]);
+// 2.4 (kullanıcı kararı): kapı 21-30'da zorluk sabit kalır: zirve ve ortalama artmak zorunda değil, ama zirve
+// kapı 20'ninkinden en çok 0,5 sapabilir; kapı içi kolaydan zora sıra ve ferah baş kuralları yine geçerli.
+const PLATEAU = Levels.PLATEAU;
+let plateauPeak = null;
 for (let g = 0; g < order.length / G; g++) {
   const row = order.slice(g * G, g * G + G);
   // Tanıtım bölümleri puana göre değil, tanıttıkları mekaniğin önüne konur
@@ -93,9 +100,12 @@ for (let g = 0; g < order.length / G; g++) {
   for (let k = 1; k < mains.length; k++) if (mains[k] < mains[k - 1] - 0.05) problems.push(`zorluk ${k + 1}. normal bölümde düşüyor`);
   if (g > 0 && mains[0] >= prevPeak) problems.push(`önceki zirveden (${prevPeak.toFixed(1)}) kolay başlamıyor`);
   // Her kapının zirvesi bir öncekinden yüksek (her kapı bir öncekinden zor)
-  if (peak <= prevPeak && !RISE_EXCEPT.has(g + 1)) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
+  const flat = g + 1 >= PLATEAU;
+  if (g + 1 === PLATEAU - 1) plateauPeak = peak;
+  if (!flat && peak <= prevPeak && !RISE_EXCEPT.has(g + 1)) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
+  if (flat && plateauPeak != null && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
   const avgD = avg(mains);
-  if (avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
+  if (!flat && avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
   const near = row.filter(generated).map(s => Levels.closeness(get(s)));
   const third = Math.max(1, Math.floor(near.length / 3));
   if (near.length >= 3 && avg(near.slice(0, third)) < avg(near.slice(-third)) + 0.06) {
