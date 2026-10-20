@@ -135,6 +135,8 @@
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.bomb && r.type) throw new Error(`Parça ${i}: bomba yalnızca halka olabilir`);
+      // Bomba ve yay rozeti aynı halkada yer kapışırdı
+      if (r.bomb && r.kick) throw new Error(`Halka ${i}: bomba yaylı olamaz`);
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);

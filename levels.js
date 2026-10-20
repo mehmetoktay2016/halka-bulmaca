@@ -1032,7 +1032,9 @@
       0.8 * n(r => r.kick) + // yay hamleyi kısaltır ama zinciri önceden görmek düşündürür
       1.0 * n(r => r.tokens != null) + 0.3 * n(r => r.token != null) +
       (def.switch != null ? 1.0 + 0.15 * n(r => r.side != null) : 0) + 1.0 * n(r => r.pulse != null) +
-      (def.table ? 1.5 : 0);
+      (def.table ? 1.5 : 0) +
+      // 2.5: bomba hamleyi çok kısaltır; düşündüren, hangi halkanın önce gitmesi gerektiğini görmek
+      1.0 * n(r => r.bomb);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1148,6 +1150,10 @@
     1010: { title: 'Döner tabla', world: 'rasathane', tip: 'Göbekteki düğmeye dokun: tabla çeyrek tur döner, üstündeki halkalar yer değiştirir. Bu bir hamle',
       rings: [{ x: 159, y: 321, r: 52, a: 270 }, { x: 241, y: 239, r: 52, a: 120 }, { x: 328, y: 280, r: 56, a: 90 }, { x: 105, y: 375, r: 64, a: 30 }, { x: 295, y: 185, r: 60, a: 270 }],
       table: { x: 200, y: 280, r: 112, step: 90, carried: [0, 1] } },
+    // Bomba halka tanıtımı (1011, 2.5): üstteki halka bomba. Onu kurtarınca patlar, alttaki iki halka
+    // birbirine kilitli olsa da patlamayla uçar. Bomba olmasa 2 hamle, bombayla 1 (prototipin "İlk bomba"sı).
+    1011: { title: 'Bomba halka', world: 'fisek', tip: 'Bomba halka kurtulunca patlar. Turuncu yıldızların olduğu yerde değdiği halkalar da uçar',
+      rings: [{ x: 200, y: 215, r: 70, a: 255, bomb: true }, { x: 140, y: 320, r: 64, a: 210 }, { x: 260, y: 320, r: 64, a: 105 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
@@ -1155,7 +1161,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1163,7 +1169,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1179,6 +1185,7 @@
     if (def.switch != null) f.push('switch');
     if (def.rings.some(r => r.pulse != null)) f.push('pulse');
     if (def.table) f.push('table');
+    if (def.rings.some(r => r.bomb)) f.push('bomb');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -1201,7 +1208,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
@@ -1537,6 +1544,7 @@
     if (f === 'switch') { delete out.switch; out.rings.forEach(r => delete r.side); }
     if (f === 'pulse') out.rings.forEach(r => delete r.pulse);
     if (f === 'table') delete out.table;
+    if (f === 'bomb') out.rings.forEach(r => delete r.bomb);
     return out;
   }
   function mattersAll(def, feats) {

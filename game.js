@@ -44,6 +44,8 @@
   const KEY_MS = 560;   // anahtarın kilide uçuşu
   const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
   const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
+  const BLAST_WAIT = 150; // bomba uçmaya başladıktan sonra patlaması
+  const BLAST_HOLD = 140; // patlamayla vurulan halkalar beyaz parlar, sonra uçar
   const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
   // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
@@ -144,6 +146,21 @@
       o.start(t);
       o.stop(t + dur + 0.03);
     }
+    // Sönen beyaz gürültü, alçak geçiren süzgeç fromHz'den toHz'e iner (patlama, gümbürtü)
+    function noise(dur, vol, fromHz, toHz, delay = 0) {
+      if (!progress.sound) return;
+      const a = audio();
+      if (!a) return;
+      const t = a.currentTime + delay;
+      const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+      const n = a.createBufferSource(); n.buffer = buf;
+      const f = a.createBiquadFilter(); f.type = 'lowpass';
+      f.frequency.setValueAtTime(fromHz, t); f.frequency.exponentialRampToValueAtTime(toHz, t + dur);
+      const g = a.createGain(); g.gain.value = vol;
+      n.connect(f).connect(g).connect(a.destination);
+      n.start(t);
+    }
     return {
       tick: () => tone(1400, 0.03, 'triangle', 0.035),
       // Halka kurtulma sesi: mağazadan seçilen pakete göre (k: zincirde kaçıncı dalga)
@@ -185,6 +202,12 @@
         tone(150, 0.7, 'sine', 0.28, 36);
         tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
         [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
+      },
+      // Bomba: gürültülü patlama ve alçalan bas; zincirde (k. patlama) her biri biraz daha tok
+      bang: (k = 0) => {
+        noise(0.7, 0.55, 2600 - Math.min(k, 4) * 300, 160);
+        tone(120 - Math.min(k, 4) * 10, 0.5, 'sine', 0.3, 36);
+        tone(1800, 0.05, 'square', 0.03, 600);
       },
       // Zincir: halka sayısı arttıkça yükselen üçlü
       chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
@@ -1161,7 +1184,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1290,12 +1313,27 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
+    const { mask, waves, kicks, tokens, blasts, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
-    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
+    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
+    // bomba patladıysa patlamayı bekler
     const at = [];
-    waves.reduce((t, _, w) => { at[w] = t; return t + (kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS); }, 0);
+    waves.reduce((t, _, w) => {
+      at[w] = t;
+      return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0);
+    }, 0);
+    // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
+    const blastFrom = {};
+    let bangs = 0;
+    blasts.forEach((bs, w) => {
+      for (const b of bs) {
+        for (const h of b.hits) blastFrom[h] = b.from;
+        const k = bangs++;
+        setTimeout(() => bombBlast(b, k), at[w] + BLAST_WAIT);
+      }
+    });
+    S.bombs = bangs;
     let before = S.angles;
     kicks.forEach((ks, w) => {
       for (const k of ks) {
@@ -1324,10 +1362,11 @@
           const s = ux * dx + uy * dy >= 0 ? 1 : -1;
           dx = ux * s; dy = uy * s;
         } else {
+          if (blastFrom[i] != null) { const B = S.L.rings[blastFrom[i]]; dx = r.x - B.x; dy = r.y - B.y; }
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + at[w], dx, dy };
+        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0 };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
@@ -1344,7 +1383,7 @@
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), at[waves.length - 1]);
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1798,6 +1837,25 @@
     wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
   }
 
+  // Bomba patladı (k: bu hamlede kaçıncı patlama): ses, titreşim, şok dalgası, kor parçaları, sarsıntı;
+  // vurulan halkalar bir an beyaz parlar
+  function bombBlast(b, k) {
+    const r = S.L.rings[b.from], t0 = performance.now();
+    Sound.bang(k);
+    if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* yok say */ } }
+    for (const h of b.hits) S.flash[h] = t0;
+    if (REDUCED) return;
+    for (let q = 0; q < 34; q++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 5;
+      particles.push({ x: r.x, y: r.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, size: 2 + Math.random() * 3.5,
+        color: ['#ffd34a', '#ff7a45', '#ffffff', '#ff5a3d'][q % 4] });
+    }
+    if (!fxOn()) return;
+    shocks.push({ ...boardToApp(r.x, r.y), t0 });
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+
   // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
   // Tek halkada övgü yok; seyrek kaldıkça değerli hisseder.
   const PRAISE = {
@@ -1814,7 +1872,8 @@
 
   // Bir hamlede birden çok halka açılırsa: övgü ve altında "Zincir ×N" (N = açılan halka sayısı).
   // quiet: son hamlede bölüm sonu övgüsü gelecekse zincir yalnızca sayılır (yazı ve ses ona kalır).
-  function showChain(freed, quiet) {
+  // bangs: hamlede patlayan bomba sayısı (iki ve üstü "Zincirleme!", tek bombayla 5+ halka "Büyük patlama!")
+  function showChain(freed, quiet, bangs = 0) {
     if (S.tut != null) return;
     const n = freed.length;
     const c = waveCenter(freed);
@@ -1822,10 +1881,12 @@
     const w = $('app').clientWidth;
     const x = Math.max(110, Math.min(w - 110, p.x));
     if (!quiet) {
-      const tier = n >= 4 ? 3 : n === 3 ? 2 : 1;
+      const tier = n >= 4 || bangs >= 2 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      floaters.push({ text: praiseWord(pr.words), sub: tr('Zincir ×{n}', { n }), x, y: p.y, t0: performance.now(),
-        size: pr.size, colors: pr.colors, life: 1500 });
+      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : praiseWord(pr.words);
+      const sub = bangs >= 2 ? tr('{b} patlama · Zincir ×{n}', { b: bangs, n }) : tr('Zincir ×{n}', { n });
+      floaters.push({ text, sub, x, y: p.y, t0: performance.now(),
+        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : pr.colors, life: 1500 });
       Sound.praise(tier);
     }
     if (S.preview) return;
@@ -3002,7 +3063,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3087,6 +3148,49 @@
     }
   }
 
+  // ---- Bomba halka çizimi (2.5) ----
+  // Rozet: halkanın en boş yerinde fitili yanan bomba. Bombanın kesiştiği yerlerde dönen turuncu yıldızlar:
+  // patlama oradaki halkaları da uçurur.
+  function drawBombBadge(s, now) {
+    const r = S.L.rings[s], th = springBadgeAt(s);
+    const x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 16, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(x - 5, y - 5, 1, x, y, 14);
+    g.addColorStop(0, '#6a6470'); g.addColorStop(1, '#1b1820');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.fill();
+    ctx.strokeStyle = ringColor(s); ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#3a3640'; ctx.fillRect(x + 4, y - 15, 7, 5);
+    ctx.strokeStyle = '#d9b48a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + 8, y - 15); ctx.quadraticCurveTo(x + 12, y - 23, x + 17, y - 21); ctx.stroke();
+    const fl = REDUCED ? 1 : 0.75 + 0.35 * Math.sin(now / 55) * Math.sin(now / 83);
+    const sg = ctx.createRadialGradient(x + 17, y - 21, 0, x + 17, y - 21, 9 * fl);
+    sg.addColorStop(0, '#fff'); sg.addColorStop(0.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + 17, y - 21, 9 * fl, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  function drawBombs(now) {
+    if (!S.L.hasBomb) return;
+    for (const link of S.L.links) {
+      const a = S.L.rings[link.a], b = S.L.rings[link.b];
+      if (!(a.bomb || b.bomb) || !springLive(link.a) || !springLive(link.b)) continue;
+      for (const p of link.pts) {
+        const pulse = REDUCED ? 1 : 0.8 + 0.25 * Math.sin(now / 160 + p.x);
+        ctx.save();
+        ctx.translate(p.x, p.y); ctx.rotate(REDUCED ? 0 : now / 900);
+        ctx.fillStyle = '#ff7a45'; ctx.strokeStyle = 'rgba(10,8,20,.9)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const rr = (k % 2 ? 3.2 : 8) * pulse, q = k * Math.PI / 5;
+          ctx.lineTo(Math.cos(q) * rr, Math.sin(q) * rr);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.restore();
+      }
+    }
+    S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
   function drawSprings(now) {
     S.L.rings.forEach((r, i) => {
       if (!r.kick || !springLive(i)) return;
@@ -3144,7 +3248,7 @@
   // Halkanın o anki konumu: uçuş, sallanma ve büyüme dahil
   function ringPose(i, now) {
     const ring = S.L.rings[i];
-    let cx = ring.x, cy = ring.y, alpha = 1, grow = 1;
+    let cx = ring.x, cy = ring.y, alpha = 1, grow = 1, spin = 0;
     const off = tableOffset(now);
     if (off && S.L.table.carried.includes(i)) {
       const T = S.L.table, dx = cx - T.x, dy = cy - T.y, c = Math.cos(off), s = Math.sin(off);
@@ -3154,17 +3258,18 @@
     if (f) {
       const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
       const e = t * t;
-      cx += f.dx * 420 * e;
-      cy += f.dy * 420 * e;
+      cx += f.dx * (f.spin ? 520 : 420) * e;
+      cy += f.dy * (f.spin ? 520 : 420) * e;
       alpha = 1 - t;
       grow = 1 + 0.15 * t;
+      spin = (f.spin || 0) * e;
     }
     const sh = S.shake[i];
     if (sh != null) {
       const t = (now - sh) / 350;
       if (t < 1) cx += Math.sin(t * 30) * 5 * (1 - t);
     }
-    return { cx, cy, alpha, grow };
+    return { cx, cy, alpha, grow, spin };
   }
 
   // Süs katmanı (yüzler vb.) halkalardan önce çizilir; halka uçarken onunla gider.
@@ -3213,7 +3318,8 @@
     if (isBar(i)) { drawBar(i, now); return; }
     if (isFrame(i)) { drawFrame(i, now); return; }
     const ring = S.L.rings[i];
-    const { cx, cy, alpha, grow } = ringPose(i, now);
+    const { cx, cy, alpha, grow, spin } = ringPose(i, now);
+    const ang = S.angles[i] + spin;
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
     ctx.save();
     ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
@@ -3226,10 +3332,12 @@
       ctx.shadowBlur = 18;
     }
     if (ring.step) drawStepDots(i, cx, cy, now);
-    strokeRing(ring, S.angles[i], 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
+    strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
-    strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
-    strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    strokeRing(ring, ang, color, STROKE, cx, cy);
+    strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    const fl = S.flash[i] ? 1 - (now - S.flash[i]) / 260 : 0;
+    if (fl > 0 && fl <= 1) { ctx.globalAlpha = alpha * fl; strokeRing(ring, ang, '#fff', STROKE + 4, cx, cy); ctx.globalAlpha = alpha; }
     if (ring.pulse >= 0) drawPulseCover(i, cx, cy, now);
     if (ring.fixed) drawLock(cx, cy);
     if (ring.lockedBy >= 0) {
@@ -3781,6 +3889,7 @@
         drawWeave();
         if (!S.turn) drawOpenPoints(now);
         drawSprings(now);
+        drawBombs(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);

@@ -328,6 +328,8 @@ var RING_LANG_EN = {
   'Nabız halka': 'Pulse ring',
   'Nabız halkanın kapağı her hamlede açılıp kapanır. Kapak açıkken boşluk işe yarar': 'A pulse ring’s cover opens and closes with every move. The gap only works while it is open',
   'Döner tabla': 'Turntable',
+  'Bomba halka': 'Bomb ring',
+  'Bomba halka kurtulunca patlar. Turuncu yıldızların olduğu yerde değdiği halkalar da uçar': 'A bomb ring explodes when it flies off. Rings it touches at the orange stars fly off too',
   'Göbekteki düğmeye dokun: tabla çeyrek tur döner, üstündeki halkalar yer değiştirir. Bu bir hamle': 'Tap the hub: the turntable turns a quarter and the rings on it change places. That’s one move',
   'Tablayı çevir': 'Turn the table',
   'Yeni parça': 'New piece',
@@ -425,6 +427,9 @@ var RING_LANG_EN = {
   'Mükemmel!': 'Excellent!',
   'Kusursuz!': 'Flawless!',
   'Zincir ×{n}': 'Chain ×{n}',
+  'Zincirleme!': 'Chain blast!',
+  'Büyük patlama!': 'Big bang!',
+  '{b} patlama · Zincir ×{n}': '{b} blasts · Chain ×{n}',
   'Çok iyi!': 'Very good!',
   'Hazırsın!': 'You’re ready!',
 
