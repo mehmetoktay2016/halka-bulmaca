@@ -294,5 +294,34 @@ test('bomba halka: yalnızca halka bomba olabilir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, bomb: true }] }), /bomba yalnızca halka/);
 });
 
+// Buz halka (Z2): çift katlı göbek halka, iki komşusu çıkınca erir
+const ICE = [{ x: 145, y: 280, r: 66, a: 135, ice: 2 }, { x: 200, y: 375, r: 60, a: 180 }, { x: 255, y: 280, r: 66, a: 165 }, { x: 200, y: 185, r: 60, a: 15 }];
+
+test('buz halka: donmuşken dönmez, her çıkan komşu bir kat çatlatır, bitince döner', () => {
+  const L = Logic.buildLevel({ rings: ICE });
+  assert.strictEqual(Logic.iceLeft(L, 0, 0), 2);
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.strictEqual(Logic.iceLeft(L, 0, 1 << 1), 1);
+  assert.strictEqual(Logic.canRotate(L, 0, 1 << 1), false);
+  assert.strictEqual(Logic.iceLeft(L, 0, 1 << 1 | 1 << 2), 0);
+  assert.strictEqual(Logic.canRotate(L, 0, 1 << 1 | 1 << 2), true);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 3);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: ICE.map(({ ice, ...r }) => r) }), L.startAngles, 0).moves, 2);
+});
+
+test('buz halka: patlama donmuş halkayı da uçurur', () => {
+  const rings = [{ x: 145, y: 280, r: 66, a: 0, ice: 2 }, { x: 200, y: 375, r: 60, a: 45 }, { x: 255, y: 280, r: 66, a: 15, bomb: true }, { x: 200, y: 185, r: 60, a: 180 }];
+  const L = Logic.buildLevel({ rings });
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
+test('buz halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ ice: 2 }, {}), /eritecek kadar komşusu/);
+  assert.throws(() => two({ ice: 1, fixed: true }, {}), /buz/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ice: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /buz halka eşli/);
+  assert.throws(() => two({ kick: [1, 90] }, { ice: 1 }), /hedefi geçersiz/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

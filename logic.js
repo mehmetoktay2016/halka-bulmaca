@@ -126,6 +126,9 @@
       // Bomba halka (bomb: true): tahtadan çıkınca patlar, kesiştiği halkalar ve çubuklar öbür bağlarına
       // bakılmadan bir sonraki dalgada uçar. Patlamaya yakalanan bomba da patlar (zincir).
       bomb: !!r.bomb,
+      // Buz halka (ice: n, 1 ya da 2): donmuştur, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça
+      // buzu bir kat çatlar; n parça çıkınca erir ve döner. Donmuşken de boşluğu denk gelirse kurtulabilir.
+      ice: r.ice || 0,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -137,6 +140,7 @@
       if (r.bomb && r.type) throw new Error(`Parça ${i}: bomba yalnızca halka olabilir`);
       // Bomba ve yay rozeti aynı halkada yer kapışırdı
       if (r.bomb && r.kick) throw new Error(`Halka ${i}: bomba yaylı olamaz`);
+      if (r.ice && (r.type || r.fixed || r.tokens != null || !(r.ice >= 1 && r.ice <= 3))) throw new Error(`Halka ${i}: buz 1-3 kat, sabit ya da jetonlu olmayan halkada olur`);
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
@@ -214,6 +218,8 @@
       if (group[r.id].some(k => rings[k].side !== r.side)) throw new Error(`Halka ${r.id}: eşler aynı şalter renginde olmalı`);
       if (r.side >= 0 && def.switch == null) throw new Error(`Halka ${r.id}: şalter rengi var ama bölümde şalter yok`);
     }
+    // Buz halka eşli olamaz: eşi döndürülünce donmuş halka da dönerdi
+    for (const r of rings) if (r.ice && group[r.id].length > 1) throw new Error(`Halka ${r.id}: buz halka eşli olamaz`);
     // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
     for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
@@ -222,7 +228,7 @@
     for (const r of rings) {
       if (!r.kick) continue;
       const t = rings[r.kick.target];
-      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
+      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
       if (!r.kick.turn) throw new Error(`Halka ${r.id}: yayın tekmesi sıfır olamaz`);
       for (const k of group[t.id]) {
         const st = rings[k].step;
@@ -231,8 +237,13 @@
       kickedBy[t.id].push(r.id);
     }
 
+    // Buz halkanın komşuları (çerçeve hiç çıkmadığı için sayılmaz)
+    const iceNbrs = rings.map((r, i) => (!r.ice ? [] : [...new Set(ringLinks[i].map(li => (links[li].a === i ? links[li].b : links[li].a)))]
+      .filter(o => rings[o].kind !== 'frame')));
+    for (const r of rings) if (r.ice && iceNbrs[r.id].length < r.ice) throw new Error(`Halka ${r.id}: buzu eritecek kadar komşusu yok`);
+
     return {
-      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
       full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
@@ -243,6 +254,7 @@
       startSw: def.switch || 0,
       hasPulse: rings.some(r => r.pulse >= 0),
       hasBomb: rings.some(r => r.bomb),
+      hasIce: rings.some(r => r.ice),
     };
   }
 
@@ -254,11 +266,21 @@
     return out;
   }
 
-  // Halka i şu an döndürülebilir mi? Sabit değil, (anahtarlıysa) anahtarı tahtadan çıkmış ve
+  // Buz halkanın kalan katı: kat sayısından, tahtadan çıkmış komşular düşülür (buzsuz halkada 0)
+  function iceLeft(L, i, mask) {
+    const n = L.rings[i].ice;
+    if (!n) return 0;
+    let gone = 0;
+    for (const o of L.iceNbrs[i]) if (mask & (1 << o)) gone++;
+    return Math.max(0, n - gone);
+  }
+
+  // Halka i şu an döndürülebilir mi? Sabit değil, buzu erimiş, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
     if (!L.rotatable[i]) return false;
+    if (iceLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
     const side = L.rings[i].side;
     if (side >= 0 && side !== (sw == null ? L.startSw : sw)) return false;
@@ -538,7 +560,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;
