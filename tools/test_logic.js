@@ -260,5 +260,39 @@ test('döner tabla: çözücü tablayı da kullanır; tablasız daha uzun', () =
   assert.strictEqual(Logic.solveFast(L, L.startAngles, 0, 30000, 0.8).moves, 2);
 });
 
+// Bomba halka: tanıtım düzeni ve zincirleme (Z1)
+const BOMB = [{ x: 200, y: 215, r: 70, a: 255, bomb: true }, { x: 140, y: 320, r: 64, a: 210 }, { x: 260, y: 320, r: 64, a: 105 }];
+const BOMB_CHAIN = [{ x: 80, y: 160, r: 58, a: 60 }, { x: 150, y: 220, r: 60, a: 60, bomb: true }, { x: 235, y: 210, r: 58, a: 285, bomb: true },
+  { x: 290, y: 285, r: 60, a: 15, bomb: true }, { x: 255, y: 375, r: 62, a: 180 }, { x: 160, y: 380, r: 58, a: 225 }];
+const noBomb = rings => rings.map(({ bomb, ...r }) => r);
+
+test('bomba halka: kurtulunca kesiştiği halkalar kilitli olsalar da sonraki dalgada uçar', () => {
+  const L = Logic.buildLevel({ rings: BOMB });
+  assert.strictEqual(Logic.cascade(L, L.startAngles, 0).mask, 0);
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.deepStrictEqual(c.waves, [[0], [1, 2]]);
+  assert.deepStrictEqual(c.blasts, [[{ from: 0, hits: [1, 2] }], []]);
+  const P = Logic.buildLevel({ rings: noBomb(BOMB) });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 2);
+});
+
+test('bomba halka: patlamaya yakalanan bomba da patlar (zincir), çıkmış halka vurulmaz', () => {
+  const L = Logic.buildLevel({ rings: BOMB_CHAIN });
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  const after1 = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  const s2 = Logic.solve(L, after1.angles, after1.mask);
+  const c = Logic.cascade(L, Logic.rotate(L, after1.angles, s2.first.ring, s2.first.delta), after1.mask);
+  assert.deepStrictEqual(c.blasts.flat(), [{ from: 1, hits: [2] }, { from: 2, hits: [3] }, { from: 3, hits: [4] }]);
+  assert.strictEqual(c.mask, L.full);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: noBomb(BOMB_CHAIN) }), L.startAngles, 0).moves, 5);
+});
+
+test('bomba halka: yalnızca halka bomba olabilir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, bomb: true }] }), /bomba yalnızca halka/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

@@ -80,6 +80,27 @@
       theme: { top: '#100c26', bottom: '#04030c', accent: '#c3a6ff',
                glows: [['#8a6cff', 0.20], ['#4cc9f0', 0.10], ['#ffd36b', 0.08]],
                board: { kind: 'gokkure', tint: '#b9a8ff', alpha: 0.11 }, air: 'gezegen' } },
+    // 2.5: yeni dünyalar (kapı 31-40). Tahta dokusu, parçacık ve ortam sesi Z6'ya kadar eski dünyalardan ödünç
+    { id: 'fisek', name: 'Havai Fişek', title: 'Fişekçi',
+      intro: 'Bomba halka kurtulunca patlar, dokunduğu halkaları da uçurur.',
+      theme: { top: '#26121a', bottom: '#10070b', accent: '#ff7a45',
+               glows: [['#ff5a3d', 0.18], ['#ffd34a', 0.10], ['#b388ff', 0.10]],
+               board: { kind: 'kaldirim', tint: '#e0a090', alpha: 0.10 }, air: 'kivilcim' } },
+    { id: 'buzul', name: 'Buzul', title: 'Kutup Kâşifi',
+      intro: 'Donmuş halkalar dönmez. Komşuları kurtuldukça buzları çatlar.',
+      theme: { top: '#0f2130', bottom: '#060e16', accent: '#9be7ff',
+               glows: [['#7fd8ff', 0.12], ['#ffffff', 0.03], ['#8a6cff', 0.08]],
+               board: { kind: 'mermer', tint: '#6fa8c8', alpha: 0.07 }, air: 'yildiz' } },
+    { id: 'degirmen', name: 'Değirmen', title: 'Değirmenci',
+      intro: 'Motorlu halkalar her hamlenden sonra kendiliğinden bir adım döner.',
+      theme: { top: '#16210f', bottom: '#080d06', accent: '#b5e06a',
+               glows: [['#90be6d', 0.12], ['#ffd36b', 0.10], ['#4cc9f0', 0.08]],
+               board: { kind: 'ahsap', tint: '#7f9460', alpha: 0.08 }, air: 'polen' } },
+    { id: 'buyu', name: 'Büyü Kulesi', title: 'Büyücü',
+      intro: 'İkiz portallardan biri kurtulunca eşi de ışınlanıp kurtulur.',
+      theme: { top: '#1a0d2a', bottom: '#09040f', accent: '#e07cff',
+               glows: [['#c45cff', 0.20], ['#4cc9f0', 0.10], ['#ff6fb5', 0.08]],
+               board: { kind: 'gokkure', tint: '#d0a8ff', alpha: 0.11 }, air: 'gezegen' } },
   ];
 
   // Kapı n (1'den başlar): adı ve dünyası
@@ -114,6 +135,16 @@
     { name: 'Fener Kulesi', world: 'fener' },
     { name: 'Ay Işığı', world: 'rasathane' },
     { name: 'Yıldız Haritası', world: 'rasathane' },
+    { name: 'Barut Deposu', world: 'fisek' },
+    { name: 'Fitil', world: 'fisek' },
+    { name: 'Gökyüzü Şöleni', world: 'fisek' },
+    { name: 'Kar Tepesi', world: 'buzul' },
+    { name: 'Buz Mağarası', world: 'buzul' },
+    { name: 'Su Arkı', world: 'degirmen' },
+    { name: 'Yel Değirmeni', world: 'degirmen' },
+    { name: 'Çark Evi', world: 'degirmen' },
+    { name: 'Ayna Salonu', world: 'buyu' },
+    { name: 'Portal', world: 'buyu' },
   ];
 
   // Unvanlar: bitirilen kapı sayısına göre. Dünya bitince o dünyanın unvanı gelir;

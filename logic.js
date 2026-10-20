@@ -123,12 +123,18 @@
       // Nabız halka (pulse: 0 ya da 1): boşluğunda bir kapak var, her hamlede açılıp kapanır.
       // Hamle sayısının teki/çifti ph ile tutulur; kapak ph === pulse iken açıktır (başta ph = 0).
       pulse: r.pulse == null ? -1 : r.pulse,
+      // Bomba halka (bomb: true): tahtadan çıkınca patlar, kesiştiği halkalar ve çubuklar öbür bağlarına
+      // bakılmadan bir sonraki dalgada uçar. Patlamaya yakalanan bomba da patlar (zincir).
+      bomb: !!r.bomb,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
       const k = def.rings[r.lockedBy];
       if (!k || r.lockedBy === i || k.type === 'bar' || k.type === 'frame') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
       if (r.fixed) throw new Error(`Halka ${i}: hem sabit hem anahtarlı olamaz`);
+    }
+    for (const [i, r] of def.rings.entries()) {
+      if (r.bomb && r.type) throw new Error(`Parça ${i}: bomba yalnızca halka olabilir`);
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
@@ -234,6 +240,7 @@
       hasSwitch: def.switch != null,
       startSw: def.switch || 0,
       hasPulse: rings.some(r => r.pulse >= 0),
+      hasBomb: rings.some(r => r.bomb),
     };
   }
 
@@ -290,13 +297,16 @@
   // tekmelerden sonraki açılar `angles` olarak döner. Jeton taşıyan halkalar çıkınca jetonları
   // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
+  // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
   function cascade(L, angles, mask, left, ph) {
     left = left || L.tokens;
-    const waves = [], kicks = [], tokens = [];
+    const waves = [], kicks = [], tokens = [], blasts = [];
+    let hit = 0; // patlamanın vurduğu, sonraki dalgada zorla uçacak parçalar
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (!(mask & (1 << i)) && L.rings[i].kind !== 'frame' && isFree(L, i, angles, mask, ph)) wave.push(i);
+        if (mask & (1 << i) || L.rings[i].kind === 'frame') continue;
+        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
@@ -314,11 +324,25 @@
         left = left.slice(); left[t]++;
         ts.push({ from: i, to: t });
       }
+      const bs = [];
+      hit = 0;
+      for (const i of wave) {
+        if (!L.rings[i].bomb) continue;
+        const hits = [];
+        for (const li of L.ringLinks[i]) {
+          const k = L.links[li], o = k.a === i ? k.b : k.a;
+          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame') continue;
+          hit |= 1 << o;
+          hits.push(o);
+        }
+        if (hits.length) bs.push({ from: i, hits });
+      }
       waves.push(wave);
       kicks.push(ks);
       tokens.push(ts);
+      blasts.push(bs);
     }
-    return { mask, waves, kicks, tokens, angles, left };
+    return { mask, waves, kicks, tokens, blasts, angles, left };
   }
 
   // Halka i'yi delta kadar döndürür; eşleri kendi oranlarıyla döner
