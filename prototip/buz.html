@@ -1,0 +1,590 @@
+<title>Buz Halka Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Tek koyu görünüm, oyunun Buzul dünyası: dar sütun, üstte bölüm seçimi, ortada tahta, altta hamle ve düğmeler */
+:root {
+  --bg: #060e16; --panel: #11202c; --line: #22394a; --fg: #eef8ff; --muted: #a9c3d3;
+  --accent: #9be7ff; --gold: #ffc94a; --gold-ink: #3d2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(70% 45% at 15% 0%, rgba(127, 216, 255, .14), transparent 70%), linear-gradient(180deg, #0f2130, var(--bg)); background-color: var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+header { display: grid; gap: 2px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: 800 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.tabs button.done::after { content: " ✓"; }
+.tip { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.tip b { color: var(--fg); }
+.board { position: relative; width: 100%; aspect-ratio: 400 / 520; border-radius: 22px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count { flex: 1; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-family: var(--display); font-size: 22px; }
+.bar button { font: 800 15px var(--body); border-radius: 14px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.bar button.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.win { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: rgba(6, 14, 22, .72); backdrop-filter: blur(3px); }
+.win h2 { margin: 0; font-family: var(--display); font-size: 38px; color: var(--gold); }
+.win p { margin: 0; color: var(--muted); }
+.win button { justify-self: center; font: 800 16px var(--body); border-radius: 14px; padding: 10px 20px; border: 0; background: var(--gold); color: var(--gold-ink); cursor: pointer; }
+.legend { display: grid; gap: 6px; font-size: 14px; color: var(--muted); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.legend b { color: var(--fg); }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Buzul · prototip</span>
+    <h1>Buz halka</h1>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <p class="tip" id="tip"></p>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Oyun tahtası"></canvas>
+    <div class="win" id="win" hidden>
+      <h2 id="winTitle">Kusursuz!</h2>
+      <p id="winText"></p>
+      <button id="next" type="button">Sonraki bölüm</button>
+    </div>
+  </div>
+  <div class="bar">
+    <span class="count">Hamle <b id="moves">0</b> · en iyi <span id="par">1</span></span>
+    <button id="reset" type="button">Baştan</button>
+    <button id="hint" class="primary" type="button">İpucu</button>
+  </div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<script src="../logic.js"></script>
+<script>
+(function () {
+  'use strict';
+  const Logic = window.RingLogic;
+  const { TAU, DEG, GAP_HALF } = Logic;
+  const W = 400, H = 520, STROKE = 13;
+  const COLORS = ['#ff6b6b', '#ffc94a', '#2dd4bf', '#4cc9f0', '#b388ff', '#ff9f1c', '#f72585', '#90be6d'];
+
+  // Z2 deneme bölümleri (çözücüyle seçildi; buzsuz hamle sayısı parantezde)
+  const LEVELS = [
+    { name: 'İlk buz', tip: 'Üstteki halka <b>donmuş</b>, dönmez. Komşularından birini kurtar: buzu kırılır.',
+      rings: [{ x: 200, y: 215, r: 70, a: 165, ice: 1 }, { x: 140, y: 320, r: 64, a: 225 }, { x: 260, y: 320, r: 64, a: 165 }] }, // (1)
+    { name: 'Çift kat', tip: 'Bu buz <b>iki kat</b>. Erimesi için iki komşusu gitmeli.',
+      rings: [{ x: 145, y: 280, r: 66, a: 135, ice: 2 }, { x: 200, y: 375, r: 60, a: 180 }, { x: 255, y: 280, r: 66, a: 165 }, { x: 200, y: 185, r: 60, a: 15 }] }, // (2)
+    { name: 'Buz çiçeği', tip: 'Ortadaki göbek donmuş. Önce <b>hangi yaprağı</b> kurtarmalısın?',
+      rings: [{ x: 200, y: 280, r: 64, a: 345, ice: 2 }, { x: 112, y: 262, r: 58, a: 75 }, { x: 288, y: 262, r: 58, a: 270 }, { x: 165, y: 365, r: 58, a: 45 }, { x: 235, y: 365, r: 58, a: 90 }, { x: 200, y: 185, r: 58, a: 255 }] }, // (3)
+    { name: 'Buz ve bomba', tip: 'Patlama buzu da dinlemez: donmuş halka <b>buzuyla birlikte</b> uçar.',
+      rings: [{ x: 145, y: 280, r: 66, a: 0, ice: 2 }, { x: 200, y: 375, r: 60, a: 45 }, { x: 255, y: 280, r: 66, a: 15, bomb: true }, { x: 200, y: 185, r: 60, a: 180 }] },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const done = new Set();
+  let S = null;
+  $('legend').innerHTML =
+    '<span><b>Buzla kaplı halka donmuştur</b>, dönmez. Kar tanesindeki sayı kalan buz katı.</span>' +
+    '<span>Donmuş halkanın değdiği bir halka kurtulunca buz <b>bir kat çatlar</b>; katlar bitince halka döner.</span>' +
+    '<span>Donmuşken boşluğu denk gelirse yine kurtulabilir. Bomba patlaması donmuş halkayı da uçurur.</span>';
+
+  function centered(rings) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of rings) { x0 = Math.min(x0, r.x - r.r); x1 = Math.max(x1, r.x + r.r); y0 = Math.min(y0, r.y - r.r); y1 = Math.max(y1, r.y + r.r); }
+    const dx = W / 2 - (x0 + x1) / 2, dy = H / 2 - (y0 + y1) / 2;
+    return rings.map(r => ({ ...r, x: r.x + dx, y: r.y + dy }));
+  }
+
+  function load(k) {
+    const L = Logic.buildLevel({ rings: centered(LEVELS[k].rings) });
+    const sol = Logic.solve(L, L.startAngles, 0, 200000);
+    S = { k, L, angles: L.startAngles.slice(), mask: 0, moves: 0, par: sol ? sol.moves : '?', busy: false,
+      fly: {}, hidden: 0, drag: null, praise: null, sparks: [], booms: [], flash: {}, shake: null, hintRing: -1, badgeAt: {},
+      shards: [], crack: {}, nudge: {} };
+    $('tip').innerHTML = LEVELS[k].tip;
+    $('par').textContent = S.par;
+    $('moves').textContent = 0;
+    $('win').hidden = true;
+    renderTabs();
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = LEVELS.map((l, i) =>
+      `<button type="button" data-k="${i}" aria-pressed="${i === S.k}" class="${done.has(i) ? 'done' : ''}">${i + 1}. ${l.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => { b.onclick = () => load(+b.dataset.k); });
+  }
+
+  // ---- ses: patlama (sönen gürültü + alçalan bas) ----
+  let AC = null;
+  function boom(big) {
+    try {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      const t = AC.currentTime, len = big ? 0.9 : 0.6;
+      const buf = AC.createBuffer(1, Math.floor(AC.sampleRate * len), AC.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+      const n = AC.createBufferSource(); n.buffer = buf;
+      const f = AC.createBiquadFilter(); f.type = 'lowpass';
+      f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(180, t + len);
+      const g = AC.createGain(); g.gain.setValueAtTime(big ? 0.9 : 0.6, t);
+      n.connect(f).connect(g).connect(AC.destination); n.start(t);
+      const o = AC.createOscillator(), og = AC.createGain();
+      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.45);
+      og.gain.setValueAtTime(0.7, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(og).connect(AC.destination); o.start(t); o.stop(t + 0.5);
+    } catch (e) { /* ses yoksa sessiz */ }
+  }
+
+  // Buz sesi: çatlayınca kısa cam çıtırtısı, eriyince (kırılınca) dökülen cam parçaları
+  function tinkle(n) {
+    try {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      const t = AC.currentTime;
+      const notes = n ? [2637, 3520, 2093, 3136, 4186] : [3136, 2349];
+      notes.forEach((f, k) => {
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type = 'sine'; o.frequency.value = f * (0.97 + Math.random() * 0.06);
+        const at = t + k * (n ? 0.045 : 0.03);
+        g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.09, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+        o.connect(g).connect(AC.destination); o.start(at); o.stop(at + 0.4);
+      });
+      const len = 0.12, buf = AC.createBuffer(1, Math.floor(AC.sampleRate * len), AC.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+      const s = AC.createBufferSource(); s.buffer = buf;
+      const f = AC.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 3000;
+      const g = AC.createGain(); g.gain.value = n ? 0.5 : 0.35;
+      s.connect(f).connect(g).connect(AC.destination); s.start(t);
+    } catch (e) { /* ses yoksa sessiz */ }
+  }
+  function deny() {
+    try {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+      o.type = 'square'; o.frequency.value = 150;
+      g.gain.setValueAtTime(0.04, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      o.connect(g).connect(AC.destination); o.start(t); o.stop(t + 0.13);
+    } catch (e) { /* yok say */ }
+  }
+
+  // ---- buz çizimi ----
+  // Buz kabuğu: halkanın üstünde yarı saydam açık mavi kalın katman, içinde parıltı çizgileri.
+  // İki kat buz daha kalın ve donuk; tek katta çatlak çizgileri görünür. Rozet: kar tanesi ve kalan kat.
+  function iceShell(i, x, y, ang, left, now) {
+    const r = S.L.rings[i];
+    const crackT = S.crack[i] ? (now - S.crack[i]) / 300 : 1;
+    const pop = crackT < 1 ? 1 + 0.08 * Math.sin(crackT * Math.PI) : 1;
+    ctx.save();
+    ctx.shadowColor = '#9be7ff'; ctx.shadowBlur = left >= 2 ? 14 : 8;
+    arcs(r, ang, x, y, left >= 2 ? 'rgba(170,230,255,.78)' : 'rgba(170,230,255,.55)', (STROKE + (left >= 2 ? 12 : 8)) * pop);
+    ctx.shadowBlur = 0;
+    arcs(r, ang, x - 1.5, y - 2, 'rgba(255,255,255,.55)', 2.5);
+    // parıltı çentikleri ve (tek katta) çatlaklar
+    ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    const n = 14;
+    for (let k = 0; k < n; k++) {
+      const p = ang + GAP_HALF + 0.15 + k * (TAU - 2 * GAP_HALF - 0.3) / (n - 1);
+      const w = (left >= 2 ? 9 : 7);
+      const a1 = p - 0.05, a2 = p + 0.05;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a1) * (r.r - w), y + Math.sin(a1) * (r.r - w));
+      ctx.lineTo(x + Math.cos(a2) * (r.r + w), y + Math.sin(a2) * (r.r + w));
+      ctx.stroke();
+      if (left === 1 && k % 3 === 1) {
+        ctx.strokeStyle = 'rgba(30,60,80,.75)'; ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        let rr = r.r - 10, aa = p;
+        ctx.moveTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr);
+        for (let q = 0; q < 4; q++) { rr += 5; aa += (q % 2 ? -1 : 1) * 0.06; ctx.lineTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr); }
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.6;
+      }
+    }
+    ctx.restore();
+  }
+  function iceBadge(i, now) {
+    const r = S.L.rings[i], left = Logic.iceLeft(S.L, i, S.mask);
+    const key = 'i' + i + ':' + S.hidden + ':' + Math.round(S.angles[i] / DEG / 10);
+    if (S.badgeAt[key] == null) S.badgeAt[key] = badgeSpot(i);
+    const th = S.badgeAt[key], x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+    const crackT = S.crack[i] ? (now - S.crack[i]) / 300 : 1;
+    const sc = crackT < 1 ? 1 + 0.35 * Math.sin(crackT * Math.PI) : 1;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(sc, sc);
+    ctx.fillStyle = 'rgba(6,14,22,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#4cb8e6'; ctx.lineWidth = 2; ctx.stroke();
+    // kar tanesi
+    ctx.strokeStyle = '#3a9ccc'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); ctx.stroke();
+    }
+    ctx.fillStyle = '#0d3a52'; ctx.font = '800 13px "Nunito", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#0d3a52'; ctx.fillText(String(left), 0, 1);
+    ctx.restore();
+  }
+  // Buz kırıkları: halka boyunca saçılan açık mavi üçgenler
+  function shatter(i, many) {
+    const r = S.L.rings[i], t0 = performance.now();
+    for (let k = 0; k < (many ? 30 : 12); k++) {
+      const a = Math.random() * TAU, sp = (many ? 1.6 : 1) * (0.6 + Math.random() * 1.6);
+      S.shards.push({ x: r.x + Math.cos(a) * r.r, y: r.y + Math.sin(a) * r.r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 0.4, s: 3 + Math.random() * (many ? 6 : 3), t0 });
+    }
+  }
+  function drawShards(now) {
+    S.shards = S.shards.filter(p => now - p.t0 < 900);
+    for (const p of S.shards) {
+      const t = (now - p.t0) / 900;
+      p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.rot += p.vr;
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = 'rgba(235,250,255,.95)'; ctx.strokeStyle = '#4cb8e6'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(0, -p.s); ctx.lineTo(p.s * 0.8, p.s * 0.7); ctx.lineTo(-p.s * 0.7, p.s * 0.5); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ---- çizim ----
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const w = cv.clientWidth;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * H / W * dpr);
+  }
+  const present = i => !(S.hidden & (1 << i));
+
+  function pose(i, now) {
+    const r = S.L.rings[i];
+    const f = S.fly[i];
+    if (!f) return { x: r.x, y: r.y, alpha: 1, grow: 1, spin: 0 };
+    const t = Math.min(Math.max((now - f.t0) / f.ms, 0), 1), e = t * t;
+    return { x: r.x + f.dx * f.dist * e, y: r.y + f.dy * f.dist * e, alpha: 1 - t, grow: 1 + 0.18 * t, spin: f.spin * e };
+  }
+
+  function arcs(ring, angle, x, y, color, width) {
+    const gaps = ring.gaps.map(g => Logic.norm(angle + g)).sort((a, b) => a - b);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    for (let k = 0; k < gaps.length; k++) {
+      const from = gaps[k] + GAP_HALF, to = (k + 1 < gaps.length ? gaps[k + 1] : gaps[0] + TAU) - GAP_HALF;
+      ctx.beginPath(); ctx.arc(x, y, ring.r, from, to); ctx.stroke();
+    }
+  }
+
+  // Bomba rozetinin yeri: halkanın en boş noktası (başka halkalardan ve boşluktan uzak)
+  function badgeSpot(s) {
+    const r = S.L.rings[s];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, i) => { if (i !== s && present(i)) d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r)); });
+      for (const g of r.gaps) d = Math.min(d, Logic.angDist(S.angles[s] + g, th) * r.r);
+      if (y - 26 < 0 || y + 18 > H || x - 18 < 0 || x + 22 > W) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return best;
+  }
+  function bombBadge(s, now) {
+    const r = S.L.rings[s];
+    const key = s + ':' + S.hidden + ':' + Math.round(S.angles[s] / DEG / 10);
+    if (S.badgeAt[key] == null) S.badgeAt[key] = badgeSpot(s);
+    const th = S.badgeAt[key], x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+    ctx.save();
+    ctx.fillStyle = 'rgba(16,7,11,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 16, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(x - 5, y - 5, 1, x, y, 14);
+    g.addColorStop(0, '#6a6470'); g.addColorStop(1, '#1b1820');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.fill();
+    ctx.strokeStyle = COLORS[s % COLORS.length]; ctx.lineWidth = 2.5; ctx.stroke();
+    // fitil ağzı, fitil ve titreşen kıvılcım
+    ctx.fillStyle = '#3a3640'; ctx.fillRect(x + 4, y - 15, 7, 5);
+    ctx.strokeStyle = '#d9b48a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + 8, y - 15); ctx.quadraticCurveTo(x + 12, y - 23, x + 17, y - 21); ctx.stroke();
+    const fl = REDUCED ? 1 : 0.75 + 0.35 * Math.sin(now / 55) * Math.sin(now / 83);
+    const sx = x + 17, sy = y - 21;
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 9 * fl);
+    sg.addColorStop(0, '#fff'); sg.addColorStop(.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 9 * fl, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // Bombanın dokunduğu yerler: turuncu kıvılcım yıldızları (patlamanın kimi vuracağını gösterir)
+  function fusePoints(now) {
+    const L = S.L;
+    for (const link of L.links) {
+      const b = L.rings[link.a].bomb ? link.a : L.rings[link.b].bomb ? link.b : -1;
+      if (b < 0 || !present(link.a) || !present(link.b) || S.fly[link.a] || S.fly[link.b]) continue;
+      for (const p of link.pts) {
+        const pulse = REDUCED ? 1 : 0.8 + 0.25 * Math.sin(now / 160 + p.x);
+        ctx.save();
+        ctx.translate(p.x, p.y); ctx.rotate(REDUCED ? 0 : now / 900);
+        ctx.fillStyle = '#ff7a45'; ctx.strokeStyle = 'rgba(16,7,11,.9)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const rr = (k % 2 ? 3.2 : 8) * pulse, a = k * Math.PI / 5;
+          ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  function draw(now) {
+    const dpr = cv.width / W;
+    let sx = 0, sy = 0;
+    if (S.shake) {
+      const t = (now - S.shake.t0) / S.shake.ms;
+      if (t >= 1) S.shake = null;
+      else if (!REDUCED) { const amp = S.shake.amp * (1 - t); sx = (Math.random() * 2 - 1) * amp; sy = (Math.random() * 2 - 1) * amp; }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(dpr, 0, 0, dpr, sx * dpr, sy * dpr);
+    const L = S.L;
+    for (const link of L.links) {
+      if (!present(link.a) || !present(link.b) || S.fly[link.a] || S.fly[link.b]) continue;
+      for (const p of link.pts) {
+        if (!Logic.pointOpen(L, link, p, S.angles)) continue;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, TAU); ctx.fill();
+      }
+    }
+    for (let i = 0; i < L.rings.length; i++) {
+      if (!present(i)) continue;
+      const r = L.rings[i], P = pose(i, now), color = COLORS[i % COLORS.length];
+      const fl = S.flash[i] ? Math.max(0, 1 - (now - S.flash[i]) / 260) : 0;
+      const ang = S.angles[i] + P.spin;
+      const nudge = S.nudge[i] ? Math.max(0, 1 - (now - S.nudge[i]) / 350) : 0;
+      if (nudge) P.x += Math.sin(nudge * 30) * 5 * nudge;
+      ctx.save();
+      ctx.globalAlpha = P.alpha;
+      ctx.translate(P.x, P.y); ctx.scale(P.grow, P.grow); ctx.translate(-P.x, -P.y);
+      const active = (S.drag && S.drag.ring === i) || S.hintRing === i;
+      arcs(r, ang, P.x + 2, P.y + 4, 'rgba(0,0,0,.42)', STROKE + 6);
+      if (active) { ctx.shadowColor = color; ctx.shadowBlur = 20; }
+      arcs(r, ang, P.x, P.y, color, STROKE);
+      ctx.shadowBlur = 0;
+      arcs(r, ang, P.x - 1.2, P.y - 1.6, 'rgba(255,255,255,.28)', 3);
+      const icy = Logic.iceLeft(L, i, S.mask);
+      if (icy && !S.fly[i]) iceShell(i, P.x, P.y, ang, icy, now);
+      else if (icy) { ctx.globalAlpha = P.alpha; iceShell(i, P.x, P.y, ang, icy, now); }
+      if (fl > 0) { ctx.globalAlpha = P.alpha * fl; arcs(r, ang, P.x, P.y, '#fff', STROKE + 4); }
+      ctx.restore();
+    }
+    fusePoints(now);
+    for (let i = 0; i < L.rings.length; i++) {
+      if (L.rings[i].ice && present(i) && !S.fly[i] && Logic.iceLeft(L, i, S.mask)) iceBadge(i, now);
+    }
+    drawShards(now);
+    for (let i = 0; i < L.rings.length; i++) {
+      if (L.rings[i].bomb && present(i) && !S.fly[i]) bombBadge(i, now);
+    }
+    // patlamalar: beyaz parlama, şok dalgası, kor parçaları
+    S.booms = S.booms.filter(b => now - b.t0 < 900);
+    for (const b of S.booms) {
+      const t = Math.max(0, (now - b.t0) / 900);
+      ctx.save();
+      if (t < .25) {
+        const fg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 1.6);
+        fg.addColorStop(0, `rgba(255,255,240,${1 - t / .25})`); fg.addColorStop(.4, `rgba(255,211,74,${.8 * (1 - t / .25)})`); fg.addColorStop(1, 'rgba(255,90,61,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.6, 0, TAU); ctx.fill();
+      }
+      const e = 1 - Math.pow(1 - t, 3);
+      ctx.strokeStyle = `rgba(255,170,90,${1 - t})`; ctx.lineWidth = 10 * (1 - t) + 1;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (0.4 + 2.2 * e), 0, TAU); ctx.stroke();
+      for (const p of b.bits) {
+        const d = p.v * e * b.r * 2.4;
+        ctx.fillStyle = p.c; ctx.globalAlpha = 1 - t;
+        ctx.beginPath(); ctx.arc(b.x + Math.cos(p.a) * d, b.y + Math.sin(p.a) * d + 40 * t * t, p.s * (1 - t * .6), 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (S.praise) {
+      const t = (now - S.praise.t0) / 1500;
+      if (t >= 1) S.praise = null;
+      else {
+        ctx.save();
+        ctx.globalAlpha = t < .12 ? t / .12 : 1 - Math.max(0, (t - .6) / .4);
+        ctx.font = '800 44px "Baloo 2", "Nunito", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(16,7,11,.85)'; ctx.lineJoin = 'round';
+        const y = 72 - 14 * t, sc = 1 + .18 * Math.sin(Math.min(t, .3) / .3 * Math.PI);
+        ctx.translate(W / 2, y); ctx.scale(sc, sc);
+        ctx.strokeText(S.praise.text, 0, 0);
+        ctx.fillStyle = '#ffc94a'; ctx.fillText(S.praise.text, 0, 0);
+        if (S.praise.sub) {
+          ctx.font = '800 19px "Nunito", sans-serif'; ctx.lineWidth = 6;
+          ctx.strokeText(S.praise.sub, 0, 30); ctx.fillStyle = '#ff9a6a'; ctx.fillText(S.praise.sub, 0, 30);
+        }
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  // ---- hareket ----
+  const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+
+  function tween(from, to, ms, ease) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const step = () => {
+        const t = REDUCED ? 1 : Math.min((performance.now() - t0) / ms, 1), e = ease(t);
+        S.angles = from.map((a, i) => a + Logic.signedDelta(a, to[i]) * e);
+        if (t < 1) requestAnimationFrame(step); else { S.angles = to.slice(); res(); }
+      };
+      step();
+    });
+  }
+
+  // Halka uçar: patlamayla vurulan bombadan uzağa, daha hızlı ve dönerek gider
+  function launch(i, now, from) {
+    const r = S.L.rings[i];
+    const dx = r.x - (from ? from.x : W / 2), dy = r.y - (from ? from.y : H / 2);
+    const d = Math.hypot(dx, dy) || 1;
+    S.fly[i] = from ? { t0: now, dx: dx / d, dy: dy / d - .15, ms: 620, dist: 560, spin: (Math.random() < .5 ? -1 : 1) * 2.5 }
+                    : { t0: now, dx: dx / d, dy: dy / d - .25, ms: 520, dist: 460, spin: 0 };
+    S.mask |= 1 << i;
+  }
+
+  async function settle() {
+    const L = S.L, st = S; // bölüm değişirse eski animasyon yeni bölüme yazmasın
+    const c = Logic.cascade(L, S.angles, S.mask);
+    if (!c.waves.length) return;
+    S.busy = true;
+    let freed = 0, blasts = 0, melted = 0;
+    const blastFrom = {}; // vurulan halka -> onu vuran bomba
+    for (let k = 0; k < c.waves.length; k++) {
+      const now = performance.now();
+      const iceBefore = L.rings.map((r, i) => Logic.iceLeft(L, i, S.mask));
+      for (const i of c.waves[k]) { launch(i, now, blastFrom[i] != null ? L.rings[blastFrom[i]] : null); freed++; }
+      L.rings.forEach((r, i) => {
+        if (!r.ice || (S.mask & (1 << i))) return;
+        const after = Logic.iceLeft(L, i, S.mask);
+        if (after === iceBefore[i]) return;
+        S.crack[i] = now;
+        shatter(i, after === 0);
+        tinkle(after === 0);
+        if (after === 0) melted++;
+      });
+      if (!c.blasts[k].length) { await sleep(200); if (S !== st) return; continue; }
+      await sleep(170); if (S !== st) return; // bomba kalkar, sonra patlar
+      const t0 = performance.now();
+      for (const b of c.blasts[k]) {
+        const r = L.rings[b.from];
+        blasts++;
+        S.booms.push({ x: r.x, y: r.y, r: r.r, t0, bits: Array.from({ length: 22 }, () => ({ a: Math.random() * TAU, v: .5 + Math.random() * .7, s: 2 + Math.random() * 3.5, c: ['#ffd34a', '#ff7a45', '#fff', '#ff5a3d'][Math.floor(Math.random() * 4)] })) });
+        for (const h of b.hits) { S.flash[h] = t0; blastFrom[h] = b.from; }
+      }
+      S.shake = { t0, ms: 380 + 120 * blasts, amp: 7 + 3 * Math.min(blasts, 3) };
+      boom(blasts > 1);
+      await sleep(140); if (S !== st) return; // vurulanlar beyaz parlar, sonra uçar
+    }
+    await sleep(520); if (S !== st) return;
+    for (const i of Object.keys(S.fly)) { S.hidden |= 1 << i; delete S.fly[i]; }
+    S.angles = c.angles.slice();
+    S.mask = c.mask;
+    const now = performance.now();
+    if (blasts >= 2) S.praise = { text: 'Zincirleme!', sub: `${blasts} patlama · ${freed} halka`, t0: now };
+    else if (freed >= 5) S.praise = { text: 'Büyük patlama!', sub: `${freed} halka birden`, t0: now };
+    else if (melted) S.praise = { text: 'Buz kırıldı!', sub: freed >= 2 ? `${freed} halka` : '', t0: now };
+    else if (freed >= 2) S.praise = { text: freed >= 4 ? 'Muhteşem!' : freed === 3 ? 'Harika!' : 'Süper!', t0: now };
+    S.busy = false;
+    if (S.mask === L.full) win();
+  }
+
+  function win() {
+    done.add(S.k);
+    renderTabs();
+    const perfect = S.moves <= S.par;
+    $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
+    $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
+    $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
+    const k = S.k;
+    setTimeout(() => { if (S.k === k && S.mask === S.L.full) $('win').hidden = false; }, 900);
+  }
+
+  // Bırakınca boşluk bir kesişime yakınsa oraya oturur
+  function snap(i) {
+    const L = S.L, ring = L.rings[i];
+    let best = null, bd = 14 * DEG;
+    for (const li of L.ringLinks[i]) {
+      const k = L.links[li], o = k.a === i ? k.b : k.a;
+      if (S.mask & (1 << o)) continue;
+      for (const p of k.pts) {
+        const ang = k.a === i ? p.angA : p.angB;
+        for (const g of ring.gaps) {
+          const t = Logic.norm(ang - g), d = Logic.angDist(t, S.angles[i]);
+          if (d < bd) { bd = d; best = t; }
+        }
+      }
+    }
+    if (best != null) S.angles = Logic.rotate(L, S.angles, i, Logic.signedDelta(S.angles[i], best));
+  }
+
+  const toBoard = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height }; };
+  cv.addEventListener('pointerdown', e => {
+    if (S.busy || !$('win').hidden) return;
+    const p = toBoard(e);
+    let pick = -1, bd = 28;
+    S.L.rings.forEach((r, i) => {
+      if (S.mask & (1 << i)) return;
+      const d = Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      if (d < bd) { bd = d; pick = i; }
+    });
+    if (pick < 0) return;
+    if (Logic.iceLeft(S.L, pick, S.mask)) {
+      S.nudge[pick] = performance.now(); deny();
+      $('tip').innerHTML = 'Bu halka <b>donmuş</b>. Değdiği halkalardan birini kurtar, buzu çatlasın.';
+      return;
+    }
+    const r = S.L.rings[pick];
+    S.drag = { ring: pick, last: Math.atan2(p.y - r.y, p.x - r.x), total: 0, base: S.angles.slice() };
+    S.hintRing = -1;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.drag) return;
+    const p = toBoard(e), r = S.L.rings[S.drag.ring];
+    const a = Math.atan2(p.y - r.y, p.x - r.x);
+    S.drag.total += Logic.signedDelta(S.drag.last, a);
+    S.drag.last = a;
+    S.angles = Logic.rotate(S.L, S.drag.base, S.drag.ring, S.drag.total);
+  });
+  const release = () => {
+    if (!S.drag) return;
+    const d = S.drag; S.drag = null;
+    if (Math.abs(d.total) < 3 * DEG) { S.angles = d.base; return; }
+    snap(d.ring);
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  $('reset').onclick = () => { if (!S.busy) load(S.k); };
+  $('next').onclick = () => load((S.k + 1) % LEVELS.length);
+  $('hint').onclick = async () => {
+    if (S.busy || S.mask === S.L.full) return;
+    const sol = Logic.solve(S.L, S.angles, S.mask, 200000);
+    if (!sol || !sol.first) return;
+    S.busy = true; S.hintRing = sol.first.ring;
+    await tween(S.angles, Logic.rotate(S.L, S.angles, sol.first.ring, sol.first.delta), 650, t => 1 - Math.pow(1 - t, 3));
+    S.hintRing = -1; S.busy = false;
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  load(0);
+  requestAnimationFrame(draw);
+  window.__proto = { get S() { return S; }, load, hint: () => $('hint').onclick() };
+})();
+</script>
