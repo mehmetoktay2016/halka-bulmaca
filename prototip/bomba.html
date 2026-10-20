@@ -373,7 +373,8 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
     $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
     $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
-    setTimeout(() => { $('win').hidden = false; }, 900);
+    const k = S.k;
+    setTimeout(() => { if (S.k === k && S.mask === S.L.full) $('win').hidden = false; }, 900);
   }
 
   // Bırakınca boşluk bir kesişime yakınsa oraya oturur
