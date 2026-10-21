@@ -140,6 +140,8 @@
       if (r.bomb && r.type) throw new Error(`Parça ${i}: bomba yalnızca halka olabilir`);
       // Bomba ve yay rozeti aynı halkada yer kapışırdı
       if (r.bomb && r.kick) throw new Error(`Halka ${i}: bomba yaylı olamaz`);
+      // Buz rozeti bomba ve yay rozetiyle aynı yere düşerdi
+      if (r.ice && (r.bomb || r.kick)) throw new Error(`Halka ${i}: buz halka bomba ya da yaylı olamaz`);
       if (r.ice && (r.type || r.fixed || r.tokens != null || !(r.ice >= 1 && r.ice <= 3))) throw new Error(`Halka ${i}: buz 1-3 kat, sabit ya da jetonlu olmayan halkada olur`);
     }
     for (const [i, r] of def.rings.entries()) {

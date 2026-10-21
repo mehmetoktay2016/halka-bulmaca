@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable } = window.RingLogic;
+          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -208,6 +208,12 @@
         noise(0.7, 0.55, 2600 - Math.min(k, 4) * 300, 160);
         tone(120 - Math.min(k, 4) * 10, 0.5, 'sine', 0.3, 36);
         tone(1800, 0.05, 'square', 0.03, 600);
+      },
+      // Buz: çatlayınca kısa cam çıtırtısı, eriyince (melt) dökülen cam parçaları
+      crack: melt => {
+        (melt ? [2637, 3520, 2093, 3136, 4186] : [3136, 2349]).forEach((f, k) =>
+          tone(f * (0.97 + Math.random() * 0.06), 0.35, 'sine', 0.06, null, k * (melt ? 0.045 : 0.03)));
+        noise(0.12, melt ? 0.3 : 0.2, 7000, 2500);
       },
       // Zincir: halka sayısı arttıkça yükselen üçlü
       chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
@@ -1184,7 +1190,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      flash: {}, bombs: 0, tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1334,6 +1340,24 @@
       }
     });
     S.bombs = bangs;
+    // Buz halkalar dalga dalga çatlar: çizimde eski kat sayısı çatlama anına dek kalır
+    let melted = -1;
+    if (S.L.hasIce) {
+      const L0 = S.L;
+      let m = S.mask;
+      waves.forEach((wave, w) => {
+        const was = L0.rings.map((_, i) => iceLeft(L0, i, m));
+        for (const i of wave) m |= 1 << i;
+        L0.rings.forEach((r, i) => {
+          if (!was[i] || (m & (1 << i))) return;
+          const left = iceLeft(L0, i, m);
+          if (left === was[i]) return;
+          (S.iceHold[i] = S.iceHold[i] || []).push({ left: was[i], until: now + at[w] });
+          if (!left) melted = i;
+          setTimeout(() => { if (S.L === L0) iceCrack(i, !left); }, at[w]);
+        });
+      });
+    }
     let before = S.angles;
     kicks.forEach((ks, w) => {
       for (const k of ks) {
@@ -1383,7 +1407,8 @@
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs), at[waves.length - 1]);
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, melted >= 0), at[waves.length - 1]);
+    else if (melted >= 0 && !endWord) setTimeout(() => showIceWord(melted), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1856,6 +1881,27 @@
     wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
   }
 
+  // Buz çatladı (melt: tamamen eridi): cam sesi, saçılan buz kırıkları; kabuk ve rozet bir an kabarır
+  function iceCrack(i, melt) {
+    const r = S.L.rings[i];
+    S.iceCrack[i] = performance.now();
+    Sound.crack(melt);
+    if (REDUCED) return;
+    for (let k = 0; k < (melt ? 30 : 12); k++) {
+      const a = Math.random() * TAU, sp = (melt ? 1.6 : 1) * (0.8 + Math.random() * 2);
+      particles.push({ x: r.x + Math.cos(a) * r.r, y: r.y + Math.sin(a) * r.r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        life: 1, size: 2.5 + Math.random() * (melt ? 4 : 2.5), color: 'rgba(235,250,255,.95)', shape: 'shard', rot: Math.random() * TAU });
+    }
+  }
+  // Tek halkalık hamlede buz eridiyse: eriyen halkanın üstünde "Buz kırıldı!"
+  function showIceWord(i) {
+    if (S.tut != null) return;
+    const r = S.L.rings[i], p = boardToApp(r.x, r.y);
+    const w = $('app').clientWidth;
+    floaters.push({ text: tr('Buz kırıldı!'), x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(),
+      size: PRAISE[1].size, colors: ['#ffffff', '#9be7ff'], life: 1300 });
+  }
+
   // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
   // Tek halkada övgü yok; seyrek kaldıkça değerli hisseder.
   const PRAISE = {
@@ -1873,7 +1919,8 @@
   // Bir hamlede birden çok halka açılırsa: övgü ve altında "Zincir ×N" (N = açılan halka sayısı).
   // quiet: son hamlede bölüm sonu övgüsü gelecekse zincir yalnızca sayılır (yazı ve ses ona kalır).
   // bangs: hamlede patlayan bomba sayısı (iki ve üstü "Zincirleme!", tek bombayla 5+ halka "Büyük patlama!")
-  function showChain(freed, quiet, bangs = 0) {
+  // melt: bu hamlede bir buz eridi (bomba yoksa "Buz kırıldı!")
+  function showChain(freed, quiet, bangs = 0, melt = false) {
     if (S.tut != null) return;
     const n = freed.length;
     const c = waveCenter(freed);
@@ -1883,10 +1930,10 @@
     if (!quiet) {
       const tier = n >= 4 || bangs >= 2 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : praiseWord(pr.words);
+      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : melt && !bangs ? tr('Buz kırıldı!') : praiseWord(pr.words);
       const sub = bangs >= 2 ? tr('{b} patlama · Zincir ×{n}', { b: bangs, n }) : tr('Zincir ×{n}', { n });
       floaters.push({ text, sub, x, y: p.y, t0: performance.now(),
-        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : pr.colors, life: 1500 });
+        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : melt ? ['#ffffff', '#9be7ff'] : pr.colors, life: 1500 });
       Sound.praise(tier);
     }
     if (S.preview) return;
@@ -2183,6 +2230,7 @@
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
       else if (isFrame(i)) showTip(tr('Çerçeve yerinden oynamaz: halkaları etrafından kurtar'));
+      else if (iceLeft(S.L, i, S.mask)) showTip(tr('Bu halka donmuş. Değdiği halkalardan birini kurtar, buzu çatlasın'));
       else if (S.L.rings[i].lockedBy >= 0) {
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
@@ -3063,7 +3111,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.ice ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3189,6 +3237,71 @@
       }
     }
     S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
+  // ---- Buz halka çizimi (2.5) ----
+  // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
+  function iceShown(i, now) {
+    const h = (S.iceHold[i] || []).find(e => now < e.until);
+    return h ? h.left : iceLeft(S.L, i, S.mask);
+  }
+  // Kabuk: halkanın üstünde yarı saydam açık mavi kalın katman ve parıltı çentikleri. Çok katlı buz daha kalın
+  // ve donuk, tek katta koyu çatlaklar görünür. Çatlayınca kabuk bir an kabarır.
+  function drawIceShell(i, ang, cx, cy, left, now) {
+    const r = S.L.rings[i];
+    const ct = S.iceCrack[i] ? (now - S.iceCrack[i]) / 300 : 1;
+    const pop = ct < 1 ? 1 + 0.08 * Math.sin(ct * Math.PI) : 1;
+    const thick = left >= 2, w = thick ? 9 : 7;
+    ctx.save();
+    ctx.shadowColor = '#9be7ff'; ctx.shadowBlur = thick ? 14 : 8;
+    strokeRing(r, ang, thick ? 'rgba(170,230,255,.78)' : 'rgba(170,230,255,.55)', (STROKE + (thick ? 12 : 8)) * pop, cx, cy);
+    ctx.shadowBlur = 0;
+    strokeRing(r, ang, 'rgba(255,255,255,.55)', 2.5, cx - 1.5, cy - 2);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 16; k++) {
+      const p = ang + 0.2 + k * TAU / 16;
+      if (r.gaps.some(g => angDist(p, ang + g) < GAP_HALF + 0.12)) continue;
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(p - 0.05) * (r.r - w), cy + Math.sin(p - 0.05) * (r.r - w));
+      ctx.lineTo(cx + Math.cos(p + 0.05) * (r.r + w), cy + Math.sin(p + 0.05) * (r.r + w));
+      ctx.stroke();
+      if (left === 1 && k % 3 === 1) {
+        ctx.strokeStyle = 'rgba(30,60,80,.75)'; ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        let rr = r.r - 10, aa = p + 0.12;
+        ctx.moveTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr);
+        for (let q = 0; q < 4; q++) { rr += 5; aa += (q % 2 ? -1 : 1) * 0.06; ctx.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr); }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+  // Rozet: halkanın en boş yerinde kar tanesi, ortasında kalan kat sayısı
+  function drawIceBadges(now) {
+    if (!S.L.hasIce) return;
+    S.L.rings.forEach((r, i) => {
+      if (!r.ice || !springLive(i)) return;
+      const left = iceShown(i, now);
+      if (!left) return;
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      const ct = S.iceCrack[i] ? (now - S.iceCrack[i]) / 300 : 1;
+      const sc = ct < 1 ? 1 + 0.35 * Math.sin(ct * Math.PI) : 1;
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(sc, sc);
+      ctx.fillStyle = 'rgba(6,14,22,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#4cb8e6'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = '#3a9ccc'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); ctx.stroke();
+      }
+      ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d3a52'; ctx.font = '800 13px "Nunito", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(left), 0, 1);
+      ctx.restore();
+    });
   }
 
   function drawSprings(now) {
@@ -3336,6 +3449,8 @@
     ctx.shadowBlur = 0;
     strokeRing(ring, ang, color, STROKE, cx, cy);
     strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    const icy = ring.ice ? iceShown(i, now) : 0;
+    if (icy) drawIceShell(i, ang, cx, cy, icy, now);
     const fl = S.flash[i] ? 1 - (now - S.flash[i]) / 260 : 0;
     if (fl > 0 && fl <= 1) { ctx.globalAlpha = alpha * fl; strokeRing(ring, ang, '#fff', STROKE + 4, cx, cy); ctx.globalAlpha = alpha; }
     if (ring.pulse >= 0) drawPulseCover(i, cx, cy, now);
@@ -3696,9 +3811,9 @@
     p.x += p.vx; p.y += p.vy;
     p.vx *= 0.96; p.vy *= 0.96;
     if (p.shape === 'bubble') p.vy -= 0.06;
-    p.life -= p.shape === 'bubble' ? 0.018 : 0.025;
+    p.life -= p.shape === 'bubble' || p.shape === 'shard' ? 0.016 : 0.025;
     const a = Math.max(p.life, 0), s = p.size * (p.shape === 'dot' || !p.shape ? a : 0.6 + 0.6 * a);
-    g.globalAlpha = a;
+    g.globalAlpha = p.shape === 'shard' ? Math.min(1, a * 1.6) : a;
     g.fillStyle = p.color;
     g.strokeStyle = p.color;
     if (p.shape === 'star') {
@@ -3719,6 +3834,13 @@
       g.bezierCurveTo(p.x - r * 2, p.y - r * 0.2, p.x - r * 0.9, p.y - r * 1.6, p.x, p.y - r * 0.5);
       g.bezierCurveTo(p.x + r * 0.9, p.y - r * 1.6, p.x + r * 2, p.y - r * 0.2, p.x, p.y + r * 1.2);
       g.fill();
+    } else if (p.shape === 'shard') {
+      // Buz kırığı: düşen, dönen açık mavi üçgen
+      p.vy += 0.15; p.rot += 0.12;
+      g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
+      g.strokeStyle = '#4cb8e6'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(0, -s * 1.4); g.lineTo(s * 1.1, s); g.lineTo(-s, s * 0.7); g.closePath(); g.fill(); g.stroke();
+      g.restore();
     } else if (p.shape === 'bolt') {
       const ang = Math.atan2(p.vy, p.vx), r = s * 2.2;
       g.save(); g.translate(p.x, p.y); g.rotate(ang);
@@ -3890,6 +4012,7 @@
         if (!S.turn) drawOpenPoints(now);
         drawSprings(now);
         drawBombs(now);
+        drawIceBadges(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);
