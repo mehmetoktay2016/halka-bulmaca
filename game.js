@@ -214,6 +214,11 @@
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
         noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
       },
+      // Portal: yükselen hışırtı ("fşşt") ve üstünde parıldayan üçlü
+      swoosh: () => {
+        noise(0.45, 0.4, 500, 5000);
+        [1319, 1760, 2637].forEach((f, k) => tone(f, 0.4, 'sine', 0.06, null, 0.12 + k * 0.07));
+      },
       // Buz: çatlayınca kısa cam çıtırtısı, eriyince (melt) dökülen cam parçaları
       crack: melt => {
         (melt ? [2637, 3520, 2093, 3136, 4186] : [3136, 2349]).forEach((f, k) =>
@@ -1195,7 +1200,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      flash: {}, bombs: 0, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, vortex: [], iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1324,7 +1329,7 @@
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
     // Hamlenin kurtardıkları uçar, sonra motor halkalar birer adım döner (dönüşleri tekmeler arasında gelir)
-    const { mask, waves, kicks, tokens, blasts, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
+    const { mask, waves, kicks, tokens, blasts, portals, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
@@ -1336,6 +1341,14 @@
     }, 0);
     // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
     const blastFrom = {};
+    // Portal: kurtulan halkanın ikizi sonraki dalgada yerinde dönerek girdaba çekilir
+    const teleOf = {};
+    portals.forEach((ps, w) => {
+      for (const p of ps) {
+        teleOf[p.to] = p.from;
+        setTimeout(() => portalOpen(p.to), at[w] + 60);
+      }
+    });
     let bangs = 0;
     blasts.forEach((bs, w) => {
       for (const b of bs) {
@@ -1399,7 +1412,7 @@
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0 };
+        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
@@ -1416,9 +1429,10 @@
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    const word = melted >= 0 ? 'ice' : onTime.length ? 'time' : null;
+    const teled = Object.keys(teleOf).map(Number);
+    const word = melted >= 0 ? 'ice' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1907,6 +1921,7 @@
   const WORD = {
     ice: { text: 'Buz kırıldı!', colors: ['#ffffff', '#9be7ff'] },
     time: { text: 'Tam zamanında!', colors: ['#fff4e6', '#ffb35c'] },
+    tele: { text: 'Işınlandı!', colors: ['#ffffff', '#c9a7ff'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -3101,7 +3116,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.ice || r.motor ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.ice || r.motor || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3227,6 +3242,81 @@
       }
     }
     S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
+  // ---- İkiz portal çizimi (2.5) ----
+  // İkiz çiftlerinin renk ve işaretleri: 1 ay (mor), 2 yıldız (camgöbeği), sonrası sırayla
+  const TWINS = [{ color: '#c9a7ff', mark: 'moon' }, { color: '#5fe3ff', mark: 'star' }];
+  const twinOf = i => TWINS[(S.L.rings[i].portal + TWINS.length - 1) % TWINS.length];
+  // İkizin portalı açılır: ses, ikizin üstünde girdap, ikiz beyaz parlar
+  function portalOpen(i) {
+    const r = S.L.rings[i];
+    if (!r) return;
+    Sound.swoosh();
+    S.flash[i] = performance.now();
+    if (!REDUCED) S.vortex.push({ x: r.x, y: r.y, r: r.r, color: twinOf(i).color, t0: performance.now() });
+  }
+  function markPath(mark, s) {
+    ctx.beginPath();
+    if (mark === 'moon') {
+      ctx.arc(0, 0, s, 0.6, TAU - 0.6 + 0.0001); ctx.arc(s * 0.55, 0, s * 0.78, TAU - 1.05, 1.05, true);
+    } else {
+      for (let k = 0; k < 10; k++) { const rr = k % 2 ? s * 0.45 : s, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    }
+    ctx.closePath();
+  }
+  // İkizleri bağlayan akan ışıltılı iz, girdap rozetleri ve açılan girdaplar
+  function drawPortals(now) {
+    const L = S.L;
+    if (L.twin.some(o => o >= 0)) {
+      const spot = i => { const r = L.rings[i], th = springBadgeAt(i); return { x: r.x + Math.cos(th) * r.r, y: r.y + Math.sin(th) * r.r }; };
+      for (let i = 0; i < L.rings.length; i++) {
+        const o = L.twin[i];
+        if (o < i || !springLive(i) || !springLive(o)) continue;
+        const a = spot(i), b = spot(o), tw = twinOf(i);
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - Math.max(40, Math.hypot(a.x - b.x, a.y - b.y) * 0.35);
+        ctx.save();
+        ctx.strokeStyle = tw.color; ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.setLineDash([2, 7]); ctx.lineDashOffset = REDUCED ? 0 : -now / 40;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(mx, my, b.x, b.y); ctx.stroke();
+        ctx.restore();
+      }
+      for (let i = 0; i < L.rings.length; i++) {
+        if (L.twin[i] < 0 || !springLive(i)) continue;
+        const tw = twinOf(i), { x, y } = spot(i);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = 'rgba(12,9,24,.92)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+        const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 14);
+        g.addColorStop(0, '#2a1f4d'); g.addColorStop(1, '#120d24');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+        ctx.strokeStyle = tw.color; ctx.lineWidth = 2; ctx.stroke();
+        ctx.save();
+        ctx.rotate(REDUCED ? 0 : now / 700);
+        ctx.strokeStyle = tw.color; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        for (let k = 0; k < 3; k++) { ctx.rotate(TAU / 3); ctx.beginPath(); ctx.arc(4, 0, 7, Math.PI * 0.9, Math.PI * 1.6); ctx.stroke(); }
+        ctx.restore();
+        ctx.fillStyle = tw.color; markPath(tw.mark, 6); ctx.fill();
+        ctx.restore();
+      }
+    }
+    S.vortex = S.vortex.filter(v => now - v.t0 < 700);
+    for (const v of S.vortex) {
+      const t = Math.max(0, (now - v.t0) / 700), e = Math.sin(Math.PI * t);
+      ctx.save();
+      ctx.translate(v.x, v.y); ctx.rotate(t * 6);
+      ctx.strokeStyle = v.color; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        ctx.globalAlpha = (1 - t) * (1 - k * 0.25);
+        ctx.beginPath(); ctx.arc(0, 0, v.r * (0.3 + 0.25 * k) * e + 2, k, k + Math.PI * 1.3); ctx.stroke();
+      }
+      for (let k = 0; k < 10; k++) {
+        const a = k * TAU / 10, d = v.r * 1.3 * (1 - t);
+        ctx.globalAlpha = 1 - t; ctx.fillStyle = k % 2 ? '#ffffff' : v.color;
+        ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 2.4, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   // ---- Motor halka çizimi (2.5) ----
@@ -3420,7 +3510,13 @@
       cx = T.x + dx * c - dy * s; cy = T.y + dx * s + dy * c;
     }
     const f = S.fly[i];
-    if (f) {
+    if (f && f.tele) {
+      // Işınlanan ikiz yerinde dönerek küçülür
+      const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1), e = t * t;
+      alpha = 1 - e;
+      grow = Math.max(0.02, 1 - e);
+      spin = 5 * e;
+    } else if (f) {
       const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
       const e = t * t;
       cx += f.dx * (f.spin ? 520 : 420) * e;
@@ -4067,6 +4163,7 @@
         drawBombs(now);
         drawIceBadges(now);
         drawMotors(now);
+        drawPortals(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);
