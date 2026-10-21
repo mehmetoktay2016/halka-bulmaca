@@ -388,5 +388,35 @@ test('ikiz portal: geçersiz tanımlar hata verir', () => {
   assert.deepStrictEqual(bars.twin, [-1, -1, -1]);
 });
 
+// Basınç kazanı (Z19): zincirin ortasındaki halka 1 basınçlı kazan
+const BOILER = [{ x: 80, y: 160, r: 58, a: 45 }, { x: 150, y: 220, r: 60, a: 75 }, { x: 235, y: 210, r: 58, a: 300, boiler: 1 },
+  { x: 290, y: 285, r: 60, a: 0 }, { x: 255, y: 375, r: 62, a: 45 }];
+
+test('basınç kazanı: komşusu çıkınca basınç dolar, kazan çıkıp patlar ve değdiklerini uçurur', () => {
+  const L = Logic.buildLevel({ rings: BOILER });
+  assert.strictEqual(Logic.pressureLeft(L, 2, 0), 1);
+  assert.strictEqual(Logic.pressureLeft(L, 2, 1 << 1), 0);
+  // En iyi çözümde kazan basınçla dolar: dolduğu dalgadan sonra çıkar ve hâlâ değdiği komşusunu patlatır
+  let st = { angles: L.startAngles, mask: 0 }, fusedAt = -1, c = null;
+  while (st.mask !== L.full && fusedAt < 0) {
+    const q = Logic.solve(L, st.angles, st.mask);
+    c = Logic.cascade(L, Logic.rotate(L, st.angles, q.first.ring, q.first.delta), st.mask);
+    fusedAt = c.fuses.findIndex(f => f.includes(2));
+    st = c;
+  }
+  assert.ok(fusedAt >= 0);
+  assert.ok(c.waves[fusedAt + 1].includes(2));
+  assert.ok(c.blasts[fusedAt + 1].some(b => b.from === 2 && b.hits.length));
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: BOILER.map(({ boiler, ...r }) => r) }), L.startAngles, 0).moves, 4);
+});
+
+test('basınç kazanı: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ boiler: 2 }, {}), /dolduracak kadar komşusu/);
+  assert.throws(() => two({ boiler: 1, bomb: true }, {}), /kazan 1-3/);
+  assert.throws(() => two({ boiler: 4 }, {}), /kazan 1-3/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
