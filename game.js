@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
+          pointOpen, afterMove, rotate, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -208,6 +208,11 @@
         noise(0.7, 0.55, 2600 - Math.min(k, 4) * 300, 160);
         tone(120 - Math.min(k, 4) * 10, 0.5, 'sine', 0.3, 36);
         tone(1800, 0.05, 'square', 0.03, 600);
+      },
+      // Motor: çark dönerken tahta tık + metal tak
+      gear: () => {
+        noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
+        noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
       },
       // Buz: çatlayınca kısa cam çıtırtısı, eriyince (melt) dökülen cam parçaları
       crack: melt => {
@@ -1318,7 +1323,8 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves, kicks, tokens, blasts, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
+    // Hamlenin kurtardıkları uçar, sonra motor halkalar birer adım döner (dönüşleri tekmeler arasında gelir)
+    const { mask, waves, kicks, tokens, blasts, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
@@ -1339,6 +1345,9 @@
       }
     });
     S.bombs = bangs;
+    // Motor döndükten sonraki dalgalarda kurtulanlar "tam zamanında" kurtuldu
+    const motorAt = kicks.findIndex(ks => ks.some(k => k.motor));
+    const onTime = motorAt < 0 ? [] : waves.slice(motorAt + 1).flat();
     // Buz halkalar dalga dalga çatlar: çizimde eski kat sayısı çatlama anına dek kalır
     let melted = -1;
     if (S.L.hasIce) {
@@ -1361,7 +1370,8 @@
     kicks.forEach((ks, w) => {
       for (const k of ks) {
         S.kicks.push({ ring: k.target, delta: k.turn, t0: now + at[w] + KICK_WAIT, done: 0 });
-        setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
+        if (k.motor) setTimeout(() => Sound.gear(), at[w] + KICK_WAIT);
+        else setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
         before = rotate(S.L, before, k.target, k.turn);
       }
     });
@@ -1406,8 +1416,9 @@
     const freed = waves.flat();
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, melted >= 0), at[waves.length - 1]);
-    else if (melted >= 0 && !endWord) setTimeout(() => showIceWord(melted), at[waves.length - 1]);
+    const word = melted >= 0 ? 'ice' : onTime.length ? 'time' : null;
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1892,13 +1903,18 @@
         life: 1, size: 2.5 + Math.random() * (melt ? 4 : 2.5), color: 'rgba(235,250,255,.95)', shape: 'shard', rot: Math.random() * TAU });
     }
   }
-  // Tek halkalık hamlede buz eridiyse: eriyen halkanın üstünde "Buz kırıldı!"
-  function showIceWord(i) {
+  // Parça övgüleri: buz eridi ("Buz kırıldı!"), motor döndükten sonra kurtuldu ("Tam zamanında!")
+  const WORD = {
+    ice: { text: 'Buz kırıldı!', colors: ['#ffffff', '#9be7ff'] },
+    time: { text: 'Tam zamanında!', colors: ['#fff4e6', '#ffb35c'] },
+  };
+  // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
+  function showWord(i, word) {
     if (S.tut != null) return;
     const r = S.L.rings[i], p = boardToApp(r.x, r.y);
     const w = $('app').clientWidth;
-    floaters.push({ text: tr('Buz kırıldı!'), x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(),
-      size: PRAISE[1].size, colors: ['#ffffff', '#9be7ff'], life: 1300 });
+    floaters.push({ text: tr(WORD[word].text), x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(),
+      size: PRAISE[1].size, colors: WORD[word].colors, life: 1300 });
   }
 
   // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
@@ -1918,8 +1934,8 @@
   // Bir hamlede birden çok halka açılırsa: övgü ve altında "Zincir ×N" (N = açılan halka sayısı).
   // quiet: son hamlede bölüm sonu övgüsü gelecekse zincir yalnızca sayılır (yazı ve ses ona kalır).
   // bangs: hamlede patlayan bomba sayısı (iki ve üstü "Zincirleme!", tek bombayla 5+ halka "Büyük patlama!")
-  // melt: bu hamlede bir buz eridi (bomba yoksa "Buz kırıldı!")
-  function showChain(freed, quiet, bangs = 0, melt = false) {
+  // word: bu hamlenin parça övgüsü (WORD; bomba yoksa genel övgünün yerine geçer)
+  function showChain(freed, quiet, bangs = 0, word = null) {
     if (S.tut != null) return;
     const n = freed.length;
     const c = waveCenter(freed);
@@ -1929,10 +1945,10 @@
     if (!quiet) {
       const tier = n >= 4 || bangs >= 2 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : melt && !bangs ? tr('Buz kırıldı!') : praiseWord(pr.words);
+      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : word && !bangs ? tr(WORD[word].text) : praiseWord(pr.words);
       const sub = bangs >= 2 ? tr('{b} patlama · Zincir ×{n}', { b: bangs, n }) : tr('Zincir ×{n}', { n });
       floaters.push({ text, sub, x, y: p.y, t0: performance.now(),
-        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : melt ? ['#ffffff', '#9be7ff'] : pr.colors, life: 1500 });
+        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : word ? WORD[word].colors : pr.colors, life: 1500 });
       Sound.praise(tier);
     }
     if (S.preview) return;
@@ -2227,6 +2243,7 @@
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
       else if (isFrame(i)) showTip(tr('Çerçeve yerinden oynamaz: halkaları etrafından kurtar'));
+      else if (S.L.rings[i].motor) showTip(tr('Motor halkayı sen çeviremezsin. Her hamlenden sonra kendisi bir adım döner'));
       else if (iceLeft(S.L, i, S.mask)) showTip(tr('Bu halka donmuş. Değdiği halkalardan birini kurtar, buzu çatlasın'));
       else if (S.L.rings[i].lockedBy >= 0) {
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
@@ -3084,7 +3101,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.ice ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.ice || r.motor ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3210,6 +3227,67 @@
       }
     }
     S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
+  // ---- Motor halka çizimi (2.5) ----
+  // Dişler: halkanın dışında, halkayla birlikte dönen pirinç dişler (halkanın altında kalır)
+  function drawMotorTeeth(i, ang, cx, cy) {
+    const r = S.L.rings[i], n = 30, rr = r.r + STROKE / 2;
+    ctx.save();
+    ctx.fillStyle = '#c98f45'; ctx.strokeStyle = 'rgba(18,12,7,.9)'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < n; k++) {
+      const a = ang + 0.12 + k * TAU / n;
+      if (r.gaps.some(g => angDist(a, ang + g) < GAP_HALF + 0.08)) continue;
+      ctx.save();
+      ctx.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); ctx.rotate(a);
+      ctx.beginPath(); ctx.rect(-1, -4.5, 7, 9); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  // Boşluğun bir sonraki yeri (koyu boşluk, iki yanında kesikli çizgi; yanıp söner) ve rozet: yön oklu çark
+  function drawMotors(now) {
+    if (!S.L.motors.length) return;
+    const still = !S.kicks.length && !S.auto && !S.drag;
+    for (const i of S.L.motors) {
+      if (!springLive(i)) continue;
+      const r = S.L.rings[i], ang = S.angles[i];
+      if (still) {
+        ctx.save();
+        ctx.globalAlpha = REDUCED ? 0.85 : 0.6 + 0.3 * Math.sin(now / 260);
+        for (const g of r.gaps) {
+          const c = ang + g + r.motor, a0 = c - GAP_HALF * 0.8, a1 = c + GAP_HALF * 0.8;
+          ctx.strokeStyle = 'rgba(18,12,7,.8)'; ctx.lineWidth = STROKE + 3; ctx.lineCap = 'butt';
+          ctx.beginPath(); ctx.arc(r.x, r.y, r.r, a0, a1); ctx.stroke();
+          ctx.strokeStyle = '#fff4e6'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+          for (const rr of [r.r - STROKE / 2 - 2, r.r + STROKE / 2 + 2]) { ctx.beginPath(); ctx.arc(r.x, r.y, rr, a0, a1); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.restore();
+      }
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r, dir = Math.sign(r.motor);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(18,12,7,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.save();
+      ctx.rotate(ang);
+      ctx.fillStyle = '#e0a85c'; ctx.strokeStyle = '#5a3a14'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let k = 0; k < 16; k++) {
+        const a = k * Math.PI / 8, rr = k % 2 ? 10 : 13.5;
+        ctx.lineTo(Math.cos(a - 0.12) * rr, Math.sin(a - 0.12) * rr); ctx.lineTo(Math.cos(a + 0.12) * rr, Math.sin(a + 0.12) * rr);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#2a1a0c'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#fff4e6'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, 3.6, dir > 0 ? -2.4 : -0.74, dir > 0 ? 0.74 : 2.4); ctx.stroke();
+      const tip = dir > 0 ? 0.74 : 2.4, tx = Math.cos(tip) * 3.6, ty = Math.sin(tip) * 3.6;
+      ctx.fillStyle = '#fff4e6'; ctx.beginPath();
+      ctx.moveTo(tx + Math.cos(tip + dir * Math.PI / 2) * 2.6, ty + Math.sin(tip + dir * Math.PI / 2) * 2.6);
+      ctx.lineTo(tx + Math.cos(tip) * 2.2, ty + Math.sin(tip) * 2.2); ctx.lineTo(tx - Math.cos(tip) * 2.2, ty - Math.sin(tip) * 2.2); ctx.fill();
+      ctx.restore();
+    }
   }
 
   // ---- Buz halka çizimi (2.5) ----
@@ -3419,6 +3497,7 @@
       ctx.shadowBlur = 18;
     }
     if (ring.step) drawStepDots(i, cx, cy, now);
+    if (ring.motor) drawMotorTeeth(i, ang, cx, cy);
     strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
     strokeRing(ring, ang, color, STROKE, cx, cy);
@@ -3987,6 +4066,7 @@
         drawSprings(now);
         drawBombs(now);
         drawIceBadges(now);
+        drawMotors(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);
