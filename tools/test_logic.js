@@ -323,5 +323,44 @@ test('buz halka: geçersiz tanımlar hata verir', () => {
   assert.throws(() => two({ kick: [1, 90] }, { ice: 1 }), /hedefi geçersiz/);
 });
 
+// Motor halka (Z3): üstteki halka motorlu, her hamleden sonra çeyrek tur döner
+const MOTOR = [{ x: 200, y: 215, r: 70, a: 240, motor: 90 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }];
+
+test('motor halka: oyuncu çeviremez, her hamleden sonra kendiliğinden bir adım döner', () => {
+  const L = Logic.buildLevel({ rings: MOTOR });
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  // İlk hamle hiçbir halkayı kurtarmasa da motor döner (boş dalgada motor tekmesi)
+  const a = Logic.rotate(L, L.startAngles, 1, 10 * DEG);
+  const c = Logic.afterMove(L, a, 0);
+  assert.deepStrictEqual(c.waves, [[]]);
+  assert.deepStrictEqual(c.kicks[0].map(k => [k.target, k.motor]), [[0, true]]);
+  close(c.angles[0], 330 * DEG);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: MOTOR.map(({ motor, ...r }) => r) }), L.startAngles, 0).moves, 1);
+});
+
+test('motor halka: hamlenin kurtardıkları önce uçar, motor sonra döner ve yeni dalgalar gelir', () => {
+  const L = Logic.buildLevel({ rings: MOTOR });
+  let st = { angles: L.startAngles, mask: 0 };
+  for (let k = 0; k < 2; k++) {
+    const s = Logic.solve(L, st.angles, st.mask);
+    const c = Logic.afterMove(L, Logic.rotate(L, st.angles, s.first.ring, s.first.delta), st.mask);
+    const w = c.kicks.findIndex(ks => ks.some(x => x.motor));
+    // motor tekmesi hep ilk aşamanın son dalgasında; ondan sonraki dalgalarda motor yok
+    assert.ok(w >= 0 || (c.mask & 1));
+    st = c;
+  }
+  assert.strictEqual(st.mask, L.full);
+});
+
+test('motor halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ motor: 70 }, {}), /motor adımı/);
+  assert.throws(() => two({ motor: 90, ice: 1 }, {}), /motor halka başka/);
+  assert.throws(() => two({ motor: 90, step: 45 }, {}), /motor halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, motor: 90 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /motor halka eşli/);
+  assert.throws(() => two({ kick: [1, 90] }, { motor: 90 }), /hedefi geçersiz/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
