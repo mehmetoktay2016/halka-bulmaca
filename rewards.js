@@ -8,7 +8,7 @@
     // Bölümdeki altınlar (halka kesişimlerinde): bölüm başına en az / en çok
     levelCoins: [1, 3],
     // Harcama
-    bulbPrice: 20,      // 1 ampul kaç altın
+    bulbPrice: 50,      // 1 ampul kaç altın
     extraPrice: 20,     // "+3 hamle" kaç altın
     extraMoves: 3,      // ek hamleyle bitirilen bölüm en fazla 1 yıldız alır
     // Ampul ödülleri

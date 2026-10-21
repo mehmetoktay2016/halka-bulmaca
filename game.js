@@ -1194,8 +1194,7 @@
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
-    closeHintMenu();
-    $('hint').classList.remove('pulse');
+    $('nudge').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
     S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
     S.sw = S.L.startSw;           // şalterin gösterdiği renk
@@ -2110,7 +2109,6 @@
     S.failed = true;
     failedLevel = S.levelNo;
     S.hint = null;
-    closeHintMenu();
     const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
     const can = progress.coins >= EXTRA_PRICE;
     $('failNote').textContent = left === 1 ? tr('Tek halka kaldı!') : tr('{n} halka kaldı.', { n: left });
@@ -2218,7 +2216,6 @@
 
   canvas.addEventListener('pointerdown', e => {
     if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
-    closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
     if (S.L.table && Math.hypot(p.x - S.L.table.x, p.y - S.L.table.y) < HUB + 10) { spinTable(); return; }
@@ -2306,7 +2303,7 @@
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     renderMeter(false);
     settle();
-    if (S.mask !== before.mask) $('hint').classList.remove('pulse');
+    if (S.mask !== before.mask) $('nudge').classList.remove('pulse');
     if (S.tut != null) guide();
     else if (!S.won && S.moves >= S.limit) showFail();
   }
@@ -2551,10 +2548,12 @@
     el.textContent = free ? '∞' : shown;
     el.classList.toggle('empty', !free && shown <= 0);
     $('hint').setAttribute('aria-label', free ? tr('İpucu (ücretsiz)') : tr('İpucu ({n} ampul)', { n: shown }));
+    $('autoMove').classList.toggle('locked', !free && shown <= 0);
+    $('buyBulb').hidden = free;
   }
 
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
-  // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
+  // Sonuç tahtanın durumuna göre saklanır; ipucu düğmesi nabız atınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
   const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw + S.ph;
   function bestMove() {
@@ -2566,35 +2565,15 @@
     return sol;
   }
 
-  function openHintMenu() {
-    setTimeout(() => { if (!$('hintMenu').hidden && !S.won && !S.failed) bestMove(); }, 60);
-    const free = hintsFree();
-    for (const b of $('hintMenu').querySelectorAll('.hint-opt')) {
-      if (b.dataset.tier === 'nudge') continue;
-      const cost = b.querySelector('.cost');
-      cost.innerHTML = free ? tr('Ücretsiz') : '<i class="bulb-ico"></i>1';
-      cost.classList.toggle('free', free);
-      b.classList.toggle('locked', !free && progress.hints <= 0);
-    }
-    $('hintBank').innerHTML = free ? tr('Bu kapıda bütün ipuçları ücretsiz.')
-      : progress.hints > 0 ? `${tr('Ampulün')}: <b>${progress.hints}</b>` : tr('Ampulün kalmadı. Dürtme her zaman ücretsiz.');
-    renderBuy();
-    $('hintMenu').hidden = false;
-  }
-
   // ---- Ampul kazanma: altınla alma, günlük hediye, ödül uçuşu ----
-  function renderBuy() {
-    const free = hintsFree();
-    const btn = $('buyBulb');
-    btn.hidden = free;
-    const have = progress.coins;
-    btn.disabled = have < BULB_PRICE;
-    btn.querySelector('.cost').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
-    $('buyNote').textContent = have >= BULB_PRICE ? tr('Altının: {n}', { n: have }) : tr('{n} altın daha topla (sende {have})', { n: BULB_PRICE - have, have });
-  }
-
+  // Altın yetmiyorsa ne kadar eksik olduğunu söyler
   function buyBulb() {
-    if (progress.coins < BULB_PRICE) { Sound.deny(); return; }
+    if (S.auto) return;
+    if (progress.coins < BULB_PRICE) {
+      Sound.deny();
+      showTip(tr('{n} altın daha topla (sende {have})', { n: BULB_PRICE - progress.coins, have: progress.coins }));
+      return;
+    }
     progress.coins -= BULB_PRICE;
     progress.hints++;
     progress.bulbsBought = (progress.bulbsBought || 0) + 1;
@@ -2603,13 +2582,13 @@
     Sound.coin();
     const r = $('buyBulb').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
     bulbsInAir++;
-    flyBulbs(1, r.left - ar.left + r.width - 40, r.top - ar.top + r.height / 2);
-    openHintMenu();
+    flyBulbs(1, r.left - ar.left + r.width / 2, r.top - ar.top + 30);
     updateHud();
     const pill = $('coinPill');
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
   }
   $('buyBulb').onclick = buyBulb;
+  $('bulbPrice').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
 
   // Günlük hediye: ampulü hiç kalmayan oyuncuya günde bir ampul. Verildiyse true.
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -2687,13 +2666,10 @@
     }
     bulbFly = bulbFly.filter(f => !f.landed);
   }
-  function closeHintMenu() { $('hintMenu').hidden = true; }
-
   function useHint(tier) {
     if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
-    closeHintMenu();
     const sol = bestMove();
     // Çözüm bulunamazsa ampul harcanmaz
     if (!sol || !sol.first) { showTip(tr('İpucu bulunamadı, yeniden başlatmayı dene')); return; }
@@ -2703,7 +2679,7 @@
       const el = $('hintCount');
       el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     }
-    $('hint').classList.remove('pulse');
+    $('nudge').classList.remove('pulse');
     S.help.lastAct = performance.now();
     S.usedHint = true;
     // Önizleme (kapıya yerleşmemiş tanıtım) sayaçlara ve rozetlere dokunmaz
@@ -2734,17 +2710,14 @@
     updateHud();
   }
 
-  $('hint').onclick = () => {
-    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
-    if (S.tut != null) { guide(); return; }
-    Sound.tap();
-    if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
-  };
-  for (const b of $('hintMenu').querySelectorAll('.hint-opt')) b.onclick = () => useHint(b.dataset.tier);
-  // Menünün dışına dokununca kapanır
-  document.addEventListener('pointerdown', e => {
-    if (!$('hintMenu').hidden && !e.target.closest('#hintMenu, #hint')) closeHintMenu();
-  }, true);
+  // Her kademe kendi düğmesinde; eğitimde üçü de rehberi gösterir
+  for (const [id, tier] of [['nudge', 'nudge'], ['hint', 'hint'], ['autoMove', 'move']]) {
+    $(id).onclick = () => {
+      if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
+      if (S.tut != null) { guide(); return; }
+      useHint(tier);
+    };
+  }
 
   // "Hamleyi yap": halka doğru açıya kendiliğinden döner, sonra normal bir hamle gibi sayılır
   function stepAuto(now) {
@@ -3322,7 +3295,8 @@
     const stuck = S.moves > (S.def.par ?? 99) || now - S.help.lastAct > HELP_IDLE_MS;
     if (!stuck) return;
     S.help.shown = true;
-    $('hint').classList.add('pulse');
+    $('nudge').classList.add('pulse');
+    setTimeout(() => { if (!S.won && !S.failed) bestMove(); }, 60);
     if (!progress.helpTip) {
       showTip(tr('Takıldıysan ipucuna dokun: dürtme ücretsiz'), 4000);
       progress.helpTip = true;
@@ -4106,7 +4080,6 @@
       if (!$('splash').hidden) return;
       if (!$('ending').hidden) { $('endingGo').click(); return; }
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
-      if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
       if (!$('pieceCard').classList.contains('hidden')) { $('pieceGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
