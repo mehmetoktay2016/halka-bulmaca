@@ -132,6 +132,9 @@
       // Motor halka (motor: derece, artı saat yönü): oyuncu çeviremez; oyuncunun her hamlesinden sonra
       // (o hamlenin kurtardıkları uçtuktan sonra) kendiliğinden bu kadar döner. Dönüşü açının içinde kalır.
       motor: r.motor ? r.motor * DEG : 0,
+      // İkiz portal (portal: n): aynı numarayı taşıyan iki halka ikizdir. Biri tahtadan çıkınca öbürü kendi
+      // bağlarına bakılmadan bir sonraki dalgada ışınlanıp çıkar (portal: -1 portalsız).
+      portal: r.portal == null ? -1 : r.portal,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -147,6 +150,14 @@
       if (r.ice && (r.bomb || r.kick)) throw new Error(`Halka ${i}: buz halka bomba ya da yaylı olamaz`);
       if (r.ice && (r.type || r.fixed || r.tokens != null || !(r.ice >= 1 && r.ice <= 3))) throw new Error(`Halka ${i}: buz 1-3 kat, sabit ya da jetonlu olmayan halkada olur`);
     }
+    const portalRings = {};
+    for (const [i, r] of def.rings.entries()) {
+      if (r.portal == null) continue;
+      // Portal rozeti bomba, yay, buz ve motor rozetiyle aynı yere düşerdi
+      if (r.type || r.bomb || r.kick || r.ice || r.motor) throw new Error(`Halka ${i}: portal yalnızca bombasız, yaysız, buzsuz, motorsuz halkada olur`);
+      (portalRings[r.portal] = portalRings[r.portal] || []).push(i);
+    }
+    for (const [n, list] of Object.entries(portalRings)) if (list.length !== 2) throw new Error(`Portal ${n}: tam iki halkada olmalı`);
     for (const [i, r] of def.rings.entries()) {
       if (!r.motor) continue;
       if (r.type || 360 % Math.abs(r.motor)) throw new Error(`Halka ${i}: motor adımı 360'ı tam bölmeli`);
@@ -270,6 +281,8 @@
       hasBomb: rings.some(r => r.bomb),
       hasIce: rings.some(r => r.ice),
       motors: rings.filter(r => r.motor).map(r => r.id),
+      // Portal ikizi (yoksa -1)
+      twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
     };
   }
 
@@ -338,10 +351,11 @@
   // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
   // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
+  // Dalgada çıkan portalın ikizi tahtadaysa ışınlanır: portals[w] = [{ from, to }]; ikiz sonraki dalgada uçar.
   function cascade(L, angles, mask, left, ph) {
     left = left || L.tokens;
-    const waves = [], kicks = [], tokens = [], blasts = [];
-    let hit = 0; // patlamanın vurduğu, sonraki dalgada zorla uçacak parçalar
+    const waves = [], kicks = [], tokens = [], blasts = [], portals = [];
+    let hit = 0; // patlamanın vurduğu ya da portalla ışınlanan, sonraki dalgada zorla uçacak parçalar
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
@@ -377,12 +391,20 @@
         }
         if (hits.length) bs.push({ from: i, hits });
       }
+      const ps = [];
+      for (const i of wave) {
+        const o = L.twin[i];
+        if (o < 0 || mask & (1 << o) || hit & (1 << o)) continue;
+        hit |= 1 << o;
+        ps.push({ from: i, to: o });
+      }
       waves.push(wave);
       kicks.push(ks);
       tokens.push(ts);
       blasts.push(bs);
+      portals.push(ps);
     }
-    return { mask, waves, kicks, tokens, blasts, angles, left };
+    return { mask, waves, kicks, tokens, blasts, portals, angles, left };
   }
 
   // Oyuncunun hamlesinden sonraki her şey: önce serbest kalanlar uçar, sonra tahtada kalan motor halkalar
@@ -398,11 +420,11 @@
       return { from: i, target: i, turn: L.rings[i].motor, motor: true };
     });
     const d = cascade(L, a, c.mask, c.left, ph);
-    const out = { mask: d.mask, angles: d.angles, left: d.left, waves: c.waves.slice(), kicks: c.kicks.slice(), tokens: c.tokens.slice(), blasts: c.blasts.slice() };
-    if (!out.waves.length) { out.waves.push([]); out.kicks.push([]); out.tokens.push([]); out.blasts.push([]); }
+    const out = { mask: d.mask, angles: d.angles, left: d.left, waves: c.waves.slice(), kicks: c.kicks.slice(), tokens: c.tokens.slice(), blasts: c.blasts.slice(), portals: c.portals.slice() };
+    if (!out.waves.length) { out.waves.push([]); out.kicks.push([]); out.tokens.push([]); out.blasts.push([]); out.portals.push([]); }
     const w = out.kicks.length - 1;
     out.kicks[w] = [...out.kicks[w], ...ms];
-    out.waves.push(...d.waves); out.kicks.push(...d.kicks); out.tokens.push(...d.tokens); out.blasts.push(...d.blasts);
+    out.waves.push(...d.waves); out.kicks.push(...d.kicks); out.tokens.push(...d.tokens); out.blasts.push(...d.blasts); out.portals.push(...d.portals);
     return out;
   }
 

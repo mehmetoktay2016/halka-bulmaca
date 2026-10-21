@@ -362,5 +362,31 @@ test('motor halka: geçersiz tanımlar hata verir', () => {
   assert.throws(() => two({ kick: [1, 90] }, { motor: 90 }), /hedefi geçersiz/);
 });
 
+// İkiz portal (Z4): üstteki ve sağdaki halka ikiz
+const PORTAL = [{ x: 200, y: 215, r: 70, a: 195, portal: 1 }, { x: 140, y: 320, r: 64, a: 300 }, { x: 260, y: 320, r: 64, a: 330, portal: 1 }];
+
+test('ikiz portal: biri çıkınca öbürü bağlarına bakılmadan sonraki dalgada çıkar', () => {
+  const L = Logic.buildLevel({ rings: PORTAL });
+  assert.deepStrictEqual(L.twin, [2, -1, 0]);
+  const s = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(s.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, s.first.ring, s.first.delta), 0);
+  assert.strictEqual(c.mask, L.full);
+  const tp = c.portals.flat();
+  assert.strictEqual(tp.length, 1);
+  assert.strictEqual(L.twin[tp[0].from], tp[0].to);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: PORTAL.map(({ portal, ...r }) => r) }), L.startAngles, 0).moves, 2);
+});
+
+test('ikiz portal: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ portal: 1 }, {}), /tam iki halkada/);
+  assert.throws(() => two({ portal: 1, bomb: true }, { portal: 1 }), /portal yalnızca/);
+  assert.throws(() => two({ portal: 1 }, { portal: 1, motor: 90 }), /portal yalnızca/);
+  // Portalsız çubuklar birbirinin ikizi sayılmamalı
+  const bars = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100 }, { type: 'bar', x1: 100, y1: 40, x2: 100, y2: 160 }] });
+  assert.deepStrictEqual(bars.twin, [-1, -1, -1]);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
