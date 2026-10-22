@@ -89,8 +89,22 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     }
   })();
 
-  // ---- dekor yerleşimi (tohumlu, yolun iki yanında, yola değmeyen yerlerde) ----
-  const nearPath = (x, y, m) => { for (const s of STONES) if (Math.abs(s.y - y) < m && Math.hypot(s.x - x, s.y - y) < m) return true; return false; };
+  // ---- istasyonlar: her durağın yolun dış tarafında kendine özgü bir yapısı ve adı var ----
+  const STATION_DEFS = [
+    ['lanternStall', 'Fener Tezgâhı'], ['rocket', 'Roket Rampası'], ['cannon', 'Konfeti Topu'], ['balloonStand', 'Balon Standı'],
+    ['parrot', 'Papağan Sahnesi'], ['drumStage', 'Davul Sahnesi'], ['sparkTent', 'Maytap Çadırı'], ['barrel', 'Barut Fıçısı'],
+    ['wheel', 'Dönme Dolap'], ['arena', 'Dev Davul Arenası'],
+    ['igloo', 'İglo'], ['snowman', 'Kardan Adam Bahçesi'], ['penguins', 'Penguen Yuvası'], ['rink', 'Buz Pateni Gölü'],
+    ['bearCave', 'Kutup Ayısı Mağarası'], ['sled', 'Kızak Rampası'], ['crystal', 'Kristal Mağara'], ['seal', 'Fok Kayası'],
+    ['tower', 'Kuzey Işığı Kulesi'], ['palace', 'Buz Sarayı'],
+  ];
+  const STATIONS = NODES.map((n, i) => {
+    const side = n.x > W / 2 ? 1 : -1;
+    return { i, x: Math.max(36, Math.min(W - 36, n.x + side * 58)), y: n.y - 4, kind: STATION_DEFS[i][0], name: STATION_DEFS[i][1] };
+  });
+
+  // ---- dekor yerleşimi (tohumlu, yolun iki yanında, yola ve istasyonlara değmeyen yerlerde) ----
+  const nearPath = (x, y, m) => { for (const s of STONES) if (Math.abs(s.y - y) < m && Math.hypot(s.x - x, s.y - y) < m) return true; return STATIONS.some(s => Math.hypot(s.x - x, s.y - y) < m + 6); };
   const DECOR = [];
   (function () {
     const R = rng(31);
@@ -348,10 +362,180 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
         g.strokeStyle = `rgba(255,230,170,${0.8 * (1 - pulse)})`; g.lineWidth = 3; g.beginPath(); g.ellipse(n.x, n.y, 27 + pulse * 24, 11 + pulse * 10, 0, 0, TAU); g.stroke();
       });
       if (land) add(() => { g.strokeStyle = `rgba(255,255,255,${land})`; g.lineWidth = 4 * land; g.beginPath(); g.ellipse(n.x, n.y, 27 + (1 - land) * 50, 11 + (1 - land) * 20, 0, 0, TAU); g.stroke(); });
+      station(STATIONS[i], done ? 'done' : (i === S.done ? 'cur' : 'locked'), now);
       const rw = REWARDS[i];
       if (rw && !(w && S.fog > 0.4)) reward(rw, i, n.x + (n.x > W / 2 ? -58 : 58), n.y - 4, now);
     }
   }
+  // ---- istasyon çizimleri ----
+  // Kilitli: gri ve sönük; sıradaki: ışıklı, üstünde adı; geçilmiş: ışıklı, canlı, bayrak
+  function station(st, state, now) {
+    const { x, y, kind } = st, on = state !== 'locked', t = REDUCED ? 0 : now;
+    g.save();
+    shadow(x + 5, y + 16, 30, 8, 0.45);
+    if (!on) g.filter = 'grayscale(0.85) brightness(0.55)';
+    g.fillStyle = st.i >= 10 ? '#bfe0f0' : '#4a2c4c'; g.beginPath(); g.ellipse(x, y + 12, 28, 9, 0, 0, TAU); g.fill();
+    g.fillStyle = st.i >= 10 ? '#e6f5fc' : '#5c3a5e'; g.beginPath(); g.ellipse(x, y + 9, 28, 9, 0, 0, TAU); g.fill();
+    g.translate(x, y + 8); g.scale(1.2, 1.2);
+    STATION_ART[kind](on, t, state);
+    g.restore();
+    if (on) add(() => glow(x, y - 10, 46, st.i >= 10 ? 'rgba(160,230,255,.22)' : 'rgba(255,190,110,.22)'));
+    if (state === 'done') { g.fillStyle = '#fff'; g.fillRect(x + 22, y - 30, 1.6, 22); g.fillStyle = st.i >= 10 ? '#7fe3ff' : '#ff8a4c'; const wv = REDUCED ? 0 : Math.sin(now / 200 + x) * 2; g.beginPath(); g.moveTo(x + 23.6, y - 30); g.quadraticCurveTo(x + 30, y - 28 + wv, x + 36, y - 26 + wv); g.lineTo(x + 23.6, y - 21); g.fill(); }
+    if (state === 'cur') banners.push(st);
+  }
+  const banners = [];
+  function nameBanner(st, now) {
+    // Şerit istasyonun üstünde, yolun dışına doğru kaydırılır: karakterin şapkasına binmez
+    const y = st.y - 90 + (REDUCED ? 0 : Math.sin(now / 500) * 2), side = st.x > NODES[st.i].x ? 1 : -1;
+    g.save();
+    g.font = '900 12px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const w = g.measureText(st.name).width + 26, x = Math.max(w / 2 + 6, Math.min(W - w / 2 - 6, st.x + side * (w / 2 - 22)));
+    g.fillStyle = 'rgba(20,8,24,.55)'; g.beginPath(); g.roundRect ? g.roundRect(x - w / 2 + 2, y - 11 + 3, w, 22, 11) : g.rect(x - w / 2, y - 8, w, 22); g.fill();
+    const gr = g.createLinearGradient(0, y - 11, 0, y + 11); gr.addColorStop(0, '#fff1d6'); gr.addColorStop(1, '#ffd38a');
+    g.fillStyle = gr; g.beginPath(); g.roundRect ? g.roundRect(x - w / 2, y - 11, w, 22, 11) : g.rect(x - w / 2, y - 11, w, 22); g.fill();
+    g.fillStyle = '#5a2a10'; g.fillText(st.name, x, y + 1);
+    g.fillStyle = '#ffd38a'; g.beginPath(); g.moveTo(st.x - 6, y + 11); g.lineTo(st.x, y + 18); g.lineTo(st.x + 6, y + 11); g.fill();
+    g.restore();
+  }
+  const light = (x, y, r, col) => add(() => glow(x, y, r, col));
+  const STATION_ART = {
+    lanternStall(on, t) {
+      g.fillStyle = '#6b3a2a'; g.fillRect(-18, -18, 36, 18); g.fillStyle = '#4a2418'; g.fillRect(-18, -4, 36, 4);
+      for (let k = 0; k < 5; k++) { g.fillStyle = k % 2 ? '#ff6b6b' : '#fff5ea'; g.fillRect(-22 + k * 8.8, -30, 8.8, 10); }
+      for (let k = 0; k < 3; k++) { const fl = 0.8 + 0.2 * Math.sin(t / 120 + k); g.fillStyle = ['#ffd34a', '#ff8fab', '#4cc9f0'][k]; g.beginPath(); g.ellipse(-12 + k * 12, -12, 4, 5, 0, 0, TAU); g.fill(); if (on) light(-12 + k * 12, -12, 10 * fl, 'rgba(255,220,150,.7)'); }
+    },
+    rocket(on, t, state) {
+      g.strokeStyle = '#8a7a90'; g.lineWidth = 2; g.beginPath(); g.moveTo(-12, 0); g.lineTo(-4, -16); g.moveTo(12, 0); g.lineTo(4, -16); g.stroke();
+      const lift = state === 'done' ? -6 + Math.sin(t / 200) * 2 : 0;
+      g.save(); g.translate(0, lift);
+      g.fillStyle = '#e8eaf6'; g.beginPath(); g.moveTo(0, -46); g.quadraticCurveTo(9, -34, 7, -14); g.lineTo(-7, -14); g.quadraticCurveTo(-9, -34, 0, -46); g.fill();
+      g.fillStyle = '#ff6b6b'; g.beginPath(); g.moveTo(0, -46); g.quadraticCurveTo(5, -40, 6, -36); g.lineTo(-6, -36); g.quadraticCurveTo(-5, -40, 0, -46); g.fill();
+      g.fillStyle = '#4cc9f0'; g.beginPath(); g.arc(0, -28, 3.2, 0, TAU); g.fill();
+      g.fillStyle = '#ff6b6b'; g.beginPath(); g.moveTo(-7, -18); g.lineTo(-12, -10); g.lineTo(-7, -14); g.fill(); g.beginPath(); g.moveTo(7, -18); g.lineTo(12, -10); g.lineTo(7, -14); g.fill();
+      if (on) { const fl = 0.7 + 0.3 * Math.sin(t / 50); g.fillStyle = '#ffd34a'; g.beginPath(); g.moveTo(-4, -14); g.lineTo(0, -14 + 10 * fl); g.lineTo(4, -14); g.fill(); light(0, -10, 14, 'rgba(255,180,80,.8)'); }
+      g.restore();
+    },
+    cannon(on, t) {
+      g.fillStyle = '#6b3a2a'; g.beginPath(); g.arc(-8, -6, 7, 0, TAU); g.arc(8, -6, 7, 0, TAU); g.fill();
+      g.fillStyle = '#c0882a'; g.beginPath(); g.arc(-8, -6, 3, 0, TAU); g.arc(8, -6, 3, 0, TAU); g.fill();
+      g.save(); g.translate(0, -12); g.rotate(-0.7); g.fillStyle = '#5a4a6a'; g.fillRect(-6, -26, 12, 26); g.fillStyle = '#7a6a8a'; g.fillRect(-7, -28, 14, 5); g.restore();
+      if (on) for (let k = 0; k < 6; k++) { const a = -2.3 + k * 0.12, d = 26 + ((t / 30 + k * 13) % 18); g.fillStyle = ['#ff6fb5', '#ffd34a', '#4cc9f0'][k % 3]; g.fillRect(Math.cos(a) * d - 2, -12 + Math.sin(a) * d, 4, 2.5); }
+    },
+    balloonStand(on, t) {
+      g.fillStyle = '#6b3a2a'; g.fillRect(-14, -10, 28, 10); g.fillStyle = '#ff8fab'; g.fillRect(-16, -14, 32, 5);
+      const cols = ['#ff6b6b', '#ffc94a', '#4cc9f0', '#b388ff', '#2dd4bf'];
+      for (let k = 0; k < 5; k++) { const bx = -16 + k * 8 + Math.sin(t / 600 + k) * 2, by = -34 - (k % 2) * 8; g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(0, -14); g.lineTo(bx, by + 7); g.stroke(); g.fillStyle = cols[k]; g.beginPath(); g.ellipse(bx, by, 5, 6.5, 0, 0, TAU); g.fill(); g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.arc(bx - 1.5, by - 2.5, 1.3, 0, TAU); g.fill(); }
+    },
+    parrot(on, t) {
+      g.strokeStyle = '#8a5a3a'; g.lineWidth = 3; g.beginPath(); g.moveTo(-14, 0); g.lineTo(-14, -26); g.moveTo(14, 0); g.lineTo(14, -26); g.moveTo(-18, -26); g.lineTo(18, -26); g.stroke();
+      const b = Math.sin(t / 300) * 1.5;
+      g.fillStyle = '#ffc94a'; g.beginPath(); g.ellipse(0, -36 + b, 7, 9, 0, 0, TAU); g.fill();
+      g.fillStyle = '#ff6b6b'; g.beginPath(); g.arc(0, -46 + b, 6.5, 0, TAU); g.fill();
+      g.fillStyle = '#4895ef'; g.beginPath(); g.ellipse(-5, -35 + b, 3, 7, 0.4, 0, TAU); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(2, -47 + b, 2, 0, TAU); g.fill(); g.fillStyle = '#2a1030'; g.beginPath(); g.arc(2.4, -47 + b, 1, 0, TAU); g.fill();
+      g.fillStyle = '#ffd34a'; g.beginPath(); g.moveTo(5, -46 + b); g.lineTo(10, -44 + b); g.lineTo(5, -42 + b); g.fill();
+      g.fillStyle = '#2dd4bf'; g.beginPath(); g.moveTo(-2, -28 + b); g.lineTo(-6, -16 + b); g.lineTo(2, -27 + b); g.fill();
+    },
+    drumStage(on, t) {
+      g.fillStyle = '#4a2a4a'; g.fillRect(-22, -6, 44, 6);
+      const hit = on ? Math.max(0, Math.sin(t / 180)) * 2 : 0;
+      g.fillStyle = '#ff6b6b'; g.fillRect(-11, -24, 22, 18); g.fillStyle = '#fff5ea'; g.beginPath(); g.ellipse(0, -24, 11, 4 + hit * 0.3, 0, 0, TAU); g.fill();
+      g.strokeStyle = '#ffd34a'; g.lineWidth = 1.4; for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(-11, -20 + k * 4); g.lineTo(11, -10 + k * 4); g.stroke(); }
+      g.strokeStyle = '#d9b48a'; g.lineWidth = 2.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-16, -38 - hit); g.lineTo(-4, -26); g.moveTo(16, -38 + hit); g.lineTo(4, -26); g.stroke();
+    },
+    sparkTent(on, t) {
+      for (let k = -2; k < 2; k++) { g.fillStyle = k % 2 ? '#b388ff' : '#fff5ea'; g.beginPath(); g.moveTo(0, -36); g.lineTo(k * 11, 0); g.lineTo((k + 1) * 11, 0); g.closePath(); g.fill(); }
+      g.fillStyle = '#2a0f2a'; g.beginPath(); g.moveTo(-6, 0); g.lineTo(0, -12); g.lineTo(6, 0); g.fill();
+      if (on) for (let k = 0; k < 8; k++) { const a = k * TAU / 8 + t / 400, d = 6 + ((t / 40 + k * 5) % 8); g.strokeStyle = '#ffe9a8'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, -40); g.lineTo(Math.cos(a) * d, -40 + Math.sin(a) * d); g.stroke(); light(0, -40, 12, 'rgba(255,240,180,.8)'); }
+    },
+    barrel(on, t) {
+      g.fillStyle = '#8a4a1a'; g.beginPath(); g.ellipse(0, -16, 13, 17, 0, 0, TAU); g.fill();
+      g.strokeStyle = '#3a1a0a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-12, -24); g.lineTo(12, -24); g.moveTo(-12, -8); g.lineTo(12, -8); g.stroke();
+      g.fillStyle = '#2a1030'; g.font = '900 9px Nunito, sans-serif'; g.textAlign = 'center'; g.fillText('TNT', 0, -13);
+      g.strokeStyle = '#d9b48a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, -33); g.quadraticCurveTo(6, -40, 10, -38); g.stroke();
+      if (on) { const fl = 0.7 + 0.3 * Math.sin(t / 50) * Math.sin(t / 77); light(10, -38, 10 * fl, 'rgba(255,200,90,.95)'); }
+    },
+    wheel(on, t) {
+      g.strokeStyle = '#6a4a7a'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-12, 0); g.lineTo(0, -24); g.lineTo(12, 0); g.stroke();
+      const rot = on ? t / 1500 : 0;
+      g.strokeStyle = '#ffd34a'; g.lineWidth = 2; g.beginPath(); g.arc(0, -26, 18, 0, TAU); g.stroke();
+      for (let k = 0; k < 6; k++) { const a = rot + k * TAU / 6; g.beginPath(); g.moveTo(0, -26); g.lineTo(Math.cos(a) * 18, -26 + Math.sin(a) * 18); g.stroke(); g.fillStyle = ['#ff6b6b', '#4cc9f0', '#2dd4bf'][k % 3]; g.fillRect(Math.cos(a) * 18 - 3, -26 + Math.sin(a) * 18, 6, 5); if (on) light(Math.cos(a) * 18, -26 + Math.sin(a) * 18, 5, 'rgba(255,230,150,.8)'); }
+    },
+    arena(on, t) {
+      g.fillStyle = '#563058'; g.fillRect(-24, -18, 48, 18);
+      for (let k = 0; k < 5; k++) g.fillRect(-24 + k * 11, -24, 7, 7);
+      g.fillStyle = '#ff6b6b'; g.beginPath(); g.ellipse(0, -30, 14, 5, 0, 0, TAU); g.fill(); g.fillRect(-14, -30, 28, 12);
+      g.fillStyle = '#fff5ea'; g.beginPath(); g.ellipse(0, -30, 14, 5, 0, 0, TAU); g.fill();
+      g.strokeStyle = '#9aa6bd'; g.lineWidth = 3; g.beginPath(); g.arc(0, -25, 18, Math.PI * 0.9, Math.PI * 2.1); g.stroke();
+      if (on) light(0, -30, 30, 'rgba(255,120,90,.5)');
+    },
+    igloo(on, t) {
+      g.fillStyle = '#f4fbff'; g.beginPath(); g.arc(0, 0, 20, Math.PI, 0); g.fill();
+      g.strokeStyle = 'rgba(120,170,210,.6)'; g.lineWidth = 1; for (const r of [8, 14]) { g.beginPath(); g.arc(0, 0, r + 6, Math.PI, 0); g.stroke(); }
+      g.fillStyle = '#1a3a52'; g.beginPath(); g.arc(-4, 0, 7, Math.PI, 0); g.fill();
+      if (on) light(-4, -3, 14, 'rgba(255,200,120,.8)');
+    },
+    snowman(on, t) {
+      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, -8, 10, 0, TAU); g.fill(); g.beginPath(); g.arc(0, -24, 7.5, 0, TAU); g.fill();
+      g.fillStyle = '#2a1030'; g.beginPath(); g.arc(-2.5, -26, 1.2, 0, TAU); g.arc(2.5, -26, 1.2, 0, TAU); g.fill();
+      g.fillStyle = '#ff8a1f'; g.beginPath(); g.moveTo(0, -24); g.lineTo(7, -23); g.lineTo(0, -22); g.fill();
+      g.fillStyle = '#e8463a'; g.fillRect(-7, -18, 14, 3);
+      g.fillStyle = '#2a1030'; g.fillRect(-6, -36, 12, 6); g.fillRect(-9, -31, 18, 2);
+    },
+    penguins(on, t) {
+      for (const [px, s] of [[-9, 1], [8, 0.8]]) {
+        const b = on ? Math.sin(t / 250 + px) * 1.5 : 0;
+        g.save(); g.translate(px, b); g.scale(s, s);
+        g.fillStyle = '#24203a'; g.beginPath(); g.ellipse(0, -14, 8, 13, 0, 0, TAU); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, -11, 5, 9, 0, 0, TAU); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(-2.5, -21, 1.6, 0, TAU); g.arc(2.5, -21, 1.6, 0, TAU); g.fill();
+        g.fillStyle = '#ffa62b'; g.beginPath(); g.moveTo(-2, -19); g.lineTo(0, -16); g.lineTo(2, -19); g.fill();
+        g.restore();
+      }
+    },
+    rink(on, t) {
+      g.fillStyle = 'rgba(120,200,240,.8)'; g.beginPath(); g.ellipse(0, -4, 24, 9, 0, 0, TAU); g.fill();
+      g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(0, -4, 24, 9, 0, 0, TAU); g.stroke();
+      const a = on ? t / 700 : 0; g.strokeStyle = 'rgba(255,255,255,.8)'; g.beginPath(); g.ellipse(0, -4, 14, 5, 0, a, a + 2); g.stroke();
+      g.fillStyle = '#e8463a'; g.beginPath(); g.ellipse(Math.cos(a + 2) * 14, -4 + Math.sin(a + 2) * 5 - 6, 3, 5, 0, 0, TAU); g.fill();
+    },
+    bearCave(on, t) {
+      g.fillStyle = '#e8f4fb'; g.beginPath(); g.moveTo(-24, 0); g.quadraticCurveTo(-20, -34, 0, -36); g.quadraticCurveTo(20, -34, 24, 0); g.fill();
+      g.fillStyle = '#1a3a52'; g.beginPath(); g.moveTo(-11, 0); g.quadraticCurveTo(0, -24, 11, 0); g.fill();
+      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, -8, 6, 0, TAU); g.fill(); g.beginPath(); g.arc(-4, -13, 2.2, 0, TAU); g.arc(4, -13, 2.2, 0, TAU); g.fill();
+      g.fillStyle = '#2a1030'; g.beginPath(); g.arc(-2, -9, 0.9, 0, TAU); g.arc(2, -9, 0.9, 0, TAU); g.arc(0, -6.5, 1.2, 0, TAU); g.fill();
+    },
+    sled(on, t) {
+      g.fillStyle = '#dff2fb'; g.beginPath(); g.moveTo(-26, 0); g.lineTo(18, -26); g.lineTo(24, 0); g.fill();
+      g.save(); g.translate(on ? -4 + ((t / 40) % 30) : 0, on ? -((t / 40) % 30) * 0.6 : 0);
+      g.fillStyle = '#e8463a'; g.fillRect(-8, -12, 16, 5); g.strokeStyle = '#8a5a3a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-10, -6); g.lineTo(10, -6); g.quadraticCurveTo(13, -6, 12, -9); g.stroke();
+      g.restore();
+    },
+    crystal(on, t) {
+      const cols = ['#9be7ff', '#c9a7ff', '#7fe3ff'];
+      for (let k = 0; k < 3; k++) { const h = 30 - k * 6, x = -9 + k * 9; g.fillStyle = cols[k]; g.beginPath(); g.moveTo(x - 5, 0); g.lineTo(x, -h); g.lineTo(x + 5, 0); g.fill(); g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.moveTo(x - 2, -2); g.lineTo(x, -h + 4); g.lineTo(x + 1, -2); g.fill(); if (on) light(x, -h / 2, 12, 'rgba(180,230,255,.6)'); }
+    },
+    seal(on, t) {
+      g.fillStyle = '#a9bfd0'; g.beginPath(); g.ellipse(0, -6, 22, 8, 0, Math.PI, 0); g.fill();
+      const b = on ? Math.sin(t / 300) * 2 : 0;
+      g.fillStyle = '#8d99ae'; g.beginPath(); g.ellipse(2, -14, 12, 6, -0.3, 0, TAU); g.fill(); g.beginPath(); g.arc(-8, -20, 6, 0, TAU); g.fill();
+      g.fillStyle = '#2a1030'; g.beginPath(); g.arc(-10, -21, 1, 0, TAU); g.arc(-6.5, -21.5, 1, 0, TAU); g.fill();
+      const bc = ['#ff6b6b', '#ffc94a', '#4cc9f0'][Math.floor(t / 800) % 3]; g.fillStyle = bc; g.beginPath(); g.arc(-8, -30 + b, 4, 0, TAU); g.fill();
+    },
+    tower(on, t) {
+      g.fillStyle = '#dff2fb'; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-7, -38); g.lineTo(7, -38); g.lineTo(10, 0); g.fill();
+      g.fillStyle = '#2a4a6a'; g.fillRect(-9, -44, 18, 6); g.beginPath(); g.moveTo(-10, -44); g.lineTo(0, -54); g.lineTo(10, -44); g.fill();
+      g.fillStyle = on ? '#ffe7a0' : '#5a6a7a'; g.fillRect(-3, -30, 6, 8);
+      if (on) add(() => { g.globalAlpha = 0.35; const gr = g.createLinearGradient(0, -48, 0, -120); gr.addColorStop(0, '#59ffc8'); gr.addColorStop(1, 'rgba(89,255,200,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(-3, -48); g.lineTo(-18 + Math.sin(t / 900) * 6, -120); g.lineTo(18 + Math.sin(t / 900) * 6, -120); g.lineTo(3, -48); g.fill(); g.globalAlpha = 1; });
+    },
+    palace(on, t) {
+      g.fillStyle = '#e6f5fc'; g.fillRect(-22, -20, 44, 20);
+      for (const [x, h] of [[-18, 34], [0, 44], [18, 34]]) { g.fillStyle = '#d0ecf8'; g.fillRect(x - 5, -h, 10, h); g.fillStyle = '#7fe3ff'; g.beginPath(); g.moveTo(x - 7, -h); g.lineTo(x, -h - 12); g.lineTo(x + 7, -h); g.fill(); }
+      g.fillStyle = '#1a3a52'; g.beginPath(); g.moveTo(-6, 0); g.lineTo(-6, -10); g.quadraticCurveTo(0, -16, 6, -10); g.lineTo(6, 0); g.fill();
+      if (on) light(0, -24, 30, 'rgba(160,230,255,.5)');
+    },
+  };
+
   function shade(hex, k) { const v = parseInt(hex.slice(1), 16); const f = c => Math.max(0, Math.min(255, Math.round(c * (1 + k)))); return `rgb(${f(v >> 16)},${f((v >> 8) & 255)},${f(v & 255)})`; }
   // İleri ödüller: kaidelerinde, arkalarında dönen ışık hüzmeleri; yaklaştıkça parlar, toplanınca açılır
   function reward(kind, i, x, y, now) {
@@ -383,48 +567,128 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   }
 
   // ---- kale (Kapı 31) ----
+  // Işık sol üstten. Duvarlar ayrı ayrı kesme taşlar (her taşın tonu biraz farklı, harç arası koyu, üst kenarı açık),
+  // yuvarlak kuleler (gövdede soldan sağa gölge, kiremitli konik çatı), üç boyutlu mazgallar, kemer taşlı kapı,
+  // demir çivili ahşap kanatlar, yukarı kalkan parmaklık, sarkan sancaklar, ışıklı pencereler, sarmaşık, meşaleler.
+  const CASTLE_STONES = (() => {
+    const R = rng(404), out = [];
+    for (let r = 0; r < 7; r++) for (let x = -(r % 2) * 13, k = 0; x < W; x += 26, k++) out.push({ r, x, tone: R() * 0.16 - 0.08, crack: R() < 0.08 });
+    return out;
+  })();
+  function stoneColor(base, tone) { return shade(base, tone); }
   function castle(now) {
-    const y = GATE_Y, open = S.gateOpen;
-    // sur duvarları kenarlara kadar
-    shadow(W / 2 + 8, y + 12, 210, 16, 0.5);
-    g.fillStyle = '#4a2a4a'; g.fillRect(0, y - 70, W, 74);
-    g.fillStyle = '#5c3458'; for (let x = 0; x < W; x += 22) g.fillRect(x, y - 84, 13, 16);
-    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1;
-    for (let r = 0; r < 4; r++) for (let x = (r % 2) * 14; x < W; x += 28) g.strokeRect(x, y - 70 + r * 18, 28, 18);
-    // kuleler
-    for (const sx of [-1, 1]) {
-      const tx = W / 2 + sx * 92;
-      g.fillStyle = '#563058'; g.fillRect(tx - 28, y - 150, 56, 156);
-      g.fillStyle = '#6a3c68'; for (let k = 0; k < 4; k++) g.fillRect(tx - 28 + k * 16, y - 166, 10, 16);
-      g.fillStyle = '#2a1430'; g.beginPath(); g.moveTo(tx - 8, y - 90); g.lineTo(tx - 8, y - 112); g.quadraticCurveTo(tx, y - 122, tx + 8, y - 112); g.lineTo(tx + 8, y - 90); g.fill();
-      const fl = REDUCED ? 1 : 0.8 + 0.2 * Math.sin(now / 70 + sx) * Math.sin(now / 113);
-      g.fillStyle = '#ffd36b'; g.fillRect(tx - 6, y - 110, 12, 18);
-      // meşale
-      g.fillStyle = '#3a1a14'; g.fillRect(tx + sx * -22 - 2, y - 52, 4, 16);
-      add(() => { glow(tx + sx * -22, y - 58, 40 * fl, 'rgba(255,150,60,.75)'); glow(tx + sx * -22, y - 58, 10 * fl, 'rgba(255,240,180,1)'); });
-      // sancak
-      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(tx, y - 166); g.lineTo(tx, y - 200); g.stroke();
-      const wave = REDUCED ? 0 : Math.sin(now / 220 + sx) * 4;
-      g.fillStyle = sx < 0 ? '#ff6b6b' : '#ffc94a'; g.beginPath(); g.moveTo(tx, y - 200); g.quadraticCurveTo(tx + 14, y - 196 + wave, tx + 30, y - 192 + wave); g.lineTo(tx, y - 182); g.fill();
+    const y = GATE_Y, open = S.gateOpen, top = y - 96;
+    // zemine düşen gölge
+    g.fillStyle = 'rgba(10,4,16,.5)'; g.beginPath(); g.ellipse(W / 2 + 10, y + 14, 230, 18, 0, 0, TAU); g.fill();
+    // sur duvarı: kesme taşlar
+    g.save(); g.beginPath(); g.rect(0, top, W, y - top + 4); g.clip();
+    g.fillStyle = '#2e1830'; g.fillRect(0, top, W, y - top + 4);
+    for (const s of CASTLE_STONES) {
+      const sy = top + s.r * 14;
+      g.fillStyle = stoneColor('#6e4a6a', s.tone + (s.r === 0 ? 0.08 : 0) - s.r * 0.015);
+      g.fillRect(s.x + 1, sy + 1, 24, 12);
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(s.x + 1, sy + 1, 24, 2);
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(s.x + 1, sy + 11, 24, 2);
+      if (s.crack) { g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(s.x + 8, sy + 2); g.lineTo(s.x + 12, sy + 7); g.lineTo(s.x + 10, sy + 12); g.stroke(); }
     }
-    // kemer ve kapı
-    g.fillStyle = '#563058'; g.fillRect(W / 2 - 64, y - 120, 128, 40);
-    g.fillStyle = '#ffc94a'; g.font = '900 13px Nunito, sans-serif'; g.textAlign = 'center'; g.fillText('KAPI 31', W / 2, y - 96);
-    g.fillStyle = '#1a0c1a'; g.beginPath(); g.moveTo(W / 2 - 54, y + 4); g.lineTo(W / 2 - 54, y - 50); g.quadraticCurveTo(W / 2, y - 92, W / 2 + 54, y - 50); g.lineTo(W / 2 + 54, y + 4); g.fill();
+    // duvarın alt kısmı kararır (zemin teması)
+    const dk = g.createLinearGradient(0, top, 0, y + 4); dk.addColorStop(0.6, 'rgba(10,4,16,0)'); dk.addColorStop(1, 'rgba(10,4,16,.5)');
+    g.fillStyle = dk; g.fillRect(0, top, W, y - top + 4);
+    g.restore();
+    // mazgallar (üst yüzü açık, ön yüzü taş, yan gölgeli)
+    for (let x = 4; x < W; x += 30) {
+      g.fillStyle = '#5a3a58'; g.fillRect(x, top - 15, 18, 16);
+      g.fillStyle = '#8a6688'; g.fillRect(x, top - 15, 18, 3);
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 14, top - 12, 4, 13);
+    }
+    g.fillStyle = '#7a5878'; g.fillRect(0, top - 1, W, 4);
+    // sarmaşık
+    g.strokeStyle = 'rgba(90,150,90,.75)'; g.lineWidth = 1.6;
+    for (const vx of [36, W - 40]) { g.beginPath(); g.moveTo(vx, top); for (let k = 1; k <= 6; k++) g.lineTo(vx + Math.sin(k * 1.7) * 6, top + k * 11); g.stroke(); g.fillStyle = 'rgba(110,180,100,.8)'; for (let k = 1; k <= 6; k++) { g.beginPath(); g.ellipse(vx + Math.sin(k * 1.7) * 6 + 3, top + k * 11, 3, 2, 0.6, 0, TAU); g.fill(); } }
+    // yuvarlak kuleler
+    for (const sx of [-1, 1]) tower(W / 2 + sx * 98, y, sx, now);
+    // kapı kemeri: kemer taşları, kilit taşı
+    const gx = W / 2, gw = 50, gt = y - 76;
+    g.fillStyle = '#1a0c1a'; g.beginPath(); g.moveTo(gx - gw, y + 4); g.lineTo(gx - gw, gt + 26); g.quadraticCurveTo(gx, gt - 16, gx + gw, gt + 26); g.lineTo(gx + gw, y + 4); g.fill();
     if (open > 0) add(() => {
-      glow(W / 2, y - 30, 150 * open, `rgba(255,230,170,${0.9 * open})`);
-      g.save(); g.translate(W / 2, y - 30); g.globalAlpha = open * 0.5;
+      glow(gx, y - 30, 160 * open, `rgba(255,230,170,${0.9 * open})`);
+      g.save(); g.translate(gx, y - 30); g.globalAlpha = open * 0.45;
       for (let k = 0; k < 10; k++) { g.rotate(TAU / 10 + now / 4000); const gr = g.createLinearGradient(0, 0, 0, -260); gr.addColorStop(0, '#fff2c8'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(-10, 0); g.lineTo(0, -260); g.lineTo(10, 0); g.fill(); }
       g.restore();
     });
-    for (const sx of [-1, 1]) {
-      const w = 54 * (1 - open * 0.88);
-      const x0 = sx < 0 ? W / 2 - 54 : W / 2 + 54 - w;
-      g.fillStyle = '#7a3a2a'; g.fillRect(x0, y - 62, w, 66);
-      g.strokeStyle = '#3a1a14'; g.lineWidth = 3; for (let k = 1; k < 4; k++) { const xx = x0 + k * w / 4; g.beginPath(); g.moveTo(xx, y - 62); g.lineTo(xx, y + 4); g.stroke(); }
-      g.fillStyle = '#c0882a'; g.fillRect(x0, y - 44, w, 4); g.fillRect(x0, y - 16, w, 4);
+    for (let k = 0; k <= 10; k++) {
+      const a = Math.PI + (k / 10) * Math.PI, rx = gw + 9, ry = 46, cx = gx + Math.cos(a) * rx, cy = gt + 30 + Math.sin(a) * ry;
+      g.save(); g.translate(cx, cy); g.rotate(a + Math.PI / 2);
+      g.fillStyle = k === 5 ? '#9a7a98' : stoneColor('#7e5a7c', ((k * 37) % 10) / 60 - 0.08); g.fillRect(-6, -8, 12, 16);
+      g.strokeStyle = 'rgba(20,8,24,.6)'; g.lineWidth = 1; g.strokeRect(-6, -8, 12, 16);
+      g.restore();
     }
-    if (!open) { g.fillStyle = '#ffd34a'; g.beginPath(); g.arc(W / 2, y - 22, 9, 0, TAU); g.fill(); g.fillStyle = '#7a3a2a'; g.fillRect(W / 2 - 2, y - 26, 4, 8); }
+    // parmaklık: açılırken yukarı kalkar
+    g.save(); g.beginPath(); g.moveTo(gx - gw, y + 4); g.lineTo(gx - gw, gt + 26); g.quadraticCurveTo(gx, gt - 16, gx + gw, gt + 26); g.lineTo(gx + gw, y + 4); g.clip();
+    const lift = open * 90;
+    g.strokeStyle = '#3a3440'; g.lineWidth = 3;
+    for (let x = gx - gw + 8; x < gx + gw; x += 12) { g.beginPath(); g.moveTo(x, gt - 20 - lift); g.lineTo(x, y + 2 - lift); g.stroke(); }
+    for (let yy = gt; yy < y; yy += 14) { g.beginPath(); g.moveTo(gx - gw, yy - lift); g.lineTo(gx + gw, yy - lift); g.stroke(); }
+    g.restore();
+    // ahşap kanatlar: tahtalar, demir kuşaklar, çiviler, menteşeler; açılırken içe katlanır
+    for (const sx of [-1, 1]) {
+      const fw = (gw - 2) * (1 - open * 0.9), x0 = sx < 0 ? gx - gw + 2 : gx + gw - 2 - fw;
+      g.save(); g.beginPath(); g.moveTo(gx - gw, y + 4); g.lineTo(gx - gw, gt + 26); g.quadraticCurveTo(gx, gt - 16, gx + gw, gt + 26); g.lineTo(gx + gw, y + 4); g.clip();
+      const wd = g.createLinearGradient(x0, 0, x0 + fw, 0); wd.addColorStop(0, '#8a4a2a'); wd.addColorStop(1, '#6a3420');
+      g.fillStyle = wd; g.fillRect(x0, gt - 20, fw, y - gt + 24);
+      g.strokeStyle = 'rgba(40,16,8,.7)'; g.lineWidth = 1.4;
+      for (let k = 1; k < 5; k++) { const xx = x0 + k * fw / 5; g.beginPath(); g.moveTo(xx, gt - 20); g.lineTo(xx, y + 4); g.stroke(); }
+      g.fillStyle = '#3a3440';
+      for (const by of [gt + 18, y - 22]) { g.fillRect(x0, by, fw, 5); for (let k = 0; k < 4 && fw > 10; k++) { g.fillStyle = '#9aa0b0'; g.beginPath(); g.arc(x0 + 5 + k * (fw - 10) / 3, by + 2.5, 1.4, 0, TAU); g.fill(); g.fillStyle = '#3a3440'; } }
+      g.restore();
+    }
+    if (!open) { g.fillStyle = '#c0882a'; g.beginPath(); g.arc(gx - 8, y - 30, 3.5, 0, TAU); g.arc(gx + 8, y - 30, 3.5, 0, TAU); g.fill(); g.strokeStyle = '#c0882a'; g.lineWidth = 2; g.beginPath(); g.arc(gx - 8, y - 25, 4, 0, Math.PI); g.arc(gx + 8, y - 25, 4, 0, Math.PI); g.stroke(); }
+    // kapı tabelası ve sarkan sancaklar
+    g.fillStyle = '#3a1a30'; g.fillRect(gx - 34, top - 4, 68, 18); g.strokeStyle = '#c0882a'; g.lineWidth = 1.5; g.strokeRect(gx - 34, top - 4, 68, 18);
+    g.fillStyle = '#ffd36b'; g.font = '900 11px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('KAPI 31', gx, top + 5);
+    for (const bx of [gx - 74, gx + 74]) {
+      const sway = REDUCED ? 0 : Math.sin(now / 700 + bx) * 1.5;
+      g.fillStyle = bx < gx ? '#c0392b' : '#d68910';
+      g.beginPath(); g.moveTo(bx - 9, top + 4); g.lineTo(bx + 9, top + 4); g.lineTo(bx + 9 + sway, top + 44); g.lineTo(bx + sway, top + 36); g.lineTo(bx - 9 + sway, top + 44); g.closePath(); g.fill();
+      g.fillStyle = '#ffd36b'; g.beginPath(); g.arc(bx + sway * 0.5, top + 20, 4, 0, TAU); g.fill();
+      g.fillStyle = '#c0882a'; g.fillRect(bx - 11, top + 2, 22, 3);
+    }
+  }
+  // Yuvarlak kule: gövde silindir gibi gölgeli, taş sıraları, ışıklı pencere, kiremitli konik çatı, sivri uç ve sancak, meşale
+  function tower(tx, y, sx, now) {
+    const tw = 30, tt = y - 150;
+    g.fillStyle = 'rgba(10,4,16,.45)'; g.beginPath(); g.ellipse(tx + 8, y + 6, 36, 9, 0, 0, TAU); g.fill();
+    const body = g.createLinearGradient(tx - tw, 0, tx + tw, 0);
+    body.addColorStop(0, '#5a3a58'); body.addColorStop(0.35, '#86638a'); body.addColorStop(1, '#3a2240');
+    g.fillStyle = body; g.fillRect(tx - tw, tt, tw * 2, y - tt + 4);
+    g.strokeStyle = 'rgba(20,8,24,.35)'; g.lineWidth = 1;
+    for (let r = 0; r * 13 < y - tt; r++) {
+      const yy = tt + r * 13; g.beginPath(); g.moveTo(tx - tw, yy); g.quadraticCurveTo(tx, yy + 4, tx + tw, yy); g.stroke();
+      for (let k = 0; k < 4; k++) { const xx = tx - tw + 8 + k * 15 + (r % 2) * 7; g.beginPath(); g.moveTo(xx, yy + 1); g.lineTo(xx, yy + 13); g.stroke(); }
+    }
+    // pencere
+    const fl = REDUCED ? 1 : 0.85 + 0.15 * Math.sin(now / 300 + sx);
+    g.fillStyle = '#2a1430'; g.beginPath(); g.moveTo(tx - 7, tt + 60); g.lineTo(tx - 7, tt + 44); g.quadraticCurveTo(tx, tt + 34, tx + 7, tt + 44); g.lineTo(tx + 7, tt + 60); g.fill();
+    g.fillStyle = `rgba(255,214,120,${fl})`; g.beginPath(); g.moveTo(tx - 5, tt + 58); g.lineTo(tx - 5, tt + 45); g.quadraticCurveTo(tx, tt + 38, tx + 5, tt + 45); g.lineTo(tx + 5, tt + 58); g.fill();
+    g.strokeStyle = '#2a1430'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(tx, tt + 40); g.lineTo(tx, tt + 58); g.moveTo(tx - 5, tt + 50); g.lineTo(tx + 5, tt + 50); g.stroke();
+    add(() => glow(tx, tt + 50, 26 * fl, 'rgba(255,200,110,.45)'));
+    // mazgal halkası
+    for (let k = 0; k < 4; k++) { const xx = tx - tw + 2 + k * 16; g.fillStyle = '#6a4868'; g.fillRect(xx, tt - 10, 11, 11); g.fillStyle = '#9a789a'; g.fillRect(xx, tt - 10, 11, 2.5); }
+    // kiremitli konik çatı
+    const rt = tt - 62, rb = tt - 8;
+    const roof = g.createLinearGradient(tx - tw - 6, 0, tx + tw + 6, 0); roof.addColorStop(0, '#7a2a3a'); roof.addColorStop(0.4, '#b84a5a'); roof.addColorStop(1, '#5a1a2a');
+    g.fillStyle = roof; g.beginPath(); g.moveTo(tx - tw - 6, rb); g.lineTo(tx, rt); g.lineTo(tx + tw + 6, rb); g.quadraticCurveTo(tx, rb + 8, tx - tw - 6, rb); g.fill();
+    g.strokeStyle = 'rgba(40,8,16,.4)'; g.lineWidth = 1;
+    for (let k = 1; k < 5; k++) { const f = k / 5, yy = rt + (rb - rt) * f, hw = (tw + 6) * f; g.beginPath(); g.moveTo(tx - hw, yy); g.quadraticCurveTo(tx, yy + 4 * f, tx + hw, yy); g.stroke(); }
+    // sivri uç ve sancak
+    g.strokeStyle = '#c0882a'; g.lineWidth = 2; g.beginPath(); g.moveTo(tx, rt); g.lineTo(tx, rt - 22); g.stroke();
+    const wave = REDUCED ? 0 : Math.sin(now / 220 + sx) * 4;
+    g.fillStyle = sx < 0 ? '#e74c3c' : '#f1c40f'; g.beginPath(); g.moveTo(tx, rt - 22); g.quadraticCurveTo(tx + 12, rt - 20 + wave, tx + 24, rt - 17 + wave); g.lineTo(tx, rt - 11); g.fill();
+    // meşale yuvası (kapı tarafında)
+    const mx = tx - sx * (tw + 2), my = y - 50, ff = REDUCED ? 1 : 0.8 + 0.2 * Math.sin(now / 70 + sx) * Math.sin(now / 113);
+    g.fillStyle = '#3a3440'; g.fillRect(mx - 3, my, 6, 10); g.fillStyle = '#5a3a20'; g.fillRect(mx - 1.5, my - 8, 3, 9);
+    g.fillStyle = '#ffb347'; g.beginPath(); g.moveTo(mx - 4, my - 8); g.quadraticCurveTo(mx, my - 22 * ff, mx + 4, my - 8); g.fill();
+    add(() => { glow(mx, my - 12, 42 * ff, 'rgba(255,150,60,.7)'); glow(mx, my - 12, 9 * ff, 'rgba(255,245,200,1)'); });
   }
 
   // ---- sis: Buzul henüz keşfedilmedi ----
@@ -714,6 +978,8 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     pedestals(now);
     fog(now, top, bot);
     hero(now);
+    // ad şeridi maskotun önünde kalsın
+    banners.splice(0).forEach(st => nameBanner(st, now));
     effects(now, top, bot);
     // kenar gölgesi (derinlik)
     g.setTransform(1, 0, 0, 1, 0, 0);
