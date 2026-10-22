@@ -350,12 +350,19 @@
   let comboPts = 0, comboStreak = 0;
   // Altın Yağmuru: { gate, end, total, boards, back } (oynanırken), yoksa null
   let rain = null;
+  // Ara oyun (2.5): { k } — 20k. bölümün kapısında, haritadan açılan isteğe bağlı çok zor bölüm
+  let challenge = null;
+  const BONUS = window.RingLevels.BONUS;
+  const bonusCount = () => Math.floor(TOTAL / BONUS.every);
+  const bonusSrc = k => BONUS.first + k - 1;
+  const bonusReady = k => !!(window.RING_LEVEL_DATA && window.RING_LEVEL_DATA[bonusSrc(k)]);
   let floaters = [];   // yükselen yazılar, ör. "Harika!" { text, x, y, t0, big?, size?, sub?, colors?, life? } (uygulama koordinatı)
   let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
   // ---- Ekran geçişleri ----
   function showScreen(name) {
     for (const id of ['home', 'levels', 'game', 'trophies', 'shop']) $(id).hidden = id !== name;
+    if (name !== 'game') challenge = null;
     if (name === 'shop') renderShop();
     if (name === 'home') { renderHome(); maybeStreak(); }
     if (name === 'trophies') renderTrophies();
@@ -791,6 +798,8 @@
         reward: n => { const l = lootWaiting(n); if (l) return ['mystery', 'gold', 'bulb'].includes(l.type) ? l.type : 'chest'; return pieceWaiting(n) ? 'piece' : null; },
         gateOpen: g => isUnlocked(W.gateStart(g)) && (g === 1 || !!progress.rewards['gate:' + g]),
         jar: () => ({ stars: gateStars(W.gateOf(frontier())), max: W.GATE_SIZE * 3 }),
+        bonusEvery: BONUS.every,
+        bonus: k => (bonusReady(k) ? { open: !!starsOf(k * BONUS.every), stars: progress.bonus[k] || 0 } : null),
       },
     });
     return ADV;
@@ -820,6 +829,13 @@
       html += `<button class="stop ${state}" data-n="${n}" style="left:${at.x}px;top:${at.y}px"
         aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}></button>`;
     }
+    // Ara oyun sunakları (isteğe bağlı): 20k. bölüm bitince açılır
+    for (let k = 1; k <= bonusCount(); k++) {
+      if (!bonusReady(k)) continue;
+      const at = m.bonus(k), open = !!starsOf(k * BONUS.every), got = progress.bonus[k] || 0;
+      html += `<button class="stop" data-k="${k}" style="left:${at.x}px;top:${at.y}px"
+        aria-label="${tr('Ara oyun {n}', { n: k })}, ${tr('çok zor, isteğe bağlı')}, ${open ? (got ? tr('{n} yıldız', { n: got }) : tr('oynanmadı')) : tr('kilitli')}"${open ? '' : ' disabled'}></button>`;
+    }
     const pl = m.play(front);
     html += `<button class="stop-play" data-n="${front}" style="left:${pl.x}px;top:${pl.y}px;width:${pl.w}px;height:${pl.h}px">${tr('Oyna')}</button>`;
     inner.innerHTML = html;
@@ -827,7 +843,8 @@
       b.onclick = () => {
         if (mapBusy || A.busy()) return;
         Sound.tap();
-        loadLevel(Number(b.dataset.n));
+        if (b.dataset.k) startChallenge(Number(b.dataset.k));
+        else loadLevel(Number(b.dataset.n));
         showScreen('game');
       };
     });
@@ -1259,6 +1276,7 @@
 
   function updateHud() {
     $('levelLabel').textContent = rain ? tr('Altın Yağmuru')
+      : challenge ? tr('Ara oyun {n}', { n: challenge.k }) + ' · ' + tr('çok zor, isteğe bağlı')
       : S.tut != null ? tr('Nasıl oynanır')
       : S.preview ? tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name)
       : tr('Seviye {n}', { n: S.levelNo }) + ' · ' + (S.def.name ? tr(S.def.name) : W.GATES[W.gateOf(S.levelNo) - 1].name);
@@ -2112,6 +2130,7 @@
     if (rain) { rainBoardDone(); return; }
     if (S.tut != null) { showTutorialWin(); return; }
     if (S.preview) { showPreviewWin(); return; }
+    if (challenge) { showChallengeWin(); return; }
     const par = S.def.par ?? S.moves;
     const stars = S.extra ? 1 : starsFor(S.moves, par);
     const key = idOf(S.levelNo);
@@ -2197,6 +2216,42 @@
     launchConfetti(stars);
     updateHud();
     setTimeout(() => awardBadges(false), 1500);
+  }
+
+  // ---- Ara oyun: 20k. bölümün kapısında açılır; tahtada altın ve sandık yok, hamle hakkı en iyi çözüm + 1 ----
+  function startChallenge(k) {
+    const def = getLevel(bonusSrc(k)), back = k * BONUS.every;
+    challenge = { k };
+    applyWorld(W.worldOfGate(W.gateOf(back)));
+    startDef(def, back, null);
+    Object.assign(S, { loot: null, coins: [], limit: def.par + BONUS.slack });
+    hideTip();
+    updateHud();
+  }
+  function showChallengeWin() {
+    const stars = starsFor(S.moves, S.def.par), first = !progress.bonus[challenge.k];
+    progress.bonus[challenge.k] = Math.max(progress.bonus[challenge.k] || 0, stars);
+    const coins = first ? ECO.bonusCoins : 0;
+    if (coins) { progress.coins += coins; stat('coinsTotal', coins); }
+    saveProgress();
+    $('winRewards').innerHTML = coins ? `<span class="chip loot-chip gold">${tr('Ara oyun ödülü')}: <b>${tr('+{n} altın', { n: coins })}</b></span>` : '';
+    $('winCoins').textContent = '+' + coins;
+    $('winScore').textContent = '+0';
+    const card = $('win').querySelector('.card');
+    card.classList.remove('tut');
+    card.classList.toggle('perfect', stars === 3 && fxOn());
+    $('winLevel').textContent = tr('Ara oyun {n} tamamlandı', { n: challenge.k });
+    $('winTitle').textContent = stars === 3 ? tr('Mükemmel!') : stars === 2 ? tr('Harika!') : tr('Başardın!');
+    $('stars').innerHTML = [1, 2, 3].map(i => `<span class="star-ico${i <= stars ? '' : ' off'}" style="animation-delay:${200 + i * 180}ms"></span>`).join('');
+    $('winMoves').textContent = S.moves;
+    $('winPar').textContent = S.def.par;
+    $('continue').textContent = tr('Haritaya dön');
+    $('rainBtn').hidden = true;
+    $('win').classList.remove('hidden');
+    Sound.win();
+    for (let i = 1; i <= stars; i++) setTimeout(() => Sound.star(i), 400 + i * 180);
+    launchConfetti(stars);
+    updateHud();
   }
 
   // ---- Altın Yağmuru (2.5, bütün kapılarda) ----
@@ -2357,11 +2412,12 @@
     failedLevel = S.levelNo;
     S.hint = null;
     const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
-    const can = progress.coins >= EXTRA_PRICE;
+    const can = !challenge && progress.coins >= EXTRA_PRICE;
+    $('extraMoves').hidden = !!challenge;
     $('failNote').textContent = left === 1 ? tr('Tek halka kaldı!') : tr('{n} halka kaldı.', { n: left });
     $('extraPrice').textContent = EXTRA_PRICE;
     $('extraMoves').disabled = !can;
-    $('extraNote').hidden = can;
+    $('extraNote').hidden = can || !!challenge;
     $('extraNote').textContent = tr('{n} altın daha gerekir (sende {have}).', { n: EXTRA_PRICE - progress.coins, have: progress.coins });
     // Ek hamle alınamıyorsa öne çıkan düğme "Baştan başla" olur
     $('failRetry').className = can ? 'btn-ghost' : 'btn-primary';
@@ -2599,7 +2655,7 @@
     $('settings').classList.remove('hidden');
   };
   $('settingsClose').onclick = () => { Sound.tap(); $('settings').classList.add('hidden'); };
-  const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : loadLevel(S.levelNo));
+  const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : challenge ? startChallenge(challenge.k) : loadLevel(S.levelNo));
   $('reset').onclick = () => { Sound.tap(); restart(); };
   $('again').onclick = () => { Sound.tap(); restart(); };
   $('failRetry').onclick = () => { Sound.tap(); restart(); };
@@ -2616,6 +2672,7 @@
 
   $('continue').onclick = () => {
     Sound.tap();
+    if (challenge) { $('win').classList.add('hidden'); showScreen('levels'); return; }
     if (S.tut != null) {
       if (S.tut < TUTORIAL.length - 1) loadTutorial(S.tut + 1);
       else finishTutorial();

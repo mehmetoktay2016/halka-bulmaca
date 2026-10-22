@@ -40,6 +40,7 @@
       owned: {},          // mağazadan alınan süsler (ürün kimliği -> true)
       equip: {},          // kullanılan süs: { burst, pop, win } (yoksa her bölümün bedava ilki)
       seenPieces: {},     // kartı görülmüş parçalar (pieces.js kimliği -> true)
+      bonus: {},          // ara oyunlar (2.5): sıra numarası -> en iyi yıldız; ilerlemeyi ve yıldız toplamını etkilemez
     };
   }
 

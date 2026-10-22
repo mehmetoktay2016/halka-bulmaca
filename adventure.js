@@ -2816,6 +2816,34 @@
       setTimeout(() => { S.fogT[gt] = performance.now(); snd.noise(1.6, 0.2, 600, 2400); snd.tone(320, 1.4, 'sine', 0.03, 900); }, reduced() ? 0 : 1300);
     }
 
+    // ---- ara oyun sunakları: her `bonusEvery` durakta yoldan ayrılan patikanın ucunda ----
+    const bonusAt = k => { const nd = NODES[k * D.bonusEvery], side = nd.x > W / 2 ? 1 : -1; return { nd, x: W / 2 - side * 150, y: nd.y - 90 }; };
+    function shrines(now, top, bot) {
+      if (!D.bonus) return;
+      for (let k = 1; k * D.bonusEvery <= N; k++) {
+        const b = D.bonus(k), { nd, x, y } = bonusAt(k);
+        if (!b || y < top - 120 || y > bot + 120) continue;
+        const done = b.stars > 0, col = done ? GOLD : b.open ? '#c08aff' : '#5a5664';
+        // noktalı patika
+        g.strokeStyle = b.open ? 'rgba(220,190,255,.55)' : 'rgba(150,140,170,.3)'; g.lineWidth = 4; g.setLineDash([3, 9]); g.lineCap = 'round';
+        g.beginPath(); g.moveTo(nd.x, nd.y); g.quadraticCurveTo((nd.x + x) / 2, nd.y - 10, x, y + 10); g.stroke(); g.setLineDash([]);
+        // sunak: kaide, yükselen kristal dikilitaş, tepede yıldız
+        shadow(x + 4, y + 14, 26, 7);
+        g.fillStyle = '#2a2436'; g.beginPath(); g.ellipse(x, y + 8, 24, 8, 0, 0, TAU); g.fill(); g.fillStyle = '#3a3248'; g.beginPath(); g.ellipse(x, y + 5, 24, 8, 0, 0, TAU); g.fill();
+        const pulse = b.open && !done && !reduced() ? 0.5 + 0.5 * Math.sin(now / 350) : 0;
+        if (b.open) add(() => glow(x, y - 26, 46 + pulse * 10, done ? 'rgba(255,201,74,.35)' : 'rgba(192,138,255,.45)'));
+        g.fillStyle = INK; g.beginPath(); g.moveTo(x - 11, y + 4); g.lineTo(x - 7, y - 44); g.lineTo(x, y - 54); g.lineTo(x + 7, y - 44); g.lineTo(x + 11, y + 4); g.closePath(); g.fill();
+        const gr = g.createLinearGradient(x - 9, 0, x + 9, 0); gr.addColorStop(0, shade(col, 0.4)); gr.addColorStop(1, shade(col, -0.35));
+        g.fillStyle = gr; g.beginPath(); g.moveTo(x - 9, y + 2); g.lineTo(x - 5.5, y - 43); g.lineTo(x, y - 51); g.lineTo(x + 5.5, y - 43); g.lineTo(x + 9, y + 2); g.closePath(); g.fill();
+        g.fillStyle = b.open ? '#fff2b0' : '#8a8494'; star(x, y - 62 - (reduced() ? 0 : Math.sin(now / 500 + k)) * 2, 7);
+        if (!b.open) { g.fillStyle = '#c8c0d0'; rr(x - 5, y - 24, 10, 8, 2); g.fill(); g.strokeStyle = '#c8c0d0'; g.lineWidth = 2; g.beginPath(); g.arc(x, y - 24, 3.4, Math.PI, 0); g.stroke(); }
+        if (done) for (let i = 0; i < 3; i++) { g.fillStyle = i < b.stars ? GOLD : 'rgba(255,255,255,.25)'; star(x - 12 + i * 12, y - 30, 4.6); }
+        g.font = '900 10px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const label = tr('Ara oyun {n}', { n: k }), lw = g.measureText(label).width + 14;
+        g.fillStyle = 'rgba(14,16,30,.85)'; rr(x - lw / 2, y + 16, lw, 16, 8); g.fill(); g.fillStyle = b.open ? '#e8d8ff' : '#a09cb0'; g.fillText(label, x, y + 24.5);
+      }
+    }
+
     // ---- kapı kumbarası ----
     function jarAt(x, y, stars, max, now, scale = 1, alpha = 1) {
       const f = Math.min(1, stars / max), r = 22;
@@ -2875,6 +2903,7 @@
       for (const d of DECOR) { if (d.y < top - 80) continue; if (d.y > bot + 80) break; (DECOR_ART[d.kind] || DECOR_ART.rock)(d, now); }
       gates(now, top, bot);
       const banners = pedestals(now, top, bot);
+      shrines(now, top, bot);
       fog(now, top, bot);
       hero(now);
       for (const st of banners) nameBanner(st, now);
@@ -2892,6 +2921,7 @@
         node: n => ({ x: NODES[n].x * k, y: NODES[n].y * k }),
         gate: gt => ({ x: (W / 2) * k, y: (GATE_Y[gt] - 90) * k }),
         play: n => ({ x: NODES[n].x * k, y: (NODES[n].y + 46) * k, w: 84 * k, h: 30 * k }),
+        bonus: b => { const p = bonusAt(b); return { x: p.x * k, y: (p.y - 16) * k }; },
       };
     }
     // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır

@@ -1819,14 +1819,19 @@
   // yeni bir halka eklenir (yarı yarıya göbeğe: parçanın yakıtı) ve hızlı çözücüyle puana bakılır. Puanı hedefin
   // üstüne çıkaran ya da bölümü bozan halka geri alınır, başka yerde denenir. Puan hedef aralığa girince bölüm
   // bir kez tam çözülür; parça gerçekten işe yarıyorsa kabul edilir. Bütün düzen değil yalnızca son adım çöpe gider.
+  // Ara oyunlar (2.5): her `every` bölümde bir isteğe bağlı çok zor bölüm; k. ara oyunun kaynağı first + k - 1
+  // (tools/build_bonus.js üretir). Hamle hakkı en iyi çözümden yalnız `slack` fazla.
+  const BONUS = { first: 5001, every: 20, slack: 1 };
+  // Büyütme üreticisinin yerleştirebildiği parçalar
+  const GROW_MECH = ['bomb', 'boiler', 'ice', 'motor', 'portal', 'click', 'reverse'];
   const GROW_STATS = {};
   const GROW_DIAG = [];
   let gsLast = '';
   const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; gsLast = k; };
-  function growFor(levelNo) {
+  // plan dışarıdan verilebilir (ara oyunlar: hamle tavanı maxPar, parçalar mech, işe yaraması gereken parçalar own)
+  function growFor(levelNo, plan = NORMAL_PLAN[levelNo]) {
     GROW_DIAG.length = 0; // tanı kaydı: her deneme nasıl bitti (yalnız son bölümünki tutulur)
-    const plan = NORMAL_PLAN[levelNo];
-    const maxPar = maxParOfGate(plan.gate), t = plan.target;
+    const maxPar = plan.maxPar || maxParOfGate(plan.gate), t = plan.target;
     // Süre GROW_MS ortam değişkeniyle uzatılabilir (eksik kalan bölümleri yeniden denerken)
     const longer = typeof process !== 'undefined' && process.env && Number(process.env.GROW_MS);
     const deadline = Date.now() + (longer || (plan.peak ? 300000 : 150000));
@@ -1877,13 +1882,13 @@
       }
       return best;
     };
-    const own = WORLD_MECH[plan.gate];
+    const own = plan.own || WORLD_MECH[plan.gate];
     let best = null, bestErr = Infinity;
     // Normal bölüm hedefin ±0,4'ünde kabul edilir (0,25'e inince aramayı bırakır); zirve [hedef-0,45, sonraki kapı)
     const upper = plan.peak ? plan.top : t + 0.4;
     for (let attempt = 0; Date.now() < deadline && bestErr > (plan.peak ? 0 : 0.25); attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 313);
-      const mech = mechanicsFor(plan.gate, rnd).filter(m => ['bomb', 'boiler', 'ice', 'motor', 'portal', 'click', 'reverse'].includes(m));
+      const mech = plan.mech ? plan.mech.slice() : mechanicsFor(plan.gate, rnd).filter(m => GROW_MECH.includes(m));
       // Zirve denemelerinin yarısında ikinci bir parça zorunlu (tek parçayla zirveye ulaşmak zor)
       if (plan.peak && mech.length === own.length && attempt % 2) {
         const pool = ['click', 'reverse', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < plan.gate)].filter(m => !mech.includes(m));
@@ -2204,7 +2209,7 @@
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
     difficultyScore, parScore, closeness, GROW_STATS, GROW_DIAG, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars, mattersAll, bigMoment, WORLD_MECH,
-    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
+    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, growFor, GROW_MECH, BONUS, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLevels = api;

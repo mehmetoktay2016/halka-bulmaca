@@ -17,6 +17,8 @@
     dailyBulbs: 1,      // ampulü hiç kalmayan oyuncuya günde bir kez
     // Kapı kumbarası: kapıda kazanılan her yıldız için, kapı bitince (sonraki kapının töreninde) verilir
     jarCoinsPerStar: 1,
+    // Ara oyun (her 20 bölümde bir, isteğe bağlı, çok zor): ilk bitirişte
+    bonusCoins: 150,
   };
 
   // Halka ödülleri: halka kurtulunca içindeki ödül açılır. Her bölümün ödülü bir kez alınır (kayıt: loot).
