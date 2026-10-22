@@ -46,11 +46,14 @@
       text: 'Dişli halkayı sen çeviremezsin. Her hamlenden sonra kendisi bir adım döner; kesikli iz boşluğunun sonraki yeri.' },
     { id: 'portal', intro: 1014, name: 'İkiz portal',
       text: 'Aynı işareti taşıyan iki halka ikizdir. Biri kurtulunca öbürü nereye bağlı olursa olsun ışınlanıp onunla gider.' },
+    // Kapı 31-40 finalleri: tanıtım bölümü yok, ilk finalde kart açılır
+    { id: 'boss', intro: null, name: 'Dev Halka',
+      text: 'Zırhlı gövde dönmez. Değdiği her halka kurtuldukça bir plaka kırılır; zırh bitince parçalanır ve yanındakilere yol açar.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
-    'değdikleri de uçar', 'basınç doldu!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı'];
+    'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -608,6 +611,48 @@
       vortex(g, P2[0], P2[1], r, vU);
       dragFinger(g, P1[0], P1[1], r, pAng, t - 300, 1000);
       label(g, tx('ikizi ışınlandı'), 130, 178, seg(t, 2000, 2300));
+    } },
+    // 2.5: Dev Halka; iki komşusu gidince iki plaka kırılır, sarsılır, parçalanır ve üstteki halka serbest kalır
+    boss: { ms: 5200, draw(g, t) {
+      const B = [130, 100], A = [64, 100], Cn = [196, 100], T = [130, 38], r = 46;
+      const aFly = seg(t, 700, 1200), cFly = seg(t, 1700, 2200), fuse = t > 2300 && t < 3000, brk = seg(t, 3000, 3800), tFly = seg(t, 3150, 3650);
+      const left = 2 - (aFly > 0 ? 1 : 0) - (cFly > 0 ? 1 : 0);
+      if (aFly === 0) ring(g, A[0], A[1], 28, 180 * DEG, C.sky); else flyRing(g, A[0], A[1], 28, 180 * DEG, C.sky, aFly, -1, -0.2);
+      if (cFly === 0) ring(g, Cn[0], Cn[1], 28, 0, C.violet); else flyRing(g, Cn[0], Cn[1], 28, 0, C.violet, cFly, 1, -0.2);
+      if (tFly === 0) ring(g, T[0], T[1], 24, -90 * DEG, C.yellow); else flyRing(g, T[0], T[1], 24, -90 * DEG, C.yellow, tFly, 0, -1);
+      if (brk === 0) {
+        const jx = fuse ? 3 * Math.sin(t / 19) : 0;
+        ring(g, B[0] + jx, B[1], r, 90 * DEG, C.red);
+        for (let k = 0; k < left; k++) {
+          const c = -90 * DEG + (k - 0.5) * 140 * DEG, hit = (t > 1200 && t < 1450 && k === 1) || (t > 2200 && t < 2450 && k === 0);
+          g.save(); g.lineCap = 'butt';
+          g.strokeStyle = 'rgba(10,8,20,.6)'; g.lineWidth = STROKE + 10; g.beginPath(); g.arc(B[0] + jx + 1, B[1] + 2, r, c - 0.9, c + 0.9); g.stroke();
+          g.strokeStyle = hit ? '#fff' : '#9aa6bd'; g.lineWidth = STROKE + 7; g.beginPath(); g.arc(B[0] + jx, B[1], r, c - 0.9, c + 0.9); g.stroke();
+          g.fillStyle = '#4a5368'; for (const a of [c - 0.82, c + 0.82]) { g.beginPath(); g.arc(...at(B[0] + jx, B[1], r, a), 2.2, 0, TAU); g.fill(); }
+          g.restore();
+        }
+      } else if (brk < 1) {
+        g.save();
+        for (let k = 0; k < 20; k++) {
+          const a = k * TAU / 20, d = r * (0.6 + brk * 1.6);
+          g.globalAlpha = 1 - brk; g.fillStyle = k % 3 ? C.red : '#fff';
+          g.save(); g.translate(...at(B[0], B[1] + 30 * brk * brk, d, a)); g.rotate(a + brk * 5);
+          g.beginPath(); g.moveTo(0, -6); g.lineTo(5, 5); g.lineTo(-5, 4); g.closePath(); g.fill(); g.restore();
+        }
+        g.restore();
+      }
+      // can çubuğu
+      g.save();
+      g.fillStyle = 'rgba(10,8,20,.75)'; g.fillRect(95, 163, 70, 14);
+      for (let k = 0; k < 2; k++) {
+        const on = k < left && brk === 0;
+        g.fillStyle = on ? (fuse && Math.sin(t / 50) > 0 ? '#fff3b0' : '#e8463a') : 'rgba(255,255,255,.12)';
+        g.fillRect(98 + k * 33, 166, 31, 8);
+      }
+      g.restore();
+      finger(g, A[0] - 24, A[1] + 30, t > 500 && t < 750, t > 300 && t < 900 ? 1 : 0);
+      finger(g, Cn[0] + 24, Cn[1] + 30, t > 1500 && t < 1750, t > 1300 && t < 1900 ? 1 : 0);
+      label(g, tx('zırh bitti!'), 130, 150, fuse ? 1 : 0);
     } },
   };
 

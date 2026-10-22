@@ -413,25 +413,25 @@
     2020: { name: 'Gözlemevi', gate: 30, role: 'final', target: 10.58, bars: 3 },
     // 2.5 (Z7): kapı 31-40'ın ara şekilleri ve finalleri. Hedefler GEÇİCİ: Z12'de ölçülerek konacak.
     2021: { name: 'Papağan', gate: 31, role: 'mid', target: 8.5, bars: 2 },
-    2022: { name: 'Davul', gate: 31, role: 'final', target: 8.5, bars: 3 },
+    2022: { name: 'Davul', gate: 31, role: 'final', target: 8.0, bars: 2, cage: false, boss: true },
     2023: { name: 'Horoz', gate: 32, role: 'mid', target: 8.5, bars: 2 },
-    2024: { name: 'Çan', gate: 32, role: 'final', target: 9.0, bars: 2 },
+    2024: { name: 'Çan', gate: 32, role: 'final', target: 8.0, bars: 2, boss: true },
     2025: { name: 'Tavus Kuşu', gate: 33, role: 'mid', target: 8.5, bars: 2 },
-    2026: { name: 'Uçan Fener', gate: 33, role: 'final', target: 10.0, bars: 3 },
+    2026: { name: 'Uçan Fener', gate: 33, role: 'final', target: 10.0, bars: 3, boss: true },
     2027: { name: 'Kutup Ayısı', gate: 34, role: 'mid', target: 8.5, bars: 2 },
-    2028: { name: 'Kardan Adam', gate: 34, role: 'final', target: 10.0, bars: 3 },
+    2028: { name: 'Kardan Adam', gate: 34, role: 'final', target: 10.0, bars: 3, boss: true },
     2029: { name: 'Mors', gate: 35, role: 'mid', target: 8.5, bars: 2 },
-    2030: { name: 'Kızak', gate: 35, role: 'final', target: 10.0, bars: 3, cage: false },
+    2030: { name: 'Kızak', gate: 35, role: 'final', target: 10.0, bars: 3, cage: false, boss: true },
     2031: { name: 'Tavuk', gate: 36, role: 'mid', target: 8.5, bars: 2 },
-    2032: { name: 'Yel Değirmeni', gate: 36, role: 'final', target: 10.0, bars: 3 },
+    2032: { name: 'Yel Değirmeni', gate: 36, role: 'final', target: 10.0, bars: 3, boss: true },
     2033: { name: 'Koyun', gate: 37, role: 'mid', target: 8.5, bars: 2 },
-    2034: { name: 'Traktör', gate: 37, role: 'final', target: 10.0, bars: 3 },
+    2034: { name: 'Traktör', gate: 37, role: 'final', target: 9.0, bars: 3, boss: true },
     2035: { name: 'İnek', gate: 38, role: 'mid', target: 8.5, bars: 2 },
-    2036: { name: 'Ayçiçeği', gate: 38, role: 'final', target: 10.0, bars: 2, cage: false },
+    2036: { name: 'Ayçiçeği', gate: 38, role: 'final', target: 10.0, bars: 2, cage: false, boss: true },
     2037: { name: 'Kristal Küre', gate: 39, role: 'mid', target: 8.0, bars: 2 },
-    2038: { name: 'Tek Boynuzlu At', gate: 39, role: 'final', target: 10.0, bars: 2 },
+    2038: { name: 'Tek Boynuzlu At', gate: 39, role: 'final', target: 9.5, bars: 2, cage: false, boss: true },
     2039: { name: 'Sihirli Kitap', gate: 40, role: 'mid', target: 8.0, bars: 2 },
-    2040: { name: 'Anka Kuşu', gate: 40, role: 'final', target: 10.0, bars: 3 },
+    2040: { name: 'Anka Kuşu', gate: 40, role: 'final', target: 10.0, bars: 3, boss: true },
   };
   const ANIMALS = [
     { name: 'Kedi',
@@ -1260,7 +1260,9 @@
       // portal hamleyi kısaltır; düşündüren, hangi ikizin kolay olduğunu görmek (çift başına)
       0.4 * n(r => r.portal != null) +
       // kazan: patlamayı en çok halka yanındayken tetiklemek için sırayı düşünmek gerekir
-      1.0 * n(r => r.boiler);
+      1.0 * n(r => r.boiler) +
+      // Dev Halka: zırhı kırmak için sıra ve hangi komşunun en son kalacağı düşünülür
+      0.8 * n(r => r.boss);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1283,6 +1285,13 @@
       const bars = spec.bars ? placeBars(rnd, rings, spec.bars, plan.cage !== false) : [];
       if (!bars) continue;
       const def = { name: spec.name, couples: spec.couples || [], deco: spec.deco, rings: rings.concat(bars) };
+      // 2.5 kapı finalleri: şeklin gövdesi (ilk halka) Dev Halka; zırh, komşu sayısından bir eksik
+      // (bütün komşular gidince gövde zaten serbest kalır, zırh ancak komşusu varken parçalanınca işe yarar)
+      if (plan.boss) {
+        const L0 = Logic.buildLevel(def);
+        const nbrs = new Set(L0.ringLinks[0].map(li => (L0.links[li].a === 0 ? L0.links[li].b : L0.links[li].a))).size;
+        if (nbrs >= 2) def.rings[0] = { ...def.rings[0], boss: Math.min(6, nbrs - 1) };
+      }
       const L = Logic.buildLevel(def);
       if (!connected(L) || !noRingFreeAtStart(L)) continue;
       const quick = Logic.solveFast(L, L.startAngles, 0, 20000);
@@ -1403,7 +1412,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 

@@ -740,6 +740,16 @@ svg { display: block; }
   opacity: calc(var(--tension, 0) * .75);
   transition: opacity .9s ease;
 }
+/* Dev Halka can çubuğu (2.5): plaka sayısı kadar kırmızı dilim, zırh bitince yanıp söner */
+.boss-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
+.boss-bar span { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffd6d6; }
+.boss-bar .segs { display: flex; gap: 3px; padding: 3px; border-radius: 6px; background: rgba(10, 8, 20, .7); }
+.boss-bar i { width: 26px; height: 9px; border-radius: 3px; background: rgba(255, 255, 255, .1); transition: background .2s; }
+.boss-bar i.on { background: linear-gradient(#ff8a6b, #d6332a); }
+.boss-bar.fuse i.on { animation: boss-blink .12s steps(2) infinite; }
+@keyframes boss-blink { 50% { background: #fff3b0; } }
+.boss-bar.fuse .segs { animation: boss-glow .15s steps(2) infinite; }
+@keyframes boss-glow { 50% { box-shadow: 0 0 14px #ffd54a; } }
 /* Kombo metresi (2.5): art arda zincirlerle dolan çubuk, yanında seri çarpanı */
 .combo { justify-self: start; display: flex; align-items: center; gap: 6px; padding-left: 4px; }
 .combo-bar { position: relative; width: 58px; height: 10px; border-radius: 6px; background: rgba(255, 255, 255, .12); overflow: hidden; }

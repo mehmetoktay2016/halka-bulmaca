@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, afterMove, rotate, pressureLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -54,6 +54,7 @@
   const BLAST_HOLD = 140; // patlamayla vurulan halkalar beyaz parlar, sonra uçar
   const FUSE_WAIT = 160;  // kazanın basıncı dolduktan sonra düdüğün ötmesi
   const FUSE_MS = 560;    // düdük öterken kazan akkor parlayıp sarsılır, sonra çıkıp patlar
+  const BOSS_MS = 760;    // Dev Halkanın zırhı bitince ağırlaşma (yükselen ses, sarsıntı), sonra parçalanır
   const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
   // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
@@ -224,6 +225,33 @@
       },
       // Kalp atışı: iki alçak, yumuşak vuruş (gerilim sahnesi)
       heart: () => { tone(62, 0.16, 'sine', 0.22, 42); tone(56, 0.14, 'sine', 0.16, 40, 0.24); },
+      // Dev Halka ağırlaşırken (riser): yükselen hışırtı, tizleşen ses, hızlanan davul vuruşları
+      riser: () => {
+        const a = audio();
+        if (!a || !progress.sound) return;
+        const t = a.currentTime, len = 0.72;
+        const buf = a.createBuffer(1, Math.floor(a.sampleRate * len), a.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const n = a.createBufferSource(); n.buffer = buf;
+        const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+        bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(4200, t + len);
+        const ng = a.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.3, t + len);
+        n.connect(bp).connect(ng).connect(a.destination); n.start(t);
+        tone(98, len, 'sawtooth', 0.08, 392);
+        [0, 0.26, 0.44, 0.56, 0.64, 0.69].forEach((at, k) => tone(110, 0.14, 'sine', 0.22 + k * 0.05, 45, at));
+      },
+      // Dev Halka yenildi: hızlı yükselen zafer çıngılı, tam akor ve dökülen parıltı notaları
+      victory: () => {
+        [523.3, 659.3, 784, 1046.5].forEach((f, k) => tone(f, 0.25, 'triangle', 0.11, null, 0.08 + k * 0.07));
+        [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => tone(f, 0.9, 'triangle', 0.05, null, 0.4));
+        tone(130.8, 0.9, 'sine', 0.12, null, 0.4);
+        [2637, 2349, 2093, 1760, 1568, 1319].forEach((f, k) => tone(f, 0.4, 'sine', 0.03, null, 0.53 + k * 0.06));
+      },
+      // Zırh plakası kırıldı: metal tıngırtısı
+      clank: () => {
+        tone(420, 0.2, 'square', 0.05, 180);
+        tone(1750, 0.5, 'sine', 0.04); tone(2630, 0.5, 'sine', 0.035);
+      },
       // Kazan düdüğü: yükselen tiz ses, altında kaynama gurultusu
       whistle: () => {
         tone(700, 0.55, 'sine', 0.08, 2200);
@@ -1120,7 +1148,8 @@
   for (const p of PCS.PIECES) if (progress.stars[String(p.intro)]) progress.seenPieces[p.id] = true;
   let pieceQueue = [], pieceAnim = 0;
   function maybePieceCard(def) {
-    const f = window.RingLevels.features(def);
+    // Dev Halka bir tanıtım bölümüyle değil, ilk kapı finalinde kartla tanıtılır
+    const f = window.RingLevels.features(def).concat(def.rings.some(r => r.boss) ? ['boss'] : []);
     pieceQueue = PCS.PIECES.filter(p => f.includes(p.id) && !progress.seenPieces[p.id]);
     if (pieceQueue.length && $('worldCard').classList.contains('hidden')) showPieceCard();
   }
@@ -1218,7 +1247,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      flash: {}, bombs: 0, vortex: [], boilFuse: {}, steam: [], iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1356,7 +1385,7 @@
     waves.reduce((t, _, w) => {
       at[w] = t;
       return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0) +
-        (fuses[w].length ? FUSE_WAIT + FUSE_MS : 0);
+        (fuses[w].length ? FUSE_WAIT + (fuses[w].some(i => S.L.rings[i].boss) ? BOSS_MS : FUSE_MS) : 0);
     }, 0);
     // Son halka: sahne bir an donar (hit-stop), sonra parlama ve ağır çekimde uçuş
     if (finale && waves.length && !REDUCED) {
@@ -1370,11 +1399,34 @@
     let boiled = -1;
     fuses.forEach((fs, w) => {
       for (const i of fs) {
-        boiled = i;
         const L0 = S.L;
+        if (S.L.rings[i].boss) {
+          // Dev Halka: zırhı bitti; ağırlaşır (yükselen ses, sarsıntı, can çubuğu yanıp söner), sonraki dalgada parçalanır
+          setTimeout(() => { if (S.L === L0) { S.bossFuse[i] = performance.now(); Sound.riser(); } }, at[w] + FUSE_WAIT);
+          continue;
+        }
+        boiled = i;
         setTimeout(() => { if (S.L === L0) { S.boilFuse[i] = performance.now(); Sound.whistle(); } }, at[w] + FUSE_WAIT);
       }
     });
+    // Dev Halka: dalga dalga zırh plakası kırılır (çizimde kırılma anına dek eski plaka sayısı kalır)
+    let bossDown = -1;
+    if (S.L.bosses.length) {
+      const L0 = S.L;
+      let m = S.mask;
+      waves.forEach((wave, w) => {
+        const was = L0.bosses.map(i => armorLeft(L0, i, m));
+        for (const i of wave) m |= 1 << i;
+        L0.bosses.forEach((i, k) => {
+          if (wave.includes(i)) { bossDown = i; setTimeout(() => { if (S.L === L0) bossBreak(i); }, at[w]); return; }
+          if (m & (1 << i)) return;
+          const left = armorLeft(L0, i, m);
+          if (left === was[k]) return;
+          (S.armorHold[i] = S.armorHold[i] || []).push({ left: was[k], until: now + at[w] });
+          setTimeout(() => { if (S.L === L0) plateBreak(i); }, at[w]);
+        });
+      });
+    }
     // Portal: kurtulan halkanın ikizi sonraki dalgada yerinde dönerek girdaba çekilir
     const teleOf = {};
     portals.forEach((ps, w) => {
@@ -1465,9 +1517,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = bossDown >= 0 ? 'boss' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -2029,6 +2081,7 @@
     time: { text: 'Tam zamanında!', colors: ['#fff4e6', '#ffb35c'] },
     tele: { text: 'Işınlandı!', colors: ['#ffffff', '#c9a7ff'] },
     boil: { text: 'Kazan patladı!', colors: ['#fff3b0', '#ff5a28'] },
+    boss: { text: 'Dev Halka yenildi!', colors: ['#ffffff', '#ff6b6b'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -2365,6 +2418,7 @@
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
       else if (isFrame(i)) showTip(tr('Çerçeve yerinden oynamaz: halkaları etrafından kurtar'));
+      else if (S.L.rings[i].boss) showTip(tr('Dev Halka zırhlı: değdiği halkaları kurtar, zırhı kırılsın'));
       else if (S.L.rings[i].motor) showTip(tr('Motor halkayı sen çeviremezsin. Her hamlenden sonra kendisi bir adım döner'));
       else if (iceLeft(S.L, i, S.mask)) showTip(tr('Bu halka donmuş. Değdiği halkalardan birini kurtar, buzu çatlasın'));
       else if (S.L.rings[i].lockedBy >= 0) {
@@ -3351,6 +3405,78 @@
     S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
   }
 
+  // ---- Dev Halka (2.5, kapı finalleri) ----
+  // Gösterilen plaka: kırılma anına dek eski sayı (mantıkta hemen düşer)
+  function armorShown(i, now) {
+    const h = (S.armorHold[i] || []).find(e => now < e.until);
+    return h ? h.left : armorLeft(S.L, i, S.mask);
+  }
+  // Plaka kırıldı: tıngırtı, plaka beyaz parlar, çelik kıymıklar
+  function plateBreak(i) {
+    S.plateHit[i] = performance.now();
+    Sound.clank();
+    if (navigator.vibrate) { try { navigator.vibrate(20); } catch (e) { /* yok say */ } }
+    if (REDUCED) return;
+    const r = S.L.rings[i];
+    for (let k = 0; k < 14; k++) {
+      const a = Math.random() * TAU, sp = 1 + Math.random() * 2.5;
+      particles.push({ x: r.x + Math.cos(a) * r.r, y: r.y + Math.sin(a) * r.r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        life: 1, size: 2.5 + Math.random() * 3, color: '#c3cada', edge: '#4a5368', shape: 'shard', rot: Math.random() * TAU });
+    }
+  }
+  // Dev Halka parçalandı: gümleme ve zafer çıngılı, kendi renginde büyük parça yağmuru, şok dalgası ve sarsıntı
+  function bossBreak(i) {
+    const r = S.L.rings[i];
+    Sound.boom(); Sound.victory();
+    if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch (e) { /* yok say */ } }
+    if (REDUCED) return;
+    const color = ringColor(i);
+    for (let k = 0; k < 60; k++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 5;
+      particles.push({ x: r.x + Math.cos(a) * r.r * Math.random(), y: r.y + Math.sin(a) * r.r * Math.random(), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+        life: 1, size: 3 + Math.random() * 5, color: k % 3 ? color : '#ffffff', edge: 'rgba(255,255,255,.8)', shape: 'shard', rot: Math.random() * TAU });
+    }
+    if (!fxOn()) return;
+    flashT = performance.now();
+    shocks.push({ ...boardToApp(r.x, r.y), t0: performance.now() });
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+  // Zırh: halkanın boşluğa uzak tarafında, kalan plaka sayısı kadar perçinli çelik plaka
+  function drawBossArmor(i, ang, cx, cy, left, now) {
+    const r = S.L.rings[i], n = r.boss, span = TAU * 0.78 / n;
+    const hit = S.plateHit[i] && now - S.plateHit[i] < 250;
+    for (let k = 0; k < Math.min(left, n); k++) {
+      const c = ang + Math.PI + (k - (n - 1) / 2) * span, a0 = c - span * 0.42, a1 = c + span * 0.42;
+      ctx.save();
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = 'rgba(10,8,20,.6)'; ctx.lineWidth = STROKE + 12;
+      ctx.beginPath(); ctx.arc(cx + 1, cy + 2, r.r, a0, a1); ctx.stroke();
+      ctx.strokeStyle = hit && k === left - 1 ? '#ffffff' : '#9aa6bd'; ctx.lineWidth = STROKE + 9;
+      ctx.beginPath(); ctx.arc(cx, cy, r.r, a0, a1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r.r - (STROKE + 9) / 2 + 2, a0 + 0.02, a1 - 0.02); ctx.stroke();
+      ctx.fillStyle = '#4a5368';
+      for (const a of [a0 + 0.06, a1 - 0.06]) { ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r.r, cy + Math.sin(a) * r.r, 2.4, 0, TAU); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+  // Can çubuğu (üst bilgi alanında): plaka sayısı kadar dilim; yalnız değişince yeniden yazılır
+  let bossBarKey = '';
+  function renderBossBar(now) {
+    const b = S.L && S.L.bosses.length ? S.L.bosses[0] : -1;
+    const alive = b >= 0 && (present(b) || (S.fly[b] && now < S.fly[b].t0));
+    const n = alive ? S.L.rings[b].boss : 0, left = alive ? armorShown(b, now) : 0, fuse = alive && !!S.bossFuse[b];
+    const key = alive ? `${n}:${left}:${fuse}` : '';
+    if (key === bossBarKey) return;
+    bossBarKey = key;
+    const el = $('bossBar');
+    el.hidden = !alive;
+    if (!alive) return;
+    el.classList.toggle('fuse', fuse);
+    el.querySelector('.segs').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${k < left ? 'on' : ''}"></i>`).join('');
+  }
+
   // ---- Basınç kazanı çizimi (2.5) ----
   // Isı: basıncın dolan payı (0-1), uçuşu henüz başlamamış komşular sayılmaz; düdük öttüyse 1
   function heatOf(i, now) {
@@ -3689,6 +3815,8 @@
     }
     // Gerilim: son parçalar hafifçe titrer
     if (!f && S.tension >= 0.65 && !REDUCED) { cx += Math.sin(now / 45 + i * 1.7) * 0.9 * S.tension; cy += Math.cos(now / 53 + i) * 0.6 * S.tension; }
+    // Dev Halka: zırhı bitince parçalanmadan önce sarsılır
+    if (ring.boss && S.bossFuse[i] && (!f || now < f.t0) && !REDUCED) { cx += Math.sin(now / 19) * 3; cy += Math.cos(now / 23) * 2; }
     // Kazan ısındıkça titrer, düdük öterken sarsılır
     if (ring.boiler && (!f || now < f.t0) && !REDUCED) {
       const h = heatOf(i, now);
@@ -3773,6 +3901,7 @@
     }
     strokeRing(ring, ang, color, STROKE * (1 + 0.3 * heat), cx, cy);
     ctx.shadowBlur = 0;
+    if (ring.boss && (!S.fly[i] || now < S.fly[i].t0)) drawBossArmor(i, ang, cx, cy, armorShown(i, now), now);
     strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
     const icy = ring.ice ? iceShown(i, now) : 0;
     if (icy) drawIceShell(i, ang, cx, cy, icy, now);
@@ -4163,7 +4292,7 @@
       // Buz kırığı: düşen, dönen açık mavi üçgen
       p.vy += 0.15; p.rot += 0.12;
       g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
-      g.strokeStyle = '#4cb8e6'; g.lineWidth = 1.2;
+      g.strokeStyle = p.edge || '#4cb8e6'; g.lineWidth = 1.2;
       g.beginPath(); g.moveTo(0, -s * 1.4); g.lineTo(s * 1.1, s); g.lineTo(-s, s * 0.7); g.closePath(); g.fill(); g.stroke();
       g.restore();
     } else if (p.shape === 'bolt') {
@@ -4336,6 +4465,7 @@
         drawTable(now);
         drawCouples();
         stepTension(now);
+        renderBossBar(now);
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + flyMs(S.fly[i])));
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
