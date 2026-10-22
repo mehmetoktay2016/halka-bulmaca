@@ -240,11 +240,11 @@
       S('Peynir Odası', 'peynir', 'tekerlek'), F('ziplama'), S('Buğday Tarlası', 'bugday', 'ucurtma'), S('Arı Kovanları', 'kovan', 'kus'),
       S('Ayçiçeği Tarlası', 'aycicegi', 'ucurtma'), S('Hasat Şenliği', 'balloonStand', 'balon'), F('ucurtma')],
     // ---- Büyü Kulesi ----
-    39: [S('Ayna Salonu', 'aynasalon', 'isinlanma'), S('Yüzen Kitaplar', 'kitaplar', 'ucurtma'), S('İksir Kazanı', 'iksir', 'ziplama'),
-      S('Rün Taşları', 'run', 'isinlanma'), F('isinlanma'), S('Kristal Bahçe', 'kristalbahce', 'isinlanma'), S('Yıldız Merdiveni', 'yildizmerdiven', 'ziplama'),
+    39: [S('Ayna Salonu', 'ayna', 'isinlanma'), S('Yüzen Kitaplar', 'kitaplar', 'ucurtma'), S('İksir Kazanı', 'iksir', 'ziplama'),
+      S('Rün Taşları', 'run', 'isinlanma'), F('isinlanma'), S('Kristal Bahçe', 'crystal', 'isinlanma'), S('Yıldız Merdiveni', 'merdiven', 'ziplama'),
       S('Büyücü Odası', 'buyucu', 'isinlanma'), S('Gökkuşağı Köprüsü', 'gokkusagi', 'kayma'), F('kus')],
-    40: [S('İkiz Portal', 'portal', 'isinlanma'), S('Mor Sis', 'sis', 'balon'), S('Uçan Halı', 'hali', 'ucurtma'),
-      S('Büyü Kitaplığı', 'kitaplik', 'isinlanma'), F('ucurtma'), S('Yıldız Çemberi', 'cember', 'isinlanma'), S('Kül Yuvası', 'kul', 'fener'),
+    40: [S('İkiz Portal', 'portal', 'isinlanma'), S('Mor Sis', 'bulutsu', 'balon'), S('Uçan Halı', 'hali', 'ucurtma'),
+      S('Büyü Kitaplığı', 'kutuphane', 'isinlanma'), F('ucurtma'), S('Yıldız Çemberi', 'cember', 'isinlanma'), S('Kül Yuvası', 'kul', 'fener'),
       S('Ateş Kuyusu', 'ateskuyusu', 'roket'), S('Anka\'nın Tüneği', 'tunek', 'kus'), F('kus')],
   };
 
