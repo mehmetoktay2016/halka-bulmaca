@@ -1822,7 +1822,11 @@
   function growFor(levelNo) {
     const plan = NORMAL_PLAN[levelNo];
     const maxPar = maxParOfGate(plan.gate), t = plan.target;
-    const deadline = Date.now() + (plan.peak ? 300000 : 150000);
+    // Süre GROW_MS ortam değişkeniyle uzatılabilir (eksik kalan bölümleri yeniden denerken)
+    const longer = typeof process !== 'undefined' && process.env && Number(process.env.GROW_MS);
+    const deadline = Date.now() + (longer || (plan.peak ? 300000 : 150000));
+    // Zirvenin alt payı GROW_PEAK_SLACK ile genişletilebilir (check_levels zirveden 0,5 sapmaya izin verir)
+    const slack = (typeof process !== 'undefined' && process.env && Number(process.env.GROW_PEAK_SLACK)) || 0.45;
     const W = BOARD.w, H = BOARD.h;
     const fits = (A, rings) => {
       if (A.x - A.r < 16 || A.x + A.r > W - 16 || A.y - A.r < 16 || A.y + A.r > H - 16) return false;
@@ -1848,6 +1852,11 @@
     for (let attempt = 0; Date.now() < deadline && bestErr > (plan.peak ? 0 : 0.25); attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 313);
       const mech = mechanicsFor(plan.gate, rnd).filter(m => ['bomb', 'boiler', 'ice', 'motor', 'portal', 'click', 'reverse'].includes(m));
+      // Zirve denemelerinin yarısında ikinci bir parça zorunlu (tek parçayla zirveye ulaşmak zor)
+      if (plan.peak && mech.length === own.length && attempt % 2) {
+        const pool = ['click', 'reverse', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < plan.gate)].filter(m => !mech.includes(m));
+        mech.push(pool[Math.floor(rnd() * pool.length)]);
+      }
       const hub = { x: W / 2 + (rnd() - 0.5) * 40, y: H / 2 + (rnd() - 0.5) * 60, r: 58 + Math.round(rnd() * 10), a: Math.round(rnd() * 360) };
       const rings = [hub];
       for (let k = 0; k < 40 && rings.length < 3; k++) { const c = attach(rnd, rings, 0); if (c) rings.push(c); }
@@ -1936,7 +1945,7 @@
         const sc = difficultyScore(def);
         GROW_STATS.maxSc = Math.max(GROW_STATS.maxSc || 0, sc); GROW_STATS.maxPar = Math.max(GROW_STATS.maxPar || 0, def.par);
         if (sc >= upper) { gs('ust_sinir'); undo(); continue; }
-        if (rings.length < 5 || (plan.peak ? sc < t - 0.45 : sc < t - 0.4)) {
+        if (rings.length < 5 || (plan.peak ? sc < t - slack : sc < t - 0.4)) {
           // Puan düşük: halka eklemenin yanında bir parça eklenerek de zorlaşır (zorluk parçalardan gelsin)
           if (rings.length >= 4 && rnd() < 0.6) intensify();
           gs('puan_dusuk'); continue;
@@ -1952,7 +1961,7 @@
         // Dopamin anı: en iyi çözümde tek hamlede en az 3 (zirvede 4) parçanın birden uçtuğu bir zincir olmalı
         if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); continue; }
         const s2 = difficultyScore(def);
-        if (s2 >= upper || s2 < t - (plan.peak ? 0.45 : 0.4)) { undo(); continue; }
+        if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { undo(); continue; }
         const err = plan.peak ? 0 : Math.abs(s2 - t);
         if (err < bestErr) { best = def; bestErr = err; }
         break;
