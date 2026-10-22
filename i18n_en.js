@@ -169,6 +169,9 @@ var RING_LANG_EN = {
   'Yıldırım': 'Lightning Bolt',
   'Gemi Çapası': 'Ship Anchor',
   'Kuyruklu Yıldız': 'Comet',
+  'Gök Fişeği': 'Skyrocket',
+  'Kar Tanesi': 'Snowflake',
+  'Büyücü Şapkası': 'Wizard Hat',
 
   // ---- 2.4 şekilleri ----
   'Maymun': 'Monkey',

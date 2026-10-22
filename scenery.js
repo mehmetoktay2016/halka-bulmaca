@@ -295,6 +295,83 @@
       g.fillStyle = rgba(c, a * 0.7);
       for (let k = 0; k < 40; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R() * 1.1, 0, TAU); g.fill(); }
     },
+    // Havai Fişek (2.5): uzakta patlamış fişeklerin ışın demetleri ve aralarında kıvrılan noktalı fitiller
+    barut(g, w, h, c, a, R) {
+      g.lineCap = 'round';
+      for (let k = 0; k < 7; k++) {
+        const x = R() * w, y = R() * h, rr = 26 + R() * 34, n = 12 + Math.floor(R() * 6);
+        for (let s = 0; s < n; s++) {
+          const ang = s / n * TAU + R() * 0.1, r0 = rr * 0.35, r1 = rr * (0.8 + R() * 0.25);
+          g.strokeStyle = rgba(c, a * (0.5 + R() * 0.5)); g.lineWidth = 1.6;
+          g.beginPath(); g.moveTo(x + Math.cos(ang) * r0, y + Math.sin(ang) * r0); g.lineTo(x + Math.cos(ang) * r1, y + Math.sin(ang) * r1); g.stroke();
+          g.fillStyle = rgba(c, a);
+          g.beginPath(); g.arc(x + Math.cos(ang) * (r1 + 4), y + Math.sin(ang) * (r1 + 4), 1.4, 0, TAU); g.fill();
+        }
+      }
+      g.setLineDash([2, 6]); g.lineWidth = 1.4;
+      for (let k = 0; k < 5; k++) {
+        let x = R() * w, y = R() * h;
+        g.strokeStyle = rgba(c, a * 0.7);
+        g.beginPath(); g.moveTo(x, y);
+        for (let s = 0; s < 4; s++) { const nx = x + (R() - 0.5) * 160, ny = y + (R() - 0.5) * 120; g.quadraticCurveTo((x + nx) / 2 + (R() - 0.5) * 60, (y + ny) / 2 + (R() - 0.5) * 60, nx, ny); x = nx; y = ny; }
+        g.stroke();
+      }
+      g.setLineDash([]);
+    },
+    // Buzul (2.5): kalın buz tabakası; kırık çatlak ağları ve kırağı parıltıları
+    buz(g, w, h, c, a, R) {
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      for (let k = 0; k < 9; k++) {
+        const crack = (x, y, ang, len, depth) => {
+          let px = x, py = y;
+          g.beginPath(); g.moveTo(px, py);
+          for (let s = 0; s < 5; s++) { ang += (R() - 0.5) * 0.7; px += Math.cos(ang) * len / 5; py += Math.sin(ang) * len / 5; g.lineTo(px, py); }
+          g.strokeStyle = rgba(c, a * (depth ? 0.55 : 0.95)); g.lineWidth = depth ? 1 : 1.8; g.stroke();
+          if (depth < 2) for (let b = 0; b < 2; b++) crack(px, py, ang + (R() < 0.5 ? -1 : 1) * (0.5 + R() * 0.6), len * 0.55, depth + 1);
+        };
+        crack(R() * w, R() * h, R() * TAU, 60 + R() * 60, 0);
+      }
+      for (let k = 0; k < 26; k++) {
+        const x = R() * w, y = R() * h, s = 2 + R() * 3;
+        g.strokeStyle = rgba(c, a); g.lineWidth = 1;
+        g.beginPath(); g.moveTo(x - s, y); g.lineTo(x + s, y); g.moveTo(x, y - s); g.lineTo(x, y + s); g.stroke();
+      }
+    },
+    // Değirmen (2.5): değirmen taşının oluk deseni; merkezden kıvrılarak açılan kanallar ve iç halka
+    tas_degirmen(g, w, h, c, a, R) {
+      const cx = w * 0.5, cy = h * 0.5, R0 = Math.hypot(w, h) * 0.55;
+      g.lineCap = 'round';
+      for (let r = 40; r < R0; r += 70) { g.strokeStyle = rgba(c, a * 0.8); g.lineWidth = 1.6; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke(); }
+      for (let k = 0; k < 16; k++) {
+        const base = k / 16 * TAU;
+        g.strokeStyle = rgba(c, a * (k % 2 ? 0.55 : 0.95)); g.lineWidth = k % 2 ? 1.2 : 2;
+        g.beginPath();
+        for (let r = 40; r < R0; r += 8) { const ang = base + (r - 40) / R0 * 0.9; const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r; if (r === 40) g.moveTo(x, y); else g.lineTo(x, y); }
+        g.stroke();
+      }
+      g.fillStyle = rgba(c, a * 0.6);
+      for (let k = 0; k < 50; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R() * 1.2, 0, TAU); g.fill(); }
+    },
+    // Büyü Kulesi (2.5): yere çizilmiş büyü çemberleri; iç içe halkalar, yıldız çizgileri ve rün çentikleri
+    tilsim(g, w, h, c, a, R) {
+      const circle = (cx, cy, r) => {
+        g.strokeStyle = rgba(c, a); g.lineWidth = 1.8;
+        g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke();
+        g.strokeStyle = rgba(c, a * 0.7); g.lineWidth = 1;
+        g.beginPath(); g.arc(cx, cy, r * 0.82, 0, TAU); g.stroke();
+        g.beginPath();
+        for (let k = 0; k <= 5; k++) { const ang = -Math.PI / 2 + k * 2 * TAU / 5; const x = cx + Math.cos(ang) * r * 0.82, y = cy + Math.sin(ang) * r * 0.82; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+        g.stroke();
+        for (let k = 0; k < 18; k++) {
+          const ang = k / 18 * TAU, r0 = r * 0.86, r1 = r * (k % 3 ? 0.94 : 0.98);
+          g.beginPath(); g.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); g.lineTo(cx + Math.cos(ang + 0.05) * r1, cy + Math.sin(ang + 0.05) * r1); g.stroke();
+        }
+      };
+      circle(w * 0.5, h * 0.52, Math.min(w, h) * 0.42);
+      for (let k = 0; k < 3; k++) circle(R() * w, R() * h, 30 + R() * 30);
+      g.fillStyle = rgba(c, a * 0.8);
+      for (let k = 0; k < 30; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R(), 0, TAU); g.fill(); }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -543,6 +620,115 @@
         g.globalAlpha = Math.sin(Math.PI * p.life) * (0.3 + 0.35 * Math.sin(now / 450 + p.ph) ** 2);
         g.fillStyle = '#e8e0ff';
         g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Havai Fişek (2.5): uzakta yükselip patlayan fişekler, sonra yavaşça süzülen duman
+    fisek: {
+      count: 14,
+      make: (w, h, fresh) => (rand() < 0.3 && !fresh
+        ? { rocket: true, x: w * (0.1 + rand() * 0.8), y: h + 10, top: h * (0.12 + rand() * 0.35), v: 260 + rand() * 120, t: 0,
+            c: ['#ffd34a', '#ff6fb5', '#4cc9f0', '#ff7a45', '#b388ff'][Math.floor(rand() * 5)] }
+        : { x: rand() * w, y: fresh ? rand() * h : h + 30, r: 24 + rand() * 30, v: 4 + rand() * 6, ph: rand() * TAU }),
+      step: (p, dt, w, h) => {
+        if (p.rocket) {
+          if (p.y > p.top) { p.y -= p.v * dt; return true; }
+          p.t += dt; return p.t < 1.6;
+        }
+        p.y -= p.v * dt; p.x += Math.sin(p.y / 60 + p.ph) * 4 * dt; return p.y > -p.r;
+      },
+      draw: (g, p) => {
+        if (p.rocket) {
+          if (p.y > p.top) {
+            g.globalAlpha = 0.55; g.strokeStyle = p.c; g.lineWidth = 1.5;
+            g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, p.y + 16); g.stroke();
+            return;
+          }
+          const u = p.t / 1.6, e = 1 - Math.pow(1 - Math.min(1, u * 1.6), 3);
+          g.globalAlpha = 0.5 * (1 - u); g.fillStyle = p.c;
+          for (let k = 0; k < 18; k++) {
+            const ang = k / 18 * TAU, d = 46 * e;
+            g.beginPath(); g.arc(p.x + Math.cos(ang) * d, p.y + Math.sin(ang) * d + 18 * u * u, 1.8, 0, TAU); g.fill();
+          }
+          return;
+        }
+        const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+        gr.addColorStop(0, 'rgba(200,170,190,.05)'); gr.addColorStop(1, 'rgba(200,170,190,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Buzul (2.5): üstte dalgalanan kutup ışıkları ve yavaşça yağan kar
+    kar: {
+      count: 34,
+      init: (w, h) => [{ aurora: true, w, h }],
+      make: (w, h, fresh) => ({ x: rand() * w, y: fresh ? rand() * h : -8, r: 0.8 + rand() * 2, vy: 10 + rand() * 18, ph: rand() * TAU }),
+      step: (p, dt, w, h) => { if (p.aurora) { p.w = w; p.h = h; return true; } p.y += p.vy * dt; p.x += Math.sin(p.y / 30 + p.ph) * 8 * dt; return p.y < h + 8; },
+      draw: (g, p, now, acc) => {
+        if (p.aurora) {
+          for (let band = 0; band < 2; band++) {
+            const y0 = p.h * (0.08 + band * 0.07);
+            g.globalAlpha = 0.10 - band * 0.03;
+            const gr = g.createLinearGradient(0, y0 - 40, 0, y0 + 60);
+            gr.addColorStop(0, 'rgba(120,255,200,0)'); gr.addColorStop(0.5, band ? '#b388ff' : '#7fffd4'); gr.addColorStop(1, 'rgba(120,255,200,0)');
+            g.fillStyle = gr;
+            g.beginPath(); g.moveTo(0, y0 + 60);
+            for (let x = 0; x <= p.w; x += 20) g.lineTo(x, y0 + Math.sin(x / 90 + now / 2400 + band * 2) * 18 + Math.sin(x / 37 + now / 1300) * 6);
+            g.lineTo(p.w, y0 + 60); g.closePath(); g.fill();
+          }
+          return;
+        }
+        g.globalAlpha = 0.55; g.fillStyle = '#eef8ff';
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Değirmen (2.5): köşede yavaşça dönen yel değirmeni kanatları ve süzülen un tozu, saman çöpleri
+    yel: {
+      count: 22,
+      init: (w, h) => [{ mill: true, x: w * 0.9, y: h * 0.16 }],
+      make: (w, h, fresh) => ({ x: fresh ? rand() * w : -10, y: rand() * h, vx: 10 + rand() * 16, ph: rand() * TAU, chaff: rand() < 0.35, len: 5 + rand() * 6, r: 0.8 + rand() * 1.4 }),
+      step: (p, dt, w) => { if (p.mill) return true; p.x += p.vx * dt; p.y += Math.sin(p.x / 50 + p.ph) * 6 * dt; return p.x < w + 10; },
+      draw: (g, p, now, acc) => {
+        if (p.mill) {
+          g.globalAlpha = 0.13; g.fillStyle = acc; g.strokeStyle = acc; g.lineWidth = 2;
+          g.translate(p.x, p.y); g.rotate(now / 3000);
+          for (let k = 0; k < 4; k++) {
+            g.rotate(TAU / 4);
+            g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -80); g.stroke();
+            g.fillRect(2, -78, 16, 58);
+          }
+          g.beginPath(); g.arc(0, 0, 6, 0, TAU); g.fill();
+          return;
+        }
+        if (p.chaff) {
+          g.globalAlpha = 0.35; g.strokeStyle = '#e8d38a'; g.lineWidth = 1.4; g.lineCap = 'round';
+          const ang = now / 700 + p.ph;
+          g.beginPath(); g.moveTo(p.x - Math.cos(ang) * p.len / 2, p.y - Math.sin(ang) * p.len / 2); g.lineTo(p.x + Math.cos(ang) * p.len / 2, p.y + Math.sin(ang) * p.len / 2); g.stroke();
+          return;
+        }
+        g.globalAlpha = 0.3; g.fillStyle = '#fff8e6';
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Büyü Kulesi (2.5): sarmal çizerek yükselen ışık zerreleri ve arada açılıp kapanan küçük rün çemberleri
+    buyu: {
+      count: 24,
+      make: (w, h, fresh) => (rand() < 0.08 && !fresh
+        ? { rune: true, x: rand() * w, y: rand() * h, r: 14 + rand() * 18, life: 1 }
+        : { x0: rand() * w, y: fresh ? rand() * h : h + 6, v: 10 + rand() * 14, R: 6 + rand() * 14, ph: rand() * TAU, r: 0.8 + rand() * 1.6 }),
+      step: (p, dt) => { if (p.rune) { p.life -= 0.5 * dt; return p.life > 0; } p.y -= p.v * dt; return p.y > -10; },
+      draw: (g, p, now, acc) => {
+        if (p.rune) {
+          const a = Math.sin(Math.PI * p.life);
+          g.globalAlpha = 0.22 * a; g.strokeStyle = acc; g.lineWidth = 1.4;
+          g.translate(p.x, p.y); g.rotate(now / 2000);
+          g.beginPath(); g.arc(0, 0, p.r, 0, TAU); g.stroke();
+          g.beginPath();
+          for (let k = 0; k <= 6; k++) { const ang = k * 2 * TAU / 6 + Math.PI / 6; const x = Math.cos(ang) * p.r * 0.8, y = Math.sin(ang) * p.r * 0.8; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+          g.stroke();
+          return;
+        }
+        const x = p.x0 + Math.cos(p.y / 30 + p.ph) * p.R;
+        g.globalAlpha = 0.5; g.fillStyle = acc; g.shadowColor = acc; g.shadowBlur = 8;
+        g.beginPath(); g.arc(x, p.y, p.r, 0, TAU); g.fill();
       },
     },
   };
