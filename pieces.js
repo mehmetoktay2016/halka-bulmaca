@@ -10,7 +10,8 @@
   const TAU = Math.PI * 2, DEG = Math.PI / 180;
   const GAP = 26 * DEG, STROKE = 11;
   const C = { red: '#ff6b6b', yellow: '#ffc94a', teal: '#2dd4bf', sky: '#4cc9f0', violet: '#b388ff', orange: '#ff9f1c',
-    fixed: '#5d6488', blue: '#3d9bff', amber: '#ff8a1f', lamp: '#ffd27a', table: '#c3a6ff' };
+    fixed: '#5d6488', blue: '#3d9bff', amber: '#ff8a1f', lamp: '#ffd27a', table: '#c3a6ff',
+    ice: '#aae6ff', brass: '#c98f45', moon: '#c9a7ff', heat: '#ff5a28' };
 
   // id: levels.js features() adı; intro: parçanın tanıtım bölümü (kaynak numarası)
   const PIECES = [
@@ -34,10 +35,22 @@
       text: 'Boşluğun kapağı her hamlede açılır ya da kapanır. Kapak kapalıyken boşluk işe yaramaz: ritmi yakala.' },
     { id: 'table', intro: 1010, name: 'Döner tabla',
       text: 'Göbekteki düğmeye dokun: tabla çeyrek tur döner, üstündeki halkalar yer değiştirir. Bu bir hamledir.' },
+    // 2.5 parçaları (kapı 31-40)
+    { id: 'bomb', intro: 1011, name: 'Bomba halka',
+      text: 'Fitilli halka kurtulunca patlar. Turuncu yıldızların olduğu yerde değdiği halkalar, kilitli olsalar da uçar.' },
+    { id: 'boiler', intro: 1015, name: 'Basınç kazanı',
+      text: 'Göstergedeki sayı kadar komşusu kurtulunca basınç dolar. Düdük öter, kazan patlar ve hâlâ değdiği halkaları uçurur.' },
+    { id: 'ice', intro: 1012, name: 'Buz halka',
+      text: 'Buzlu halka dönmez. Değdiği her halka kurtuldukça buzu bir kat çatlar; buz eriyince halka döner.' },
+    { id: 'motor', intro: 1013, name: 'Motor halka',
+      text: 'Dişli halkayı sen çeviremezsin. Her hamlenden sonra kendisi bir adım döner; kesikli iz boşluğunun sonraki yeri.' },
+    { id: 'portal', intro: 1014, name: 'İkiz portal',
+      text: 'Aynı işareti taşıyan iki halka ikizdir. Biri kurtulunca öbürü nereye bağlı olursa olsun ışınlanıp onunla gider.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
-  const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle'];
+  const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
+    'değdikleri de uçar', 'basınç doldu!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -176,6 +189,180 @@
     g.strokeStyle = '#ffd36b'; g.lineWidth = 3.2; g.lineCap = 'round';
     g.beginPath(); g.arc(x - 6, y, 5, 0, TAU); g.stroke();
     g.beginPath(); g.moveTo(x - 1, y); g.lineTo(x + 10, y); g.moveTo(x + 6, y); g.lineTo(x + 6, y + 5); g.moveTo(x + 10, y); g.lineTo(x + 10, y + 4); g.stroke();
+    g.restore();
+  }
+
+  // ---- 2.5 rozetleri ve efektleri ----
+  function badgeBase(g, x, y, fill, edge) {
+    g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.arc(x, y + 2, 14, 0, TAU); g.fill();
+    g.fillStyle = fill; g.beginPath(); g.arc(x, y, 12.5, 0, TAU); g.fill();
+    g.strokeStyle = edge; g.lineWidth = 2; g.stroke();
+  }
+  function bombBadge(g, x, y, t) {
+    g.save();
+    badgeBase(g, x, y, '#2a2630', C.red);
+    g.strokeStyle = '#d9b48a'; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x + 6, y - 11); g.quadraticCurveTo(x + 10, y - 19, x + 15, y - 17); g.stroke();
+    const f = 0.75 + 0.35 * Math.sin(t / 55) * Math.sin(t / 83);
+    const sg = g.createRadialGradient(x + 15, y - 17, 0, x + 15, y - 17, 8 * f);
+    sg.addColorStop(0, '#fff'); sg.addColorStop(0.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
+    g.fillStyle = sg; g.beginPath(); g.arc(x + 15, y - 17, 8 * f, 0, TAU); g.fill();
+    g.restore();
+  }
+  function star(g, x, y, t) {
+    g.save();
+    g.translate(x, y); g.rotate(t / 900);
+    g.fillStyle = '#ff7a45'; g.strokeStyle = 'rgba(10,8,20,.9)'; g.lineWidth = 2;
+    g.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? 3 : 7.5, a = k * Math.PI / 5; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    g.closePath(); g.stroke(); g.fill();
+    g.restore();
+  }
+  // Patlama: beyaz-sarı parlama, genişleyen şok halkası, kor parçaları (u: 0→1)
+  function blast(g, x, y, u) {
+    if (u <= 0 || u >= 1) return;
+    g.save();
+    if (u < 0.3) {
+      const a = 1 - u / 0.3, gr = g.createRadialGradient(x, y, 0, x, y, 70);
+      gr.addColorStop(0, `rgba(255,255,240,${a})`); gr.addColorStop(0.4, `rgba(255,211,74,${0.8 * a})`); gr.addColorStop(1, 'rgba(255,90,61,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, 70, 0, TAU); g.fill();
+    }
+    const e = 1 - Math.pow(1 - u, 3);
+    g.strokeStyle = `rgba(255,170,90,${1 - u})`; g.lineWidth = 8 * (1 - u) + 1;
+    g.beginPath(); g.arc(x, y, 20 + 80 * e, 0, TAU); g.stroke();
+    for (let k = 0; k < 14; k++) {
+      const a = k * TAU / 14 + 0.3, d = (30 + (k % 3) * 14) * e;
+      g.fillStyle = ['#ffd34a', '#ff7a45', '#fff'][k % 3]; g.globalAlpha = 1 - u;
+      g.beginPath(); g.arc(x + Math.cos(a) * d, y + Math.sin(a) * d + 20 * u * u, 2.5, 0, TAU); g.fill();
+    }
+    g.restore();
+  }
+  // Dönerek uçan halka (patlamayla vurulan)
+  function spinFly(g, x, y, r, ang, color, t, dx, dy) {
+    if (t >= 1) return;
+    const e = t * t;
+    g.save();
+    g.translate(x + dx * 170 * e, y + dy * 170 * e);
+    ring(g, 0, 0, r, ang + 2.5 * e, color, { alpha: 1 - t });
+    g.restore();
+  }
+  function heatColor(base, h) {
+    const a = parseInt(base.slice(1), 16), b = [255, 90, 40];
+    const c = [a >> 16, (a >> 8) & 255, a & 255].map((v, k) => Math.round(v + (b[k] - v) * Math.min(1, h * 0.85)));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  function gauge(g, x, y, h, text) {
+    g.save();
+    badgeBase(g, x, y, '#f4ece6', '#7a4a3a');
+    const A0 = Math.PI * 0.75, SPAN = Math.PI * 1.5;
+    [['#4caf6a', 0, 0.45], ['#ffc94a', 0.45, 0.75], ['#ff5a3d', 0.75, 1]].forEach(([c, a, b]) => {
+      g.strokeStyle = c; g.lineWidth = 3; g.beginPath(); g.arc(x, y, 9.5, A0 + SPAN * a, A0 + SPAN * b); g.stroke();
+    });
+    const na = A0 + SPAN * h;
+    g.strokeStyle = '#2a0e0a'; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * 8, y + Math.sin(na) * 8); g.stroke();
+    g.fillStyle = '#2a0e0a'; g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill();
+    g.fillStyle = '#fff1ec'; g.font = '800 8.5px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, x, y + 0.5);
+    g.restore();
+  }
+  // Buz kabuğu (left: kalan kat) ve kar tanesi rozeti
+  function iceShell(g, x, y, r, ang, left, pop = 1) {
+    g.save();
+    g.lineCap = 'round';
+    g.shadowColor = '#9be7ff'; g.shadowBlur = 8;
+    g.strokeStyle = left >= 2 ? 'rgba(170,230,255,.78)' : 'rgba(170,230,255,.58)'; g.lineWidth = (STROKE + (left >= 2 ? 10 : 7)) * pop;
+    g.beginPath(); g.arc(x, y, r, ang + GAP, ang + TAU - GAP); g.stroke();
+    g.shadowBlur = 0;
+    for (let k = 0; k < 12; k++) {
+      const p = ang + GAP + 0.15 + k * (TAU - 2 * GAP - 0.3) / 11;
+      g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 1.4;
+      g.beginPath(); g.moveTo(...at(x, y, r - 6, p - 0.05)); g.lineTo(...at(x, y, r + 6, p + 0.05)); g.stroke();
+      if (left === 1 && k % 3 === 1) {
+        g.strokeStyle = 'rgba(30,60,80,.75)'; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(...at(x, y, r - 7, p + 0.1)); g.lineTo(...at(x, y, r - 1, p + 0.16)); g.lineTo(...at(x, y, r + 6, p + 0.1)); g.stroke();
+      }
+    }
+    g.restore();
+  }
+  function snowBadge(g, x, y, n) {
+    g.save();
+    badgeBase(g, x, y, '#dff6ff', '#4cb8e6');
+    g.strokeStyle = '#3a9ccc'; g.lineWidth = 1.5; g.lineCap = 'round';
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 8.5, y + Math.sin(a) * 8.5); g.stroke(); }
+    g.fillStyle = '#dff6ff'; g.beginPath(); g.arc(x, y, 5.5, 0, TAU); g.fill();
+    g.fillStyle = '#0d3a52'; g.font = '800 10px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(n), x, y + 0.5);
+    g.restore();
+  }
+  function shards(g, x, y, r, u) {
+    if (u <= 0 || u >= 1) return;
+    g.save();
+    for (let k = 0; k < 14; k++) {
+      const a = k * TAU / 14, sp = 30 + (k % 4) * 9, px = x + Math.cos(a) * (r + sp * u), py = y + Math.sin(a) * (r + sp * u) + 40 * u * u;
+      g.globalAlpha = 1 - u; g.fillStyle = 'rgba(235,250,255,.95)'; g.strokeStyle = '#4cb8e6'; g.lineWidth = 1;
+      g.save(); g.translate(px, py); g.rotate(a + u * 4);
+      g.beginPath(); g.moveTo(0, -5); g.lineTo(4, 4); g.lineTo(-4, 3); g.closePath(); g.fill(); g.stroke();
+      g.restore();
+    }
+    g.restore();
+  }
+  // Motor: dişler (halkanın altında) ve çark rozeti
+  function teeth(g, x, y, r, ang) {
+    g.save();
+    g.fillStyle = C.brass; g.strokeStyle = 'rgba(18,12,7,.9)'; g.lineWidth = 1.2;
+    for (let k = 0; k < 24; k++) {
+      const a = ang + 0.12 + k * TAU / 24;
+      if (Math.abs(((a - ang + Math.PI) % TAU + TAU) % TAU - Math.PI) < GAP + 0.08) continue;
+      g.save(); g.translate(...at(x, y, r + STROKE / 2, a)); g.rotate(a);
+      g.beginPath(); g.rect(-1, -4, 6, 8); g.fill(); g.stroke(); g.restore();
+    }
+    g.restore();
+  }
+  function gearBadge(g, x, y, ang) {
+    g.save();
+    g.fillStyle = 'rgba(18,12,7,.9)'; g.beginPath(); g.arc(x, y + 2, 14, 0, TAU); g.fill();
+    g.translate(x, y); g.rotate(ang);
+    g.fillStyle = '#e0a85c'; g.strokeStyle = '#5a3a14'; g.lineWidth = 1.4;
+    g.beginPath();
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, rr = k % 2 ? 9 : 12.5; g.lineTo(Math.cos(a - 0.12) * rr, Math.sin(a - 0.12) * rr); g.lineTo(Math.cos(a + 0.12) * rr, Math.sin(a + 0.12) * rr); }
+    g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#2a1a0c'; g.beginPath(); g.arc(0, 0, 5, 0, TAU); g.fill();
+    g.restore();
+  }
+  function nextGap(g, x, y, r, c, a = 1) {
+    g.save();
+    g.globalAlpha *= a;
+    g.strokeStyle = 'rgba(18,12,7,.8)'; g.lineWidth = STROKE + 3; g.lineCap = 'butt';
+    g.beginPath(); g.arc(x, y, r, c - GAP * 0.8, c + GAP * 0.8); g.stroke();
+    g.strokeStyle = '#fff4e6'; g.lineWidth = 2; g.setLineDash([4, 4]);
+    for (const rr of [r - STROKE / 2 - 2, r + STROKE / 2 + 2]) { g.beginPath(); g.arc(x, y, rr, c - GAP * 0.8, c + GAP * 0.8); g.stroke(); }
+    g.restore();
+  }
+  // Portal: ay işaretli girdap rozeti, ikizleri bağlayan iz, ışınlanma girdabı
+  function moonBadge(g, x, y, t) {
+    g.save();
+    badgeBase(g, x, y, '#1c1538', C.moon);
+    g.translate(x, y);
+    g.save(); g.rotate(t / 700); g.strokeStyle = C.moon; g.globalAlpha = 0.55; g.lineWidth = 1.5; g.lineCap = 'round';
+    for (let k = 0; k < 3; k++) { g.rotate(TAU / 3); g.beginPath(); g.arc(4, 0, 6.5, Math.PI * 0.9, Math.PI * 1.6); g.stroke(); }
+    g.restore();
+    g.fillStyle = C.moon; g.beginPath(); g.arc(0, 0, 5.5, 0.6, TAU - 0.6); g.arc(3, 0, 4.3, TAU - 1.05, 1.05, true); g.closePath(); g.fill();
+    g.restore();
+  }
+  function thread(g, a, b, t) {
+    g.save();
+    g.strokeStyle = C.moon; g.globalAlpha = 0.55; g.lineWidth = 2; g.lineCap = 'round';
+    g.setLineDash([2, 7]); g.lineDashOffset = -t / 40;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.quadraticCurveTo((a[0] + b[0]) / 2, Math.min(a[1], b[1]) - 46, b[0], b[1]); g.stroke();
+    g.restore();
+  }
+  function vortex(g, x, y, r, u) {
+    if (u <= 0 || u >= 1) return;
+    const e = Math.sin(Math.PI * u);
+    g.save();
+    g.translate(x, y); g.rotate(u * 6);
+    g.strokeStyle = C.moon; g.lineWidth = 3; g.lineCap = 'round';
+    for (let k = 0; k < 3; k++) { g.globalAlpha = (1 - u) * (1 - k * 0.25); g.beginPath(); g.arc(0, 0, r * (0.3 + 0.25 * k) * e + 2, k, k + Math.PI * 1.3); g.stroke(); }
     g.restore();
   }
 
@@ -330,6 +517,97 @@
       g.restore();
       finger(g, T[0] + 6, T[1] + 6, t > 750 && t < 1100, t > 500 && t < 1400 ? 1 : 0);
       label(g, tx('tabla = 1 hamle'), T[0], 178, seg(t, 1700, 2000));
+    } },
+    // 2.5: bomba kurtulup patlar, değdiği iki halka (birbirine kilitli olsalar da) dönerek uçar
+    bomb: { ms: 4400, draw(g, t) {
+      const Bm = [130, 66], L1 = [88, 128], R1 = [172, 128], r = 40;
+      const e = io(seg(t, 400, 1200)), bAng = 120 * DEG - e * 120 * DEG + 0 * DEG;
+      const fly = seg(t, 1350, 1800), boomU = seg(t, 1550, 2400), hit = seg(t, 1750, 2500);
+      if (hit === 0) { ring(g, L1[0], L1[1], r, 200 * DEG, C.yellow); ring(g, R1[0], R1[1], r, -20 * DEG, C.teal); }
+      else { spinFly(g, L1[0], L1[1], r, 200 * DEG, C.yellow, hit, -0.8, 0.5); spinFly(g, R1[0], R1[1], r, -20 * DEG, C.teal, hit, 0.8, 0.5); }
+      if (fly === 0) {
+        ring(g, Bm[0], Bm[1], r, bAng, C.red);
+        for (const p of [[103, 95], [157, 95]]) star(g, p[0], p[1], t);
+        bombBadge(g, Bm[0] - 26, Bm[1] - 30, t);
+      } else flyRing(g, Bm[0], Bm[1], r, bAng, C.red, fly, 0, -1);
+      if (t > 1100 && fly < 0.3) openPoint(g, ...at(Bm[0], Bm[1], r, 0));
+      blast(g, Bm[0], Bm[1], boomU);
+      dragFinger(g, Bm[0], Bm[1], r, bAng, t - 300, 1000);
+      label(g, tx('değdikleri de uçar'), 130, 178, seg(t, 2300, 2600));
+    } },
+    // 2.5: kazanın iki komşusu gidince basınç dolar; düdük, akkor, patlama ve kalan komşu uçar
+    boiler: { ms: 5400, draw(g, t) {
+      const B = [130, 112], A = [66, 112], Cn = [194, 112], T = [130, 46], r = 38;
+      const aFly = seg(t, 700, 1200), cFly = seg(t, 1800, 2300), fuse = t > 2400 && t < 3300, boomU = seg(t, 3300, 4100), tHit = seg(t, 3450, 4200);
+      const gone = (aFly > 0 ? 1 : 0) + (cFly > 0 ? 1 : 0), h = fuse || boomU > 0 ? 1 : gone / 2;
+      if (aFly === 0) ring(g, A[0], A[1], r, 180 * DEG, C.sky); else flyRing(g, A[0], A[1], r, 180 * DEG, C.sky, aFly, -1, -0.2);
+      if (cFly === 0) ring(g, Cn[0], Cn[1], r, 0, C.violet); else flyRing(g, Cn[0], Cn[1], r, 0, C.violet, cFly, 1, -0.2);
+      if (tHit === 0) ring(g, T[0], T[1], r - 4, -90 * DEG, C.yellow); else spinFly(g, T[0], T[1], r - 4, -90 * DEG, C.yellow, tHit, 0, -1);
+      if (boomU === 0) {
+        const jit = fuse ? 2.5 * Math.sin(t / 21) : h * 1.4 * Math.sin(t / 21);
+        g.save();
+        if (h) { g.shadowColor = fuse ? '#fff3b0' : C.heat; g.shadowBlur = 8 + 20 * h; }
+        ring(g, B[0] + jit, B[1], r, 90 * DEG, h ? heatColor(C.red, h) : C.red);
+        g.restore();
+        gauge(g, B[0] + jit + 26, B[1] + 30, h, fuse ? '!' : String(2 - gone));
+      }
+      blast(g, B[0], B[1], boomU);
+      finger(g, A[0] - 30, A[1] + 26, t > 500 && t < 750, t > 300 && t < 900 ? 1 : 0);
+      finger(g, Cn[0] + 30, Cn[1] + 26, t > 1600 && t < 1850, t > 1400 && t < 2000 ? 1 : 0);
+      label(g, tx('basınç doldu!'), 130, 178, fuse ? 1 : 0);
+    } },
+    // 2.5: buzlu halka dönmez; komşusu kurtulunca buz çatlayıp erir, sonra döner
+    ice: { ms: 5200, draw(g, t) {
+      const I = [92, 104], N = [170, 104], r = 44;
+      const deny = t > 400 && t < 1300, shake = deny ? Math.sin((t - 400) / 25) * 4 * (1 - (t - 400) / 900) : 0;
+      const nE = io(seg(t, 1500, 2200)), nFly = seg(t, 2300, 2800), crack = seg(t, 2350, 3100), turn = io(seg(t, 3400, 4300));
+      if (nFly === 0) ring(g, N[0], N[1], r, 200 * DEG - nE * 200 * DEG, C.yellow); else flyRing(g, N[0], N[1], r, 0, C.yellow, nFly, 1, -0.3);
+      const iAng = 30 * DEG + turn * 110 * DEG;
+      ring(g, I[0] + shake, I[1], r, iAng, C.sky);
+      if (crack === 0) { iceShell(g, I[0] + shake, I[1], r, iAng, 1); snowBadge(g, I[0] - 30 + shake, I[1] - 32, 1); }
+      else if (crack < 0.25) iceShell(g, I[0], I[1], r, iAng, 1, 1 + 0.1 * Math.sin(crack / 0.25 * Math.PI));
+      shards(g, I[0], I[1], r, crack);
+      dragFinger(g, I[0], I[1], r, iAng, deny ? 1 : 0, 2);
+      dragFinger(g, N[0], N[1], r, 200 * DEG - nE * 200 * DEG, t - 1400, 900);
+      dragFinger(g, I[0], I[1], r, iAng, t - 3300, 1100);
+      label(g, tx('donmuş: dönmez'), 130, 178, deny ? 1 : 0);
+      label(g, tx('buz eridi'), 130, 178, t > 2500 && t < 3300 ? 1 : 0);
+    } },
+    // 2.5: her hamleden sonra motor halka kendiliğinden bir adım (çeyrek tur) döner
+    motor: { ms: 5600, draw(g, t) {
+      const M = [160, 104], O = [80, 104], r = 46;
+      const m1 = io(seg(t, 400, 1100)), k1 = seg(t, 1250, 1700), m2 = io(seg(t, 2600, 3300)), k2 = seg(t, 3450, 3900);
+      const mAng = -90 * DEG + (k1 > 0 ? back(k1) : 0) * 90 * DEG + (k2 > 0 ? back(k2) : 0) * 90 * DEG;
+      const oAng = 160 * DEG + m1 * 50 * DEG + m2 * 50 * DEG;
+      ring(g, O[0], O[1], r, oAng, C.teal);
+      teeth(g, M[0], M[1], r, mAng);
+      ring(g, M[0], M[1], r, mAng, C.red);
+      const still = (k1 === 0 || k1 === 1) && (k2 === 0 || k2 === 1);
+      if (still) nextGap(g, M[0], M[1], r, mAng + 90 * DEG, 0.6 + 0.3 * Math.sin(t / 260));
+      gearBadge(g, M[0] + 32, M[1] - 34, mAng);
+      dragFinger(g, O[0], O[1], r, oAng, t - 300, 900);
+      dragFinger(g, O[0], O[1], r, oAng, t - 2500, 900);
+      label(g, tx('hamle → motor 1 adım'), 130, 178, (k1 > 0 && t < 2400) || k2 > 0 ? 1 : 0);
+    } },
+    // 2.5: ikizlerden biri kurtulunca öbürü (uzakta olsa da) girdapta dönerek kaybolur
+    portal: { ms: 4600, draw(g, t) {
+      const P1 = [66, 112], Mid = [130, 112], P2 = [214, 70], r = 38;
+      const e = io(seg(t, 400, 1200)), pAng = 60 * DEG + e * 120 * DEG, fly = seg(t, 1350, 1850);
+      const vU = seg(t, 1550, 2350), tele = seg(t, 1750, 2450), te = tele * tele;
+      ring(g, Mid[0], Mid[1], r, -40 * DEG, C.yellow);
+      ring(g, 214, 140, 30, 150 * DEG, C.teal);
+      if (tele < 1) {
+        g.save(); g.translate(P2[0], P2[1]); g.scale(Math.max(0.02, 1 - te), Math.max(0.02, 1 - te));
+        ring(g, 0, 0, r - 8, 90 * DEG + 5 * te, C.violet, { alpha: 1 - te }); g.restore();
+      }
+      if (fly === 0) ring(g, P1[0], P1[1], r, pAng, C.red); else flyRing(g, P1[0], P1[1], r, pAng, C.red, fly, -1, -0.3);
+      const b1 = [P1[0] - 26, P1[1] - 30], b2 = [P2[0] - 22, P2[1] - 24];
+      if (fly === 0) { thread(g, b1, b2, t); moonBadge(g, b1[0], b1[1], t); }
+      if (tele === 0) moonBadge(g, b2[0], b2[1], t);
+      if (t > 1100 && fly < 0.3) openPoint(g, ...at(P1[0], P1[1], r, 0));
+      vortex(g, P2[0], P2[1], r, vU);
+      dragFinger(g, P1[0], P1[1], r, pAng, t - 300, 1000);
+      label(g, tx('ikizi ışınlandı'), 130, 178, seg(t, 2000, 2300));
     } },
   };
 
