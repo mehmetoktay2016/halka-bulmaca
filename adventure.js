@@ -164,6 +164,16 @@
       for (let k = 0; k < h; k += w) { g.moveTo(x - w / 2, y - k); g.lineTo(x + w / 2, y - k - w); g.moveTo(x + w / 2, y - k); g.lineTo(x - w / 2, y - k - w); }
       g.stroke();
     }
+    // Kafes kulede inip çıkan kabin (zürafa asansörü, serbest düşüş)
+    function liftTower(on, t, col, fall) {
+      lattice(0, 0, 14, 50, '#9aa0b0');
+      const ph = on ? (t / (fall ? 1400 : 2200)) % 1 : 0.5;
+      // serbest düşüş tepede bekler, sonra hızla iner; asansör yavaşça iner kalkar
+      const y = fall ? -46 + Math.max(0, ph - 0.7) / 0.3 * 34 : -40 + Math.abs(ph * 2 - 1) * 32;
+      g.fillStyle = col; rr(-10, y, 20, 12, 3); g.fill(); g.fillStyle = 'rgba(255,240,200,.75)'; g.fillRect(-6, y + 3, 12, 5);
+    }
+    // Lunapark tezgâhı: tenteli tezgâh (dekordaki stall) ve tezgâhın üstündeki ürün
+    function standStall(c, item, t) { DECOR_ART.stall({ x: 0, y: -14, c }, t); g.save(); g.translate(0, -40); item(); g.restore(); }
     // Gezegen: gölgeli küre, isteğe bağlı halka (ring) ve bulut bantları
     function planet(x, y, r, c1, c2, ring) {
       if (ring) { g.strokeStyle = ring; g.lineWidth = r / 5; g.beginPath(); g.ellipse(x, y, r * 1.7, r * 0.45, -0.3, Math.PI, TAU); g.stroke(); }
@@ -240,6 +250,8 @@
         zindan: ['#1a1820', '#131118', 48, 26, 'rgba(0,0,0,.45)', 2, 1, 'rgba(255,140,60,.13)'],
         sehir: ['#1c1a2e', '#15142a', 18, 12, 'rgba(255,255,255,.05)', 1, 1, 'rgba(255,220,150,.12)'],
         fabrika: ['#1c2026', '#14171c', 40, 40, 'rgba(255,255,255,.06)', 1.4, 0, 'rgba(255,140,60,.12)'],
+        usta: ['#24212e', '#1a1822', 36, 36, 'rgba(217,180,90,.14)', 1.2, 0, 'rgba(255,210,120,.13)'],
+        lunapark: ['#251a32', '#1b1428', 30, 30, 'rgba(255,143,171,.08)', 1, 1, 'rgba(255,120,200,.13)'],
       }[id];
       if (FLOOR) {
         // blok döşeme: zindanda kaba taş, şehirde parke, fabrikada çelik levha (sarı uyarı şeritli)
@@ -502,6 +514,8 @@
       ringPlanet: asDecor('satürn', 0.7),
       probe: asDecor('uydu', 0.7),
       comet: asDecor('kuyruklu', 0.9),
+      statue: asDecor('heykel', 0.9),
+      column: asDecor('sutun', 1.1),
       house(d, now) {
         const { x, y, s } = d;
         shadow(x + 8, y + 4, 30 * s, 6 * s, 0.4);
@@ -1315,6 +1329,100 @@
         planet(0, -24, 15, '#6ac0ff', '#1a5aa0');
         g.save(); g.beginPath(); g.arc(0, -24, 15, 0, TAU); g.clip(); const o = on ? (t / 120) % 40 : 0; g.fillStyle = '#4caf50'; for (const x of [-20, 20]) { g.beginPath(); g.ellipse(x - o, -28, 7, 5, 0.4, 0, TAU); g.ellipse(x - o + 8, -18, 5, 4, 0, 0, TAU); g.fill(); } g.restore();
       },
+      // ---- Büyük Usta: kapı 19-20 ----
+      sutun() {
+        for (const x of [-12, 12]) { g.fillStyle = '#d8d0c0'; g.fillRect(x - 5, -40, 10, 40); g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(x + 1, -40, 2, 40); g.fillStyle = '#c99a3a'; g.fillRect(x - 7, -44, 14, 4); g.fillRect(x - 7, -2, 14, 2); }
+        g.fillStyle = '#e8e0d0'; g.beginPath(); g.moveTo(-22, -44); g.lineTo(0, -54); g.lineTo(22, -44); g.closePath(); g.fill();
+      },
+      heykel(on, t) {
+        g.fillStyle = '#8a8478'; g.fillRect(-10, -12, 20, 12); g.fillStyle = '#c8c0b0';
+        g.beginPath(); g.arc(0, -36, 6, 0, TAU); g.fill(); g.beginPath(); g.moveTo(-8, -12); g.lineTo(-6, -30); g.lineTo(6, -30); g.lineTo(8, -12); g.fill();
+        g.strokeStyle = '#c8c0b0'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(5, -27); g.lineTo(13, -38); g.stroke();
+        g.strokeStyle = GOLD; g.lineWidth = 1.8; g.beginPath(); g.arc(13, -42, 4, 0.7, TAU + 0.2); g.stroke();
+      },
+      kutuphane() {
+        g.fillStyle = '#5a3a24'; g.fillRect(-22, -46, 44, 46);
+        for (let r2 = 0; r2 < 3; r2++) for (let i = 0; i < 7; i++) { g.fillStyle = ['#c0392b', '#2d7d4f', '#ffc94a', '#4895ef', '#b388ff'][(i + r2) % 5]; g.fillRect(-19 + i * 5.4, -42 + r2 * 14, 4, 11 - (i % 3)); }
+      },
+      ayna(on, t) {
+        g.fillStyle = '#c99a3a'; rr(-12, -46, 24, 44, 12); g.fill();
+        const gr = g.createLinearGradient(-9, -42, 9, -6); gr.addColorStop(0, '#d8f0ff'); gr.addColorStop(1, '#6a8ab0'); g.fillStyle = gr; rr(-9, -43, 18, 38, 9); g.fill();
+        if (on) { g.fillStyle = 'rgba(255,255,255,.6)'; const y = -40 + ((t / 30) % 40); g.beginPath(); g.moveTo(-9, y); g.lineTo(9, y - 8); g.lineTo(9, y - 4); g.lineTo(-9, y + 4); g.fill(); }
+      },
+      taht(on, t) {
+        g.fillStyle = '#7a1f3a'; rr(-14, -46, 28, 34, 6); g.fill(); g.fillStyle = '#c99a3a'; g.fillRect(-16, -14, 32, 6); g.fillRect(-14, -8, 4, 8); g.fillRect(10, -8, 4, 8);
+        g.fillStyle = GOLD; for (const x of [-10, 0, 10]) { g.beginPath(); g.moveTo(x - 3, -46); g.lineTo(x, -54); g.lineTo(x + 3, -46); g.fill(); }
+        if (on) light(0, -34, 26, 'rgba(255,210,120,.45)');
+      },
+      kivilcim(on, t) {
+        g.fillStyle = '#3a3f54'; rr(-18, -40, 36, 40, 6); g.fill(); g.fillStyle = '#1a1e2e'; rr(-14, -36, 28, 30, 4); g.fill();
+        if (on) add(() => { for (let i = 0; i < 5; i++) { const a = t / 300 + i * 1.3, r2 = 4 + (i % 3) * 3; g.fillStyle = ['#ffd34a', '#ff8a4c', '#4cc9f0'][i % 3]; star(Math.cos(a) * r2, -21 + Math.sin(a) * r2, 2.6); } glow(0, -21, 18, 'rgba(255,220,140,.8)'); });
+      },
+      asansor(on, t) { liftTower(on, t, '#e0b02a', false); },
+      kol(on, t) {
+        g.fillStyle = '#4a5068'; rr(-14, -12, 28, 12, 3); g.fill();
+        const a = on ? -0.5 + Math.sin(t / 900) * 0.5 : -0.5; g.save(); g.translate(0, -10); g.rotate(a); g.strokeStyle = '#9aa0b0'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -26); g.stroke(); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(0, -28, 5, 0, TAU); g.fill(); g.restore();
+      },
+      kalp(on, t) {
+        gear(0, -26, 20, 14, on ? t / 1600 : 0, '#c99a3a');
+        const k = on ? 1 + Math.max(0, Math.sin(t / 220)) * 0.18 : 1; g.save(); g.translate(0, -27); g.scale(k, k);
+        g.fillStyle = '#ff4f6d'; g.beginPath(); g.moveTo(0, 7); g.bezierCurveTo(-12, -2, -6, -12, 0, -5); g.bezierCurveTo(6, -12, 12, -2, 0, 7); g.fill(); g.restore();
+        if (on) light(0, -27, 26 * k, 'rgba(255,100,130,.6)');
+      },
+      // ---- Lunapark: kapı 21-23 ----
+      gise(on) { shop('#ff6fb5', on, () => { g.fillStyle = '#ffc94a'; g.fillRect(-6, -3, 12, 7); g.fillStyle = '#c0392b'; g.fillRect(-1, -3, 1.4, 7); }); },
+      pamuk(on, t) { standStall('#ff8fab', () => { g.fillStyle = '#ffc0dc'; for (const [x, y] of [[-3, -4], [3, -5], [0, -9]]) { g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill(); } g.strokeStyle = '#fff'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 8); g.stroke(); }, t); },
+      muz(on, t) { standStall('#ffc94a', () => { g.strokeStyle = '#ffd34a'; g.lineWidth = 3.4; g.lineCap = 'round'; for (let i = -1; i <= 1; i++) { g.beginPath(); g.arc(i * 4, -2, 6, 0.2, 2.2); g.stroke(); } }, t); },
+      halkaatma(on, t) { standStall('#2dd4bf', () => { for (let i = -1; i <= 1; i++) { g.fillStyle = '#c8ced8'; g.fillRect(i * 8 - 1, -10, 2, 10); g.strokeStyle = ['#ff6b6b', '#ffc94a', '#4cc9f0'][i + 1]; g.lineWidth = 2; g.beginPath(); g.ellipse(i * 8, -3 - (i === 0 && on ? Math.abs(Math.sin(t / 300)) * 8 : 0), 5, 2, 0, 0, TAU); g.stroke(); } }, t); },
+      trambolin(on, t) {
+        const b = on ? Math.abs(Math.sin(t / 300)) : 0;
+        g.fillStyle = '#3a3f54'; g.fillRect(-20, -8, 3, 8); g.fillRect(17, -8, 3, 8); g.fillStyle = '#4cc9f0'; g.beginPath(); g.ellipse(0, -9 + b * 2, 22, 5 - b * 2, 0, 0, TAU); g.fill();
+        g.fillStyle = '#ff8fab'; g.beginPath(); g.arc(0, -16 - b * 22, 5, 0, TAU); g.fill();
+      },
+      ip(on, t) {
+        g.fillStyle = '#c0392b'; g.fillRect(-24, -44, 4, 44); g.fillRect(20, -44, 4, 44);
+        g.strokeStyle = '#e8d29a'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(-22, -40); g.quadraticCurveTo(0, -36, 22, -40); g.stroke();
+        const x = on ? Math.sin(t / 1300) * 14 : 0, w = on ? Math.sin(t / 250) * 0.15 : 0; g.save(); g.translate(x, -38); g.rotate(w);
+        g.strokeStyle = '#c99a3a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-12, -6); g.lineTo(12, -6); g.stroke(); g.fillStyle = '#ffc94a'; g.beginPath(); g.arc(0, -10, 4, 0, TAU); g.fill(); g.restore();
+      },
+      palyaco(on, t) {
+        const b = on ? Math.abs(Math.sin(t / 200)) * 2 : 0; g.save(); g.translate(0, -b);
+        g.fillStyle = '#ff6b6b'; rr(-16, -18, 32, 12, 5); g.fill(); g.fillStyle = '#ffc94a'; rr(-8, -26, 16, 9, 4); g.fill();
+        g.fillStyle = INK; g.beginPath(); g.arc(-9, -5, 4, 0, TAU); g.arc(9, -5, 4, 0, TAU); g.fill(); g.restore();
+        g.fillStyle = '#ff4f4f'; g.beginPath(); g.arc(0, -30 - b, 3, 0, TAU); g.fill();
+      },
+      carpisan(on, t) {
+        g.strokeStyle = '#9aa0b0'; g.lineWidth = 1; g.strokeRect(-24, -20, 48, 18);
+        for (const [i, c] of [[0, '#4cc9f0'], [1, '#ff6fb5']]) { const x = on ? Math.cos(t / 700 + i * 2.6) * 12 : (i ? 8 : -8); g.fillStyle = c; rr(x - 7, -16, 14, 10, 4); g.fill(); g.strokeStyle = '#3a3f54'; g.beginPath(); g.moveTo(x, -16); g.lineTo(x, -30); g.stroke(); }
+        g.strokeStyle = '#ffc94a'; g.beginPath(); g.moveTo(-24, -30); g.lineTo(24, -30); g.stroke();
+      },
+      kaydirak(on, t) {
+        g.fillStyle = '#9aa0b0'; g.fillRect(16, -44, 4, 44); g.strokeStyle = '#4cc9f0'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(18, -42); g.bezierCurveTo(-10, -40, 20, -16, -22, -4); g.stroke();
+        if (on) { const p2 = (t / 1100) % 1; g.fillStyle = 'rgba(220,245,255,.9)'; g.beginPath(); g.arc(18 - p2 * 40, -42 + p2 * 38, 2.4, 0, TAU); g.fill(); }
+        g.fillStyle = '#5aa8e0'; g.beginPath(); g.ellipse(-20, -2, 10, 3, 0, 0, TAU); g.fill();
+      },
+      carouselSt(on, t) { DECOR_ART.carousel({ x: 0, y: -24 }, t); },
+      muzikkutusu(on, t) {
+        g.fillStyle = '#7a1f3a'; rr(-16, -18, 32, 18, 3); g.fill(); g.fillStyle = '#c99a3a'; g.fillRect(-16, -18, 32, 3);
+        g.save(); g.translate(-16, -18); g.rotate(-0.7); g.fillStyle = '#9a2f4a'; g.fillRect(0, -2, 32, 3); g.restore();
+        g.save(); g.translate(0, -22); g.rotate(on ? t / 600 : 0); g.fillStyle = '#ffc0dc'; g.beginPath(); g.ellipse(0, -4, 3, 6, 0, 0, TAU); g.fill(); g.restore();
+        if (on) for (let i = 0; i < 2; i++) { const ph = (t / 1500 + i / 2) % 1; g.fillStyle = `rgba(255,230,160,${1 - ph})`; g.font = '900 10px Nunito, sans-serif'; g.textAlign = 'center'; g.fillText('♪', 10 + ph * 10, -26 - ph * 20); }
+      },
+      hiztreni(on, t) {
+        g.strokeStyle = '#c0392b'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(-26, -4); g.bezierCurveTo(-14, -60, 6, -60, 12, -20); g.quadraticCurveTo(18, -4, 26, -10); g.stroke();
+        g.strokeStyle = '#9aa0b0'; g.lineWidth = 1.4; for (const x of [-18, -6, 6, 18]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, -30 + Math.abs(x) * 0.6); g.stroke(); }
+        if (on) { const u = (t / 1600) % 1, x = -26 + u * 52; g.fillStyle = '#ffc94a'; rr(x - 5, -30 - Math.sin(u * Math.PI) * 14, 10, 6, 2); g.fill(); }
+      },
+      korku(on, t) {
+        g.fillStyle = '#2a1e3a'; g.beginPath(); g.moveTo(-24, 0); g.lineTo(-24, -26); g.quadraticCurveTo(0, -44, 24, -26); g.lineTo(24, 0); g.fill();
+        g.fillStyle = '#0e0a16'; g.beginPath(); g.moveTo(-12, 0); g.quadraticCurveTo(0, -30, 12, 0); g.fill();
+        if (on) { const y = -30 + Math.sin(t / 500) * 4, a = 0.5 + 0.4 * Math.sin(t / 300); g.fillStyle = `rgba(230,240,255,${a})`; g.beginPath(); g.arc(14, y, 6, Math.PI, 0); g.lineTo(20, y + 8); g.lineTo(14, y + 5); g.lineTo(8, y + 8); g.closePath(); g.fill(); g.fillStyle = INK; g.beginPath(); g.arc(12, y - 1, 1, 0, TAU); g.arc(16, y - 1, 1, 0, TAU); g.fill(); }
+      },
+      fincan(on, t) {
+        g.fillStyle = '#5a3a6a'; g.beginPath(); g.ellipse(0, -4, 24, 6, 0, 0, TAU); g.fill();
+        for (let i = 0; i < 3; i++) { const a = (on ? t / 900 : 0) + i * TAU / 3, x = Math.cos(a) * 14, y = -8 + Math.sin(a) * 3; g.fillStyle = ['#ff8fab', '#4cc9f0', '#ffc94a'][i]; g.beginPath(); g.moveTo(x - 6, y - 8); g.lineTo(x + 6, y - 8); g.quadraticCurveTo(x + 6, y, x, y); g.quadraticCurveTo(x - 6, y, x - 6, y - 8); g.fill(); }
+      },
+      serbest(on, t) { liftTower(on, t, '#ff6b6b', true); },
       // Şekil bölümü: şeklin resmi bir şövalede; kapı finali (Dev Halka) altın çerçevede, daha büyük
       portrait(on, t, state, st) { portraitArt(st, on, false); },
       finalPortrait(on, t, state, st) { portraitArt(st, on, true); },
@@ -1481,6 +1589,8 @@
       sehir: ['house', 'lamp', 'tree', 'house', 'bench', 'lamp'],
       fabrika: ['crate', 'pipe', 'barrels', 'hangLamp', 'cogStack', 'pipe'],
       uzay: ['asteroid', 'ringPlanet', 'probe', 'asteroid', 'comet'],
+      usta: ['statue', 'column', 'cogStack', 'hangLamp', 'statue', 'column'],
+      lunapark: ['tent', 'balloons', 'lamp', 'carousel', 'stall', 'tent'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {
@@ -1683,7 +1793,8 @@
     // Senaryodaki kapı yapıları (journey.js GATES): her biri kapı ağzını (door) kendi yapısıyla çerçeveler
     const THEMED_GATES = { 1: 'flowerArch', 2: 'stoneBridge', 3: 'gardenGate', 4: 'rootTree', 5: 'chainGate', 6: 'valleyArch',
       7: 'workDoor', 8: 'gearGate', 9: 'pendulumGate', 10: 'springCage', 11: 'cellGate', 12: 'cryptGate', 13: 'streetArch', 14: 'townTower',
-      15: 'factoryGate', 16: 'boilerHatch', 17: 'launchTower', 18: 'airlock' };
+      15: 'factoryGate', 16: 'boilerHatch', 17: 'launchTower', 18: 'airlock',
+      19: 'mastersHall', 20: 'machineGate', 21: 'funArch', 22: 'funArch', 23: 'coasterTunnel' };
     function themedGate(gt, y, open, now) {
       const kind = THEMED_GATES[gt], cx = W / 2, acc = worldOfGate(gt).theme.accent;
       g.fillStyle = 'rgba(6,14,12,.5)'; g.beginPath(); g.ellipse(cx + 8, y + 12, 170, 16, 0, 0, TAU); g.fill();
@@ -1742,10 +1853,11 @@
         g.fillStyle = '#3a2416'; g.beginPath(); g.moveTo(cx - 150, y - 156); g.lineTo(cx, y - 210); g.lineTo(cx + 150, y - 156); g.closePath(); g.fill();
         for (const sx of [-1, 1]) { const wx = cx + sx * 104; g.fillStyle = '#2a1a10'; g.fillRect(wx - 22, y - 120, 44, 40); g.fillStyle = 'rgba(255,200,120,.75)'; g.fillRect(wx - 19, y - 117, 17, 16); g.fillRect(wx + 2, y - 117, 17, 16); g.fillRect(wx - 19, y - 98, 17, 15); g.fillRect(wx + 2, y - 98, 17, 15); add(() => glow(wx, y - 100, 40, 'rgba(255,190,110,.4)')); }
         gear(cx, y - 180, 16, 10, reduced() ? 0 : now / 1500, '#c0882a');
-      } else if (kind === 'gearGate') {
-        // dev çark: kapı çarkın ortasından açılır, çevresinde dişliler döner
-        const rot = reduced() ? 0 : now / 3000;
-        gear(cx, y - 70, 120, 20, rot, '#6a5030'); gear(cx, y - 70, 100, 18, rot, '#8a6a3a');
+      } else if (kind === 'gearGate' || kind === 'machineGate') {
+        // dev çark: kapı çarkın ortasından açılır, çevresinde dişliler döner; Büyük Makine altın ve kalbi ışıl ışıl
+        const rot = reduced() ? 0 : now / 3000, gold = kind === 'machineGate';
+        if (gold) add(() => glow(cx, y - 70, 200, 'rgba(255,200,110,.25)'));
+        gear(cx, y - 70, 120, 20, rot, gold ? '#8a6a20' : '#6a5030'); gear(cx, y - 70, 100, 18, rot, gold ? '#c99a3a' : '#8a6a3a');
         gear(cx - 128, y - 150, 34, 10, -rot * 3.5, '#9aa0b0'); gear(cx + 132, y - 140, 28, 9, -rot * 4, '#c0882a');
         g.fillStyle = '#2a1a10'; g.beginPath(); g.arc(cx, y - 70, 70, 0, TAU); g.fill();
       } else if (kind === 'pendulumGate') {
@@ -1788,6 +1900,19 @@
         g.fillStyle = '#6e5a7a'; g.fillRect(cx - 70, y - 240, 140, 244); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(cx + 30, y - 240, 40, 244);
         g.fillStyle = '#5a3040'; g.beginPath(); g.moveTo(cx - 82, y - 240); g.lineTo(cx, y - 310); g.lineTo(cx + 82, y - 240); g.closePath(); g.fill();
         clock(cx, y - 190, 32, now);
+      } else if (kind === 'mastersHall') {
+        // ustaların salonu: mermer basamaklar, altı sütun, altın kakmalı alınlık
+        g.fillStyle = '#b8b0a0'; for (let k = 0; k < 3; k++) g.fillRect(cx - 160 + k * 8, y - 4 - k * 6, 320 - k * 16, 6);
+        for (let k = 0; k < 6; k++) { if (k === 2 || k === 3) continue; const x = cx - 135 + k * 54; g.fillStyle = '#e8e0d0'; g.fillRect(x - 11, y - 170, 22, 152); g.fillStyle = 'rgba(0,0,0,.1)'; g.fillRect(x + 3, y - 170, 4, 152); g.fillStyle = '#c99a3a'; g.fillRect(x - 14, y - 176, 28, 6); }
+        g.fillStyle = '#ece4d4'; g.beginPath(); g.moveTo(cx - 170, y - 176); g.lineTo(cx, y - 236); g.lineTo(cx + 170, y - 176); g.closePath(); g.fill();
+        g.strokeStyle = '#c99a3a'; g.lineWidth = 3; g.stroke(); gear(cx, y - 198, 14, 10, reduced() ? 0 : now / 2000, '#c99a3a');
+      } else if (kind === 'funArch' || kind === 'coasterTunnel') {
+        // lunapark girişi: çizgili sütunlar, ampullü kemer; hız treninde kemerin üstünden geçen ray ve tünel ağzı
+        const c = gt % 2 ? '#ff6fb5' : '#4cc9f0';
+        for (const sx of [-1, 1]) { const px = cx + sx * 84; for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? c : '#fff5ea'; g.fillRect(px - 12, y - 160 + k * 20, 24, 20); } g.fillStyle = '#ffc94a'; g.beginPath(); g.arc(px, y - 168, 12, 0, TAU); g.fill(); add(() => glow(px, y - 168, 40, 'rgba(255,220,120,.5)')); }
+        g.strokeStyle = c; g.lineWidth = 16; g.beginPath(); g.arc(cx, y - 150, 84, Math.PI, 0); g.stroke();
+        for (let k = 0; k <= 14; k++) { const a = Math.PI + (k / 14) * Math.PI, on2 = reduced() || Math.floor(now / 250 + k) % 2; g.fillStyle = on2 ? '#fff2b0' : '#8a7a50'; g.beginPath(); g.arc(cx + Math.cos(a) * 84, y - 150 + Math.sin(a) * 84, 3.4, 0, TAU); g.fill(); }
+        if (kind === 'coasterTunnel') { g.strokeStyle = '#c0392b'; g.lineWidth = 5; g.beginPath(); g.moveTo(cx - 200, y - 60); g.bezierCurveTo(cx - 120, y - 330, cx + 120, y - 330, cx + 200, y - 120); g.stroke(); g.strokeStyle = '#9aa0b0'; g.lineWidth = 2; for (let k = -3; k <= 3; k++) { g.beginPath(); g.moveTo(cx + k * 50, y - 240 + Math.abs(k) * 40); g.lineTo(cx + k * 50, y); g.stroke(); } }
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
         g.fillStyle = '#3a3f54'; g.fillRect(cx - 170, y - 140, 340, 144);
@@ -1812,7 +1937,7 @@
         for (const sx of [-1, 1]) light(cx + sx * 80, y - 150, 10, 'rgba(255,100,100,.9)');
       }
       door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : '#8a929c');
-      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196 }[kind] || 158), acc);
+      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284 }[kind] || 158), acc);
     }
 
     // ---- sis: ulaşılmamış kapıların ötesi ----
