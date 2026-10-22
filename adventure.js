@@ -3075,23 +3075,25 @@
       fog(now, top, bot);
       return banners;
     }
-    // Dilim: sahnenin TILE birimlik yatay şeridi, bir kez boyanır (en çok 6 dilim bellekte)
-    const TILE = 480, TILES = new Map();
+    // Dilim: sahnenin TILE birimlik yatay şeridi. FRAMES animasyon karesi önceden boyanır, kaydırırken sırayla
+    // oynar (objeler kaydırırken de hareket eder); en çok 6 dilim bellekte, 1,5x çözünürlükte (bellek az kalsın)
+    const TILE = 480, FRAMES = 3, FRAME_MS = 140, TILES = new Map();
     let tileKey = '', imgWait = false;
-    function tile(i, dpr) {
-      let c = TILES.get(i);
-      if (c) return c;
+    function tile(i, f, dpr) {
+      let t = TILES.get(i);
+      if (!t) { t = { t0: performance.now(), frames: [] }; TILES.set(i, t); if (TILES.size > 6) TILES.delete(TILES.keys().next().value); }
+      if (t.frames[f]) return t.frames[f];
       // dilim alttan 4 birim taşar: komşusuyla üst üste biner, birleşim yerinde çizgi kalmaz
-      c = document.createElement('canvas'); c.width = cv.width; c.height = Math.ceil((TILE + 4) * k * dpr);
-      const main = g; g = c.getContext('2d'); imgWait = false;
-      g.setTransform(dpr * k, 0, 0, dpr * k, 0, -i * TILE * dpr * k);
-      for (const st of scene(performance.now(), i * TILE, (i + 1) * TILE + 4)) nameBanner(st, performance.now());
+      const d = Math.min(dpr, 1.5), c = document.createElement('canvas'); c.width = Math.ceil(cv.width / dpr * d); c.height = Math.ceil((TILE + 4) * k * d);
+      const main = g, at = t.t0 + f * FRAME_MS; g = c.getContext('2d'); imgWait = false;
+      g.setTransform(d * k, 0, 0, d * k, 0, -i * TILE * d * k);
+      for (const st of scene(at, i * TILE, (i + 1) * TILE + 4)) nameBanner(st, at);
       g = main;
-      if (imgWait) return c;
-      TILES.set(i, c);
-      if (TILES.size > 6) TILES.delete(TILES.keys().next().value);
+      if (!imgWait) t.frames[f] = c; // şekil resmi henüz yüklenmediyse saklanmaz
       return c;
     }
+    // kaydırırken gösterilecek kare: sıradaki hazırsa o, değilse hazır olan ilk kare (yeni boyama kaydırmayı kesmesin)
+    const frameOf = (i, now, dpr) => { const t = TILES.get(i), f = Math.floor(now / FRAME_MS) % FRAMES; return (t && (t.frames[f] || t.frames.find(Boolean))) || tile(i, 0, dpr); };
     let fullT = 0; // son canlı çizim: dururken animasyonlar saniyede 20 kare (telefon boşta yorulmasın, ilk kaydırma takılmasın)
     function draw(now) {
       FRONT = D.frontier(); OPEN.length = 0;
@@ -3114,7 +3116,7 @@
       g.setTransform(1, 0, 0, 1, 0, 0);
       if (now - moveT < 150 && !S.hop && !S.follow) {
         g.clearRect(0, 0, cv.width, cv.height);
-        for (let i = first; i <= last; i++) g.drawImage(tile(i, dpr), 0, Math.round((i * TILE - top) * k * dpr));
+        for (let i = first; i <= last; i++) { const c = frameOf(i, now, dpr), sc2 = dpr / Math.min(dpr, 1.5); g.drawImage(c, 0, Math.round((i * TILE - top) * k * dpr), c.width * sc2, c.height * sc2); }
         g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
         hero(now);
       } else {
@@ -3123,8 +3125,12 @@
         const banners = scene(now, top, bot);
         hero(now);
         for (const st of banners) nameBanner(st, now);
-        // dururken görünen bölgenin ve komşularının dilimleri hazırlanır (karede en çok bir dilim)
-        if (now - moveT > 500) for (let i = first - 1; i <= last + 1; i++) if (i >= 0 && !TILES.has(i)) { tile(i, dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); break; }
+        // dururken görünen bölgenin ve komşularının dilim kareleri hazırlanır (karede en çok bir kare)
+        if (now - moveT > 500) {
+          const miss = [];
+          for (let i = Math.max(0, first - 1); i <= last + 1; i++) for (let f = 0; f < FRAMES; f++) if (!(TILES.get(i) || { frames: [] }).frames[f]) miss.push([i, f]);
+          if (miss.length) { tile(miss[0][0], miss[0][1], dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); }
+        }
       }
       effects(now, top);
       if (D.jar) hudJar(now, top);
