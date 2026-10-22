@@ -7,7 +7,7 @@ var RING_LANG_EN = {
   'Dönme, patlama ve ödül sesleri': 'Turning, popping and reward sounds',
   'Ortam sesi': 'Ambience',
   'Müzik': 'Music',
-  'Bölüm sırasında çalan müzik': 'Music that plays during levels',
+  'Halkalarla birlikte çalan ezgi': 'A tune that plays along with the rings',
   'Müzik sesi': 'Music volume',
   'Her dünyanın kendi arka plan sesi': 'Each world’s own background sound',
   'Efektler': 'Effects',
