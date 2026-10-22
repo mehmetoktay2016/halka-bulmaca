@@ -1928,7 +1928,8 @@
         if (difficultyScore(b.def) >= upper) back();
       };
       let fails = 0;
-      while (rings.length < 10 && fails < 40 && Date.now() < deadline) {
+      // Zirvede yayılmış düzenin eksik zorluğu için 12 halkaya kadar (normal bölüm 10)
+      while (rings.length < (plan.peak ? 12 : 10) && fails < 40 && Date.now() < deadline) {
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
         const c = attach(rnd, rings, p);
         if (!c) { fails++; continue; }
