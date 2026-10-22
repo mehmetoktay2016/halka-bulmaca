@@ -27,8 +27,8 @@ NEDEN SEVECEKSİN
 • İnternet gerekmez. Her yerde oynayabilirsin.
 • Kişisel veri toplanmaz. İlerlemen yalnızca telefonunda saklanır.
 
-12 DÜNYA, 30 KAPI, 300 BÖLÜM
-Başlangıç Vadisi'nden Rasathane'nin yıldızlarına uzanan bir yolculuk. Her kapı on bölümden oluşur ve kolaydan zora gider. Kapıyı geçtikçe yeni dünyalar açılır, unvanın yükselir: Çırak, Kalfa, Gezgin, Tamirci, Saatçi... Halka Ustası, Cambaz, Elektrikçi ve sonunda Gökbilimci. 200. bölümde Büyük Makine çalışır, yolculuğun sonunda seni Yıldız Haritası bekler.
+16 DÜNYA, 40 KAPI, 400 BÖLÜM
+Başlangıç Vadisi'nden Büyü Kulesi'ne uzanan bir macera haritası: kahramanın duraktan durağa yürür, kapılar törenle açılır. Her kapı on bölümden oluşur ve kolaydan zora gider. Kapıyı geçtikçe yeni dünyalar açılır, unvanın yükselir: Çırak, Kalfa, Gezgin, Tamirci, Saatçi... Halka Ustası, Cambaz, Elektrikçi ve sonunda Gökbilimci. 200. bölümde Büyük Makine çalışır, 300. bölümde Yıldız Haritası çizilir, 400. bölümde Anka kanatlanır.
 
 HER DÜNYANIN KENDİ KURALI
 • Atölye: Ters dişliler. Biri sağa dönerse eşi sola döner.
@@ -41,29 +41,47 @@ HER DÜNYANIN KENDİ KURALI
 • Santral: Şalter iki renkten yalnız birini döndürür.
 • Deniz Feneri: Nabız halkaların boşluğu her hamlede açılıp kapanır. Ritmi yakala.
 • Rasathane: Döner tabla üstündeki halkaların yerini değiştirir.
-Her yeni parçayı ilk gördüğünde animasyonlu bir kart anlatır. Her dünyanın kendi görünüşü, arka plan sesi ve parçacıkları var: ahşap tezgâhta kıvılcımlar, saat kulesinde tik-taklar, lunaparkta konfeti, uzayda kayan yıldızlar.
+• Havai Fişek: Bomba halka kurtulunca patlar, değdiği halkaları uçurur. Basınç kazanı komşuları kurtuldukça dolar ve patlar.
+• Buzul: Buzlu halka dönmez; komşuları kurtuldukça buzu çatlar.
+• Değirmen: Motor halka her hamlenden sonra kendi kendine bir adım döner.
+• Büyü Kulesi: İkiz portallardan biri kurtulunca öbürü ışınlanıp onunla gider.
+Her yeni parçayı animasyonlu bir kart anlatır; her dünyanın kendi görünüşü, sesi ve parçacıkları var.
 
-59 ŞEKİL, BİR ALBÜM
-Kedi, ayıcık, ejderha, fil, robot, füze, maymun, balina, deniz feneri, teleskop... Halkalardan oluşan bu şekiller parmaklıkların arkasında seni bekliyor. Kurtardıkların albümünde toplanır.
+79 ŞEKİL, BİR ALBÜM
+Kedi, ejderha, robot, balina, Anka... Halkalardan oluşan şekilleri kurtar, albümünde topla.
 
 YILDIZ, ROZET VE ALTIN
-Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 28 rozetle ilerlemeni taçlandır. Halkaların arasındaki altınları topla.
+Bölümü en az hamleyle bitirirsen 3 yıldız kazanırsın. Bir kapının bütün bölümlerini 3 yıldızla bitirirsen altın kapı ödülü alırsın. 45 rozetle ilerlemeni taçlandır; bazıları gizli! Halkaların arasındaki altınları topla.
+
+HER BÖLÜMDE HEYECAN
+• Dev Halka: Kapı finallerinde zırhlı dev. Plakalarını tek tek kır.
+• Altın Yağmuru: Süreli bonus tur, kaybetmek yok, altınlar yağar.
+• Gizem halka: İçinden ne çıkacağı belli değil.
+• Kombo ve kusursuz seri: Art arda kusursuz bölümler altınlarını katlar.
+• Son halkada ağır çekim ve büyük patlama; kapı kumbarası yıldızlarınla dolar, kapı bitince patlar.
+• Halkalarla birlikte çalan müzik: Kurtulan her halka ezgiye bir nota ekler, her dünyanın kendi çalgıları var.
 
 SANDIKLAR VE ÇIKARTMALAR
 Bazı halkaların içinde sandık saklı. Halkayı kurtar, sandık açılsın: sıradan, nadir ya da efsane! Altın halka bölümün altınlarını ikiye katlar, ampul halkası sana ampul kazandırır. Her dünyanın 5 parçalı bir çıkartması var; parçaları topla, koleksiyonunu tamamla. Her gün oyunu açınca günlük sandığın seni bekler, yedinci gün efsane sandık!
 
 MAĞAZA
-Topladığın altınla halkalar kurtulurken saçılan efekti (yıldız tozu, baloncuk, kalpler, şimşek), kurtulma sesini (cam çan, ahşap, 8-bit) ve bölüm sonu kutlamasını (havai fişek, altın yağmuru) seç.
+Altınla kurtulma efektini, sesini ve bölüm sonu kutlamasını seç.
 
 TAKILINCA YARDIM
-İpucu üç basamaklı: ücretsiz dürtme hangi halkayı çevireceğini gösterir, ipucu yönü ve hedefi gösterir, istersen hamleyi senin yerine yapar. İpucu ve hamle için ampul kullanılır; ampulleri kapı açtıkça, rozet ve altınla kazanırsın, ampulün biterse her gün bir ampul hediye edilir. Hamle hakkın biterse altınla üç hamle daha alabilir ya da yeniden başlayabilirsin.
+Ücretsiz dürtme hangi halkayı çevireceğini gösterir; ampulle ipucu yönü gösterir ya da hamleyi senin yerine yapar. Hamlen biterse altınla üç hamle daha al.
 
 Türkçe ve İngilizce oynanır.
 
 Gizlilik: Oyun hiçbir kişisel veri toplamaz. İlerlemen yalnızca telefonunda saklanır.
 ```
 
-## Bu sürümdeki yenilikler (2.4, en fazla 500 karakter)
+## Bu sürümdeki yenilikler (2.5, en fazla 500 karakter)
+
+```
+Büyük güncelleme! 100 yeni bölüm ve 4 yeni dünya: Havai Fişek, Buzul, Değirmen, Büyü Kulesi. Beş yeni parça: bomba, basınç kazanı, buz, motor ve ikiz portal. Dev Halka, Altın Yağmuru, gizem halka, kombo ve kusursuz seri. Yeni macera haritası, kapı kumbarası ve halkalarla birlikte çalan müzik. 17 yeni rozet, 20 yeni şekil. 400. bölümde Anka kanatlanır. İlerlemen korunur.
+```
+
+## Önceki sürümün yenilikleri (2.4)
 
 ```
 Yeni dünyalar! 100 yeni bölüm ve 4 yeni dünya: Lunapark, Santral, Deniz Feneri, Rasathane. Beş yeni parça: yaylı halka, jetonlu halka, şalter, nabız halka ve döner tabla; her birini animasyonlu bir kart anlatır. 20 yeni şekil, 4 yeni çıkartma, 3 yeni rozet. 200. bölümde Büyük Makine yeni dünyaları açar, 300. bölümde seni Yıldız Haritası bekler. İlerlemen korunur.
@@ -146,8 +164,8 @@ WHY YOU'LL LOVE IT
 • No internet needed. Play anywhere.
 • No personal data collected. Your progress stays on your phone.
 
-12 WORLDS, 30 GATES, 300 LEVELS
-A journey from Beginner Valley to the stars of the Observatory. Each gate has ten levels that go from easy to hard: the first levels are roomy and short, the last ones are tight and tricky, and every gate is a little harder than the one before. As you pass the gates, new worlds open and your title grows: Apprentice, Journeyman, Wanderer, Mechanic, Clockmaker... Ring Master, Acrobat, Electrician and finally Astronomer. At level 200 the Great Machine starts running, and the Star Map is waiting at the end of the journey.
+16 WORLDS, 40 GATES, 400 LEVELS
+An adventure map from Beginner Valley to the Wizard Tower: your hero walks from stop to stop, and gates open with a celebration. Each gate has ten levels that go from easy to hard. As you pass the gates, new worlds open and your title grows: Apprentice, Journeyman, Wanderer, Mechanic, Clockmaker... Ring Master, Acrobat, Electrician and finally Astronomer. At level 200 the Great Machine starts running, at level 300 the Star Map is drawn, and at level 400 the Phoenix takes flight.
 
 EVERY WORLD HAS ITS OWN RULE
 • Workshop: Reverse gears. When one turns right, its partner turns left.
@@ -160,29 +178,47 @@ EVERY WORLD HAS ITS OWN RULE
 • Power Plant: The switch lets only one of two colors turn.
 • Lighthouse: A pulse ring's gap opens and closes with every move. Catch the rhythm.
 • Observatory: Turntables swap the rings they carry.
-The first time you meet a new piece, an animated card shows you how it works. Every world has its own look, background sound and particles: sparks on the wooden workbench, ticking in the clock tower, confetti at the funfair, shooting stars in space.
+• Fireworks: A bomb ring explodes when freed and blasts the rings it touches. A pressure boiler fills as its neighbors are freed, then bursts.
+• Glacier: An icy ring won't turn; its ice cracks as its neighbors are freed.
+• Mill: A motor ring turns one step by itself after every move.
+• Wizard Tower: When one twin portal is freed, the other teleports away with it.
+An animated card explains every new piece, and every world has its own look, sound and particles.
 
-59 SHAPES, ONE ALBUM
-A cat, a teddy bear, a dragon, an elephant, a robot, a rocket, a monkey, a whale, a lighthouse, a telescope... These shapes made of rings are waiting behind bars. The ones you rescue are collected in your album.
+79 SHAPES, ONE ALBUM
+A cat, a dragon, a robot, a whale, a phoenix... Rescue the shapes made of rings and collect them in your album.
 
 STARS, BADGES AND COINS
-Finish a level in the fewest moves to earn 3 stars. Finish every level of a gate with 3 stars to earn a gold gate reward. Crown your progress with 28 badges. Collect the coins between the rings. Free several rings in one move and the game cheers you on: Nice! Great! Amazing! Finish in the fewest moves without a hint: Flawless!
+Finish a level in the fewest moves to earn 3 stars. Finish every level of a gate with 3 stars to earn a gold gate reward. Crown your progress with 45 badges, some of them secret! Collect the coins between the rings.
+
+A THRILL IN EVERY LEVEL
+• Giant Ring: An armoured giant at the end of a gate. Break its plates one by one.
+• Gold Rain: A timed bonus round with no way to lose, raining coins.
+• Mystery ring: You never know what's inside.
+• Combos and flawless streaks: Flawless levels in a row multiply your coins.
+• Slow motion and a big blast on the last ring; the gate piggy jar fills with your stars and bursts when the gate is done.
+• Music that plays along with the rings: every freed ring adds a note to the tune, and every world has its own instruments.
 
 CHESTS AND STICKERS
 Some rings hide a chest. Free the ring and the chest opens: common, rare or epic! A gold ring doubles the level's coins, and a bulb ring gives you a bulb. Every world has a 5-piece sticker; collect the pieces and complete your collection. Your daily chest waits for you every day, and on the seventh day it's an epic chest!
 
 SHOP
-Spend your coins on the effect that bursts when rings are freed (stardust, bubbles, hearts, lightning), the release sound (glass bell, wood, 8-bit) and the end-of-level celebration (fireworks, gold rain).
+Spend coins on the release effect, the release sound and the end-of-level celebration.
 
 HELP WHEN YOU'RE STUCK
-Hints come in three steps: a free nudge shows which ring to turn, a hint shows the direction and the target, and if you like, the game makes the move for you. Hints and moves use bulbs; you earn bulbs by opening gates, with badges and with coins, and if you run out, you get a free bulb every day. Out of moves? Buy three more with coins or start over.
+A free nudge shows which ring to turn; with bulbs, a hint shows the direction or makes the move for you. Out of moves? Buy three more with coins.
 
 Plays in English and Turkish.
 
 Privacy: The game collects no personal data. Your progress is stored only on your phone.
 ```
 
-## What's new (2.4, max 500 characters)
+## What's new (2.5, max 500 characters)
+
+```
+Big update! 100 new levels and 4 new worlds: Fireworks, Glacier, Mill and Wizard Tower. Five new pieces: bombs, pressure boilers, ice, motors and twin portals. Giant Rings, Gold Rain, mystery rings, combos and flawless streaks. A new adventure map, a gate piggy jar and music that plays along with the rings. 17 new badges and 20 new shapes. The Phoenix takes flight at level 400. Your progress is kept.
+```
+
+## Previous release (2.4)
 
 ```
 New worlds! 100 new levels and 4 new worlds: Funfair, Power Plant, Lighthouse and Observatory. Five new pieces: spring rings, token rings, switches, pulse rings and turntables, each explained by an animated card. 20 new shapes, 4 new stickers and 3 new badges. At level 200 the Great Machine opens the new worlds, and the Star Map waits for you at level 300. Your progress is kept.
