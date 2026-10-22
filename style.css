@@ -1388,3 +1388,11 @@ svg { display: block; }
 .shop-try:not(.sound) > svg { width: 100%; height: 100%; }
 .shop-try { position: relative; }
 .shop-try .try { position: absolute; right: 8px; bottom: 6px; font-size: 11.5px; font-weight: 800; color: var(--muted); }
+
+/* Macera haritası: çizim #mapFx canvas'ında; duraklar dokunma ve ekran okuyucu için görünmez düğmeler */
+.map-inner .stop { position: absolute; width: 64px; height: 64px; margin: -40px 0 0 -32px; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.map-inner .stop:disabled { cursor: default; }
+.map-inner .stop-play { position: absolute; transform: translate(-50%, -50%); border: 0; border-radius: 12px; background: transparent;
+  color: transparent; font-size: 1px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.map-inner .stop:focus-visible, .map-inner .stop-play:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }

@@ -313,6 +313,7 @@
         [1319, 1760].forEach((f, k) => tone(f, 0.3, 'sine', 0.05, null, 0.08 + k * 0.07));
         if (done) [523, 659, 784, 1047, 1319].forEach((f, k) => tone(f, 0.45, 'triangle', 0.09, null, 0.3 + k * 0.1));
       },
+      tone, noise,
       context: audio,
     };
   })();
@@ -733,11 +734,9 @@
   }
 
   // ---- Harita ----
-  const LOCK_SVG = '<svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 0h6V8a3 3 0 0 0-6 0z"/></svg>';
-  const MAP = { gap: 84, arch: 160, bottom: 56, teaser: 260, strip: 34 };
-  MAP.block = MAP.arch + W.GATE_SIZE * MAP.gap;
-  let mapGeo = null;      // son çizimin ölçüleri: düğüm ve kemer konumları
-  let lastWon = null;     // haritaya dönünce yıldızları parlayacak bölüm
+  const MAP = { strip: 34 }; // sağdaki kapı şeridinin genişliği
+  let mapGeo = null;      // son çizimin ölçüleri: kapıların konumları
+  let lastWon = null;     // haritaya dönünce Halka'nın bu bölümden sonrakine yürüyeceği bölüm
   let mapBusy = false;    // tören sürerken harita dokunmaya kapalı
 
   // Şekil bölümünün küçük resmi: halkalar ve çubuklar, renkli ya da gri siluet
@@ -764,96 +763,35 @@
     return `<svg viewBox="0 0 48 48" aria-hidden="true">${parts.join('')}</svg>`;
   }
 
-  // Noktalardan geçen yumuşak eğri (Catmull-Rom → Bezier)
-  function smoothPath(pts) {
-    if (!pts.length) return '';
-    let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-      const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
-      const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
-      d += ` C${c1.x},${c1.y} ${c2.x},${c2.y} ${p2.x},${p2.y}`;
-    }
-    return d;
-  }
-
-  // Harita ölçüleri: aşağıdan yukarı; her kapı bir kemer + 10 durak
-  function mapLayout(width) {
-    const teaser = GATE_COUNT < W.GATES.length;
-    const height = MAP.bottom + GATE_COUNT * MAP.block + (teaser ? MAP.teaser : 40);
-    const cx = width / 2;
-    const amp = Math.min(width * 0.27, 108);
-    const top = yb => height - yb;
-    const arches = [], nodes = [];
-    for (let g = 1; g <= GATE_COUNT + (teaser ? 1 : 0); g++) {
-      const base = MAP.bottom + (g - 1) * MAP.block;
-      arches[g] = { x: cx, y: top(base + MAP.arch * 0.42) };
-      if (g > GATE_COUNT) break;
-      for (let k = 1; k <= W.GATE_SIZE; k++) {
-        const n = W.gateStart(g) + k - 1;
-        const x = k === W.GATE_SIZE ? cx : cx + amp * Math.sin(n * 0.95 + 0.6);
-        nodes[n] = { x, y: top(base + MAP.arch + (k - 1) * MAP.gap + 20) };
-      }
-    }
-    // Yolun geçtiği noktalar: kemer, kapının durakları, sonraki kemer...
-    const pts = [], index = [];
-    for (let g = 1; g < arches.length; g++) {
-      pts.push(arches[g]);
-      if (g > GATE_COUNT) break;
-      for (let n = W.gateStart(g); n <= gateEnd(g); n++) { index[n] = pts.length; pts.push(nodes[n]); }
-    }
-    if (teaser) pts.push({ x: cx, y: 30 });
-    return { width, height, cx, arches, nodes, pts, index, teaser };
-  }
-
-  const lootSvg = l => (l.type === 'mystery'
-    ? `<svg class="loot-ico token mystery" viewBox="0 0 20 20" aria-hidden="true"><circle class="orb" cx="10" cy="10" r="8.5"/><text x="10" y="14.2">?</text></svg>`
-    : l.type === 'gold'
-    ? `<svg class="loot-ico token gold" viewBox="0 0 20 20" aria-hidden="true"><circle class="coin" cx="10" cy="10" r="8.5"/><text x="10" y="13.6">×2</text></svg>`
-    : l.type === 'bulb'
-      ? `<svg class="loot-ico token bulb" viewBox="0 0 20 20" aria-hidden="true"><circle class="glass" cx="10" cy="8" r="6.5"/><rect class="base" x="7" y="13.5" width="6" height="5" rx="1.2"/></svg>`
-      : `<svg class="loot-ico ${l.rarity}" viewBox="0 0 24 20" aria-hidden="true">
-    <path class="lid" d="M2 9V7.5C2 3 22 3 22 7.5V9z"/><rect class="box" x="2" y="9" width="20" height="9" rx="2"/>
-    <rect class="band" x="5" y="4" width="3" height="14"/><rect class="band" x="16" y="4" width="3" height="14"/></svg>`);
-
-  function nodeHtml(n, state, def) {
-    const got = starsOf(n);
-    const stars = `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
-    if (def.name) return shapeSvg(def, state === 'done') + (state === 'done' ? stars : '');
-    if (state === 'locked') return LOCK_SVG;
-    return `<span class="num">${n}</span><span class="tier-dot ${tierOf(n).id}"></span>` + (state === 'done' ? stars : '');
-  }
-
-  // Dünya adı kemerin üstünde, kapının ilk durağının hemen altında durur: durağın ters yanına kayar
-  function worldNameShift(g, geo) {
-    const first = geo.nodes[W.gateStart(g)];
-    if (!first) return 0;
-    const dx = first.x - geo.arches[g].x;
-    return -(Math.sign(dx) || 1) * Math.max(15, 95 - Math.abs(dx));
-  }
-
-  function archHtml(g, geo) {
-    const gate = W.GATES[g - 1];
-    const world = W.worldById(gate.world);
-    const teaser = g > GATE_COUNT;
-    const open = !teaser && isUnlocked(W.gateStart(g)) && (g === 1 || progress.rewards['gate:' + g]);
-    const cls = ['arch', open ? 'open' : 'locked', !teaser && gateGold(g) ? 'gold' : '', teaser ? 'teaser' : ''].join(' ');
-    const label = teaser
-      ? `<span class="arch-sub">${tr('Yakında')}</span>`
-      : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
-    return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
-      ${W.isWorldStart(g) ? `<span class="arch-world" style="transform:translateX(${worldNameShift(g, geo)}px)">${world.name}</span>` : ''}
-      <svg viewBox="0 0 230 100" aria-hidden="true">
-        <path class="arch-shadow" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <path class="arch-line" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <path class="arch-shine" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <g class="arch-lock" transform="translate(115 30)">
-          <circle class="l1" cx="-9" cy="-3" r="10"/><circle class="l2" cx="9" cy="-3" r="10"/><circle class="l3" cx="0" cy="9" r="10"/>
-        </g>
-      </svg>
-      <span class="arch-name">${tr('Kapı {n}', { n: g })} · ${gate.name}</span>
-      ${label}
-    </div>`;
+  // Macera haritası (adventure.js çizer). Dokunma ve erişilebilirlik için duraklar DOM düğmesi olarak üstte kalır.
+  // Şekil bölümlerinin istasyonunda şeklin küçük resmi durur (renkli: bitmiş, gri: henüz değil)
+  const shapeImgs = {};
+  let ADV = null;
+  function adv() {
+    if (ADV) return ADV;
+    ADV = window.RingAdventure.create({
+      canvas: $('mapFx'), scroller: $('map'), tr,
+      reduced: () => !fxOn(),
+      sound: Sound,
+      data: {
+        count: TOTAL, gateSize: W.GATE_SIZE,
+        worldOfGate: g => W.worldOfGate(g),
+        stars: starsOf, frontier,
+        shape: n => { const def = getLevel(srcOf(n)); return def.name ? { name: def.name, final: W.posInGate(n) === W.GATE_SIZE } : null; },
+        shapeImage: (n, colored) => {
+          const key = n + (colored ? 'c' : 'g');
+          if (!shapeImgs[key]) {
+            const img = new Image();
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(shapeSvg(getLevel(srcOf(n)), colored).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));
+            shapeImgs[key] = img;
+          }
+          return shapeImgs[key];
+        },
+        reward: n => { const l = lootWaiting(n); if (l) return ['mystery', 'gold', 'bulb'].includes(l.type) ? l.type : 'chest'; return pieceWaiting(n) ? 'piece' : null; },
+        gateOpen: g => isUnlocked(W.gateStart(g)) && (g === 1 || !!progress.rewards['gate:' + g]),
+      },
+    });
+    return ADV;
   }
 
   function renderMap() {
@@ -861,91 +799,62 @@
     const inner = $('mapInner');
     const width = wrap.clientWidth - MAP.strip;
     if (width <= 0) return;
-    const geo = mapGeo = mapLayout(width);
+    const A = adv(), m = A.measure(width);
     const front = frontier();
     applyWorld(W.worldOfGate(W.gateOf(front)));
     $('starTotal').textContent = `${totalStars()} / ${TOTAL * 3}`;
-    inner.style.height = geo.height + 'px';
+    inner.style.height = m.height + 'px';
+    mapGeo = { arches: [] };
+    for (let g = 1; g <= GATE_COUNT; g++) mapGeo.arches[g] = m.gate(g);
 
-    // Yol: bütünü soluk; geçilen kısmı altın noktalı; yeni açılan parça ayrıca çizilip canlandırılır
-    const seen = Math.min(progress.seenFrontier || front, front);
-    const upTo = n => geo.pts.slice(0, geo.index[n] + 1);
-    let html = `<svg class="map-path" width="${width}" height="${geo.height}" aria-hidden="true">
-      <path class="road" d="${smoothPath(geo.pts)}"/>
-      <path class="road-done" d="${smoothPath(upTo(seen))}"/>
-      ${seen < front ? `<path class="road-new" d="${smoothPath(geo.pts.slice(geo.index[seen], geo.index[front] + 1))}"/>` : ''}
-    </svg>`;
-
-    // Kapı bantları (dünyanın rengiyle hafif ışık) ve kemerler
-    for (let g = 1; g < geo.arches.length; g++) {
-      const world = W.worldOfGate(g);
-      const yTop = geo.height - (MAP.bottom + g * MAP.block);
-      html += `<div class="gate-band" style="top:${Math.max(0, yTop)}px;height:${MAP.block}px;--wa:${world.theme.accent}"></div>`;
-    }
-    for (let g = 1; g < geo.arches.length; g++) html += archHtml(g, geo);
-
+    // Duraklar: görünmez düğmeler (çizim canvas'ta); ekran okuyucu için bölümün durumu ve ödülü
+    let html = '';
     for (let n = 1; n <= TOTAL; n++) {
       const def = getLevel(srcOf(n));
       const state = starsOf(n) ? 'done' : isUnlocked(n) ? 'open' : 'locked';
-      const fresh = n > seen && n <= front;
-      const chest = lootWaiting(n); // alınmamış ödül: düğmenin köşesinde (sandık nadirlik renginde)
-      const piece = pieceWaiting(n); // alınmamış çıkartma parçası: sol köşede, dünyanın renginde
-      const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
-        n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
-        state !== 'locked' && def.name ? 'colored' : ''].join(' ');
+      const chest = lootWaiting(n), piece = pieceWaiting(n), at = m.node(n);
       const label = `${tr('Seviye {n}', { n })}${def.name ? ', ' + tr(def.name) : ''}, ${tierOf(n).name.toLowerCase()}, ` +
         (state === 'locked' ? tr('kilitli') : state === 'done' ? tr('{n} yıldız', { n: starsOf(n) }) : tr('oynanmadı'));
-      html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
-        aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
+      html += `<button class="stop ${state}" data-n="${n}" style="left:${at.x}px;top:${at.y}px"
+        aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}></button>`;
     }
-    const cur = geo.nodes[front];
-    html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
-      <svg viewBox="0 0 40 30"><circle cx="14" cy="15" r="9"/><circle cx="26" cy="15" r="9"/></svg></div>`;
-    if (geo.teaser) html += `<div class="map-fog" aria-hidden="true"></div>`;
+    const pl = m.play(front);
+    html += `<button class="stop-play" data-n="${front}" style="left:${pl.x}px;top:${pl.y}px;width:${pl.w}px;height:${pl.h}px">${tr('Oyna')}</button>`;
     inner.innerHTML = html;
-    inner.querySelectorAll('.node:not([disabled])').forEach(b => {
+    inner.querySelectorAll('button:not([disabled])').forEach(b => {
       b.onclick = () => {
-        if (mapBusy) return;
+        if (mapBusy || A.busy()) return;
         Sound.tap();
         loadLevel(Number(b.dataset.n));
         showScreen('game');
       };
     });
-    renderGateStrip(geo);
+    renderGateStrip(mapGeo);
 
-    // Açılışta şimdiki durağa kay; sonra (varsa) tören ve yolda ilerleme
-    const pending = pendingCelebration();
-    const focusY = pending && pending.gate ? geo.arches[pending.gate].y : cur.y;
-    wrap.scrollTop = focusY - wrap.clientHeight * 0.55;
+    // Az önce kazanılan bölümden sonrakine yolculuk: Halka önceki istasyonun nesnesiyle gider.
+    // Kapı geçişinde önce tören (kapı açılır, sis kalkar), sonra büyük zıplayış.
+    const seen = Math.min(progress.seenFrontier || front, front);
+    const won = lastWon;
     lastWon = null;
-    if (pending) celebrate(pending, () => advancePath(seen, front));
-    else advancePath(seen, front);
-  }
-
-  // Yeni açılan yol parçası çizilir, yeni duraklar sırayla belirir
-  function advancePath(seen, front) {
-    const inner = $('mapInner');
-    const path = inner.querySelector('.road-new');
-    const fresh = [...inner.querySelectorAll('.node.fresh')];
+    const walk = won != null && won === seen && front === seen + 1;
     progress.seenFrontier = front;
     saveProgress();
-    if (!path) return;
-    // Yeni parça uçtan uca çizilir; bitince yolun geri kalanı gibi noktalı olur
-    const settle = () => path.classList.replace('road-new', 'road-done');
-    if (REDUCED || !path.animate) settle();
-    else {
-      const len = path.getTotalLength();
-      path.style.strokeDasharray = `${len} ${len}`;
-      const anim = path.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-        { duration: 1100, easing: 'ease-in-out', fill: 'forwards' });
-      anim.onfinish = () => { anim.cancel(); path.style.strokeDasharray = ''; settle(); };
-    }
-    const marker = inner.querySelector('.marker');
-    fresh.forEach((el, k) => setTimeout(() => {
-      el.classList.add('pop');
-      Sound.unlock(k);
-      if (el.classList.contains('current') && marker) marker.classList.add('pop');
-    }, REDUCED ? 0 : 700 + k * 140));
+    const pending = pendingCelebration();
+    A.place(walk ? seen : front);
+    const focusY = pending && pending.gate ? m.gate(pending.gate).y : m.node(walk ? seen : front).y;
+    wrap.scrollTop = focusY - wrap.clientHeight * 0.62;
+    const go = () => {
+      if (!walk) return;
+      mapBusy = true;
+      A.travel(seen, front, starsOf(seen), () => {
+        mapBusy = false;
+        // Kutlama seyrek kalsın ki değeri olsun: her 5. bölüme varınca ya da kusursuz seri her 3'te
+        const streak = progress.streakPerfect || 0;
+        if (front % 5 === 0 || (streak >= 3 && streak % 3 === 0)) setTimeout(() => A.celebrate(front), 380);
+      });
+    };
+    if (pending) celebrate(pending, go);
+    else go();
   }
 
   function renderGateStrip(geo) {
@@ -972,8 +881,10 @@
   // Ekranın ortasındaki kapıyı şeritte işaretler
   function mapGateAt(y) {
     if (!mapGeo) return 1;
-    const yb = mapGeo.height - y;
-    return Math.max(1, Math.min(mapGeo.arches.length - 1, Math.floor((yb - MAP.bottom) / MAP.block) + 1));
+    // Kapılar yukarı doğru dizili: y'nin altında kalan en yüksek kapı
+    let g = 1;
+    for (let i = 1; i < mapGeo.arches.length; i++) if (mapGeo.arches[i].y >= y) g = i;
+    return g;
   }
   function updateGateStrip() {
     const wrap = $('map');
@@ -997,12 +908,10 @@
     mapBusy = true;
     const veil = $('ceremony');
     veil.hidden = false;
-    const arch = p.gate ? $('mapInner').querySelector(`.arch[data-gate="${p.gate}"]`) : null;
     let shown = false;
     const showCard = () => {
       if (shown) return;
       shown = true;
-      if (arch) { arch.classList.add('opening', 'open'); arch.classList.remove('locked'); }
       const rewards = [];
       if (p.gate) {
         progress.rewards['gate:' + p.gate] = true;
@@ -1033,40 +942,9 @@
       done();
     };
     veil.onclick = showCard; // dokununca tören atlanır
-    if (REDUCED || !arch) { Sound.gate(); showCard(); return; }
-    setTimeout(() => { arch.classList.add('opening'); Sound.gate(); }, 450);
+    if (REDUCED || !p.gate) { if (p.gate) adv().openGate(p.gate); Sound.gate(); showCard(); return; }
+    setTimeout(() => { adv().openGate(p.gate); Sound.gate(); }, 450);
     setTimeout(showCard, 2100);
-  }
-
-  // ---- Harita zemini: dünyanın renginde yavaşça yükselen ışık parçacıkları ----
-  const mapCanvas = $('mapFx');
-  const mctx = mapCanvas.getContext('2d');
-  let motes = [];
-  function drawMapFx(now) {
-    const wrap = mapCanvas.parentElement;
-    const w = wrap.clientWidth, h = wrap.clientHeight;
-    const dpr = window.devicePixelRatio || 1;
-    if (mapCanvas.width !== Math.round(w * dpr) || mapCanvas.height !== Math.round(h * dpr)) {
-      mapCanvas.width = Math.round(w * dpr);
-      mapCanvas.height = Math.round(h * dpr);
-      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    mctx.clearRect(0, 0, w, h);
-    if (REDUCED || !w) return;
-    const map = $('map');
-    const accent = W.worldOfGate(mapGateAt(map.scrollTop + map.clientHeight / 2)).theme.accent;
-    while (motes.length < 22) {
-      motes.push({ x: Math.random() * w, y: h + Math.random() * h, r: 1 + Math.random() * 2.4,
-                   v: 0.15 + Math.random() * 0.35, ph: Math.random() * TAU });
-    }
-    mctx.fillStyle = accent;
-    for (const m of motes) {
-      m.y -= m.v;
-      if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
-      mctx.globalAlpha = 0.25 + 0.25 * Math.sin(now / 900 + m.ph);
-      mctx.beginPath(); mctx.arc(m.x + Math.sin(now / 1600 + m.ph) * 8, m.y, m.r, 0, TAU); mctx.fill();
-    }
-    mctx.globalAlpha = 1;
   }
 
   // ---- Yeni dünyaya ilk giriş kartı ----
@@ -4667,7 +4545,7 @@
         drawParticles();
       }
       backdrop.draw(now, fxOn() && $('levels').hidden);
-      if (!$('levels').hidden) drawMapFx(now);
+      if (!$('levels').hidden && ADV) ADV.draw(now);
       drawPreviews(now);
       drawFx(now);
     } catch (err) {
@@ -4815,7 +4693,9 @@
 
   if (params.has('debug')) {
     window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, addCombo, badgeCtx, awardBadges, showScreen,
-      fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
+      fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }),
+      // haritadaki yolculuğu sınamak için: bu bölüm az önce kazanılmış gibi
+      wonLevel: n => { lastWon = n; } };
   }
   requestAnimationFrame(frame);
 })();
