@@ -327,6 +327,13 @@
   // Tarayıcı sesi ancak bir dokunuştan sonra açar: ilk dokunuşta ortam sesi başlar
   document.addEventListener('pointerdown', () => { if (progress.ambient !== false) { Sound.context(); ambience.resume(); } }, true);
   document.addEventListener('visibilitychange', syncAmbience);
+  // Müzik (2.5, music.js): oyun ekranında, bölüm sürerken çalar; ayarlardan ayrıca kapatılır, sesi ayarlanır (varsayılan kısık)
+  const music = window.RingMusic.Music(() => Sound.context());
+  function syncMusic() {
+    if (progress.music !== false && !document.hidden && !$('game').hidden && !S.won) { music.volume((progress.musicVol ?? 40) / 100); music.play(); }
+    else music.stop();
+  }
+  document.addEventListener('visibilitychange', syncMusic);
 
   // ---- Oyun durumu ----
   const S = {
@@ -368,6 +375,7 @@
     if (name === 'trophies') renderTrophies();
     if (name === 'levels') renderMap();
     if (name === 'game') requestAnimationFrame(resize);
+    syncMusic();
   }
 
   // ---- Dünya teması: zemin ve vurgu rengi dünyaya göre değişir, halka renkleri değişmez ----
@@ -1203,6 +1211,7 @@
     $('game').classList.toggle('tutorial', tut != null);
     renderMeter(true);
     updateHud();
+    syncMusic(); // yeni bölüm: müzik baştan, yalnız pad ve bas
   }
 
   // Deneme bölümü: el işareti ve açıklama kartıyla rehberli
@@ -1446,6 +1455,10 @@
       }
     });
     const freed = waves.flat();
+    // müzik: kurtulanların notaları, boşalan tahtaya göre katmanlar, son halkada çözülüş
+    music.free(freed.length);
+    music.progress(S.L.rings.filter((_, i) => mask & (1 << i)).length / S.L.rings.length);
+    if (finale) music.resolve();
     if (!S.preview && S.tut == null) {
       setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
       stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
@@ -1998,6 +2011,7 @@
     let bursts = 0;
     while (comboPts >= COMBO_FULL) { comboPts -= COMBO_FULL; bursts++; }
     renderCombo(n >= 2);
+    if (n >= 3 || comboStreak >= 2) music.sparkle(n);
     if (bursts) comboBurst(bursts);
   }
   function renderCombo(bump) {
@@ -2157,6 +2171,7 @@
     progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
     const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
     progress.stats.bestStreak = Math.max(progress.stats.bestStreak || 0, progress.streakPerfect);
+    if (progress.streakPerfect === 3 || progress.streakPerfect === 6) music.jingle(); // altın çarpanı arttı
     if (!S.extra && S.moves >= S.limit) stat('lastBreath');
     if (tries >= 5) stat('patient');
     const streakBonus = earned * (streakMult - 1);
@@ -2640,7 +2655,10 @@
   // ---- Ayarlar ----
   const toggles = [...document.querySelectorAll('#settings .toggle')];
   const langBtns = [...document.querySelectorAll('#settings [data-lang]')];
+  $('musicVol').oninput = e => { progress.musicVol = Number(e.target.value); music.volume(progress.musicVol / 100); };
+  $('musicVol').onchange = saveProgress;
   function renderSettings() {
+    $('musicVol').value = progress.musicVol ?? 40;
     for (const b of toggles) b.setAttribute('aria-checked', String(progress[b.dataset.key] !== false));
     for (const b of langBtns) b.setAttribute('aria-checked', String(b.dataset.lang === I18N.lang));
   }
@@ -2662,6 +2680,7 @@
       saveProgress();
       renderSettings();
       if (key === 'ambient') syncAmbience();
+      if (key === 'music') syncMusic();
       Sound.tap();
     };
   }

@@ -24,6 +24,8 @@
       best: {},           // bölüm kimliği -> en iyi skor
       sound: true,        // oyun sesleri
       ambient: true,      // dünyanın ortam sesi
+      music: true,        // müzik (2.5)
+      musicVol: 40,       // müzik sesi (0-100), varsayılan kısık
       effects: true,      // arka plan parçacıkları ve büyük patlamalar
       coins: 0,
       hints: START_HINTS, // ampul (ipucu hakkı)
