@@ -135,7 +135,8 @@
   const Sound = (() => {
     let ac = null;
     function audio() {
-      if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+      // balanced: telefonda daha büyük ses tamponu; işlemci yoğunken (harita, müzik) ses cızırdamaz
+      if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'balanced' }); } catch (e) { return null; } }
       if (ac.state === 'suspended') ac.resume();
       return ac;
     }
