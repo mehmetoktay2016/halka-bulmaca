@@ -740,6 +740,22 @@ svg { display: block; }
   opacity: calc(var(--tension, 0) * .75);
   transition: opacity .9s ease;
 }
+/* Altın Yağmuru (2.5): bölüm sonu düğmesi, oyun sırasında altın tonlu ekran, sonuç */
+.rain-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin-top: 12px; padding: 10px 14px;
+  border-radius: 16px; border: 1px solid rgba(255, 213, 74, .5); color: #2a1c00;
+  background: linear-gradient(180deg, #ffe680, #ffc94a); box-shadow: 0 4px 0 #b8860b, 0 0 18px rgba(255, 213, 74, .35);
+  animation: rain-pulse 1.6s ease-in-out infinite;
+}
+.rain-btn span { font-family: var(--font-display); font-size: 19px; font-weight: 800; }
+.rain-btn small { font-size: 12px; font-weight: 800; opacity: .75; }
+.rain-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8860b; }
+@keyframes rain-pulse { 50% { box-shadow: 0 4px 0 #b8860b, 0 0 30px rgba(255, 213, 74, .6); } }
+#game.rain .meter, #game.rain .combo { visibility: hidden; }
+#game.rain .vignette { opacity: .35; background: radial-gradient(ellipse 80% 70% at 50% 40%, rgba(255, 213, 74, 0) 50%, rgba(255, 190, 40, .35) 100%); }
+#game.rain #movesNum { color: var(--gold); }
+.rain-total { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0; font-family: var(--font-display); font-size: 44px; color: var(--coin); }
+.rain-total .coin-ico { font-size: 36px; }
 /* Dev Halka can çubuğu (2.5): plaka sayısı kadar kırmızı dilim, zırh bitince yanıp söner */
 .boss-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
 .boss-bar span { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffd6d6; }

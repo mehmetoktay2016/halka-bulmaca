@@ -233,6 +233,18 @@
           </button>
           <button id="continue" class="btn-primary"></button>
         </div>
+        <button id="rainBtn" class="rain-btn" hidden><span data-t>Altın Yağmuru</span><small data-t>30 saniye · kaybetmek yok</small></button>
+      </div>
+    </div>
+
+    <!-- Altın Yağmuru sonu -->
+    <div id="rainEnd" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rainTitle">
+      <div class="card">
+        <div class="eyebrow" data-t>Altın Yağmuru</div>
+        <h2 id="rainTitle" data-t>Süre doldu!</h2>
+        <div class="rain-total"><i class="coin-ico"></i><b id="rainTotal">+0</b></div>
+        <p id="rainBoards" class="win-note"></p>
+        <div class="row"><button id="rainGo" class="btn-primary" data-t>Devam et</button></div>
       </div>
     </div>
 

@@ -44,6 +44,8 @@
   const SLOW_K = 2.4;      // son halka ağır çekimde bu kat yavaş uçar
   const COMBO_FULL = 6;    // kombo metresinin dolması için gereken puan
   const COMBO_COINS = 3;   // metre dolunca gelen altın patlaması
+  const RAIN_MS = 30000;   // Altın Yağmuru süresi (kapının 5. bölümünden sonra, isteğe bağlı, kapı başına bir kez)
+  const RAIN_COINS = 3;    // Altın Yağmurunda tahta başına en çok altın
   const flyMs = f => (f.slow ? FLY_MS * SLOW_K : FLY_MS);
   const WAVE_MS = 170;
   const COIN_MS = 650;
@@ -345,6 +347,8 @@
   let flashT = 0;       // son halkadaki beyaz parlamanın başlangıcı
   // Kombo metresi: art arda zincir yapan hamleler doldurur, dolunca altın patlaması (oturum boyunca sürer)
   let comboPts = 0, comboStreak = 0;
+  // Altın Yağmuru: { gate, end, total, boards, back } (oynanırken), yoksa null
+  let rain = null;
   let floaters = [];   // yükselen yazılar, ör. "Harika!" { text, x, y, t0, big?, size?, sub?, colors?, life? } (uygulama koordinatı)
   let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
@@ -1271,6 +1275,7 @@
     lightWaves = [];
     $('win').classList.add('hidden');
     $('fail').classList.add('hidden');
+    $('rainBtn').hidden = true;
     $('game').classList.toggle('tutorial', tut != null);
     renderMeter(true);
     updateHud();
@@ -1351,12 +1356,13 @@
   }
 
   function updateHud() {
-    $('levelLabel').textContent = S.tut != null ? tr('Nasıl oynanır')
+    $('levelLabel').textContent = rain ? tr('Altın Yağmuru')
+      : S.tut != null ? tr('Nasıl oynanır')
       : S.preview ? tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name)
       : tr('Seviye {n}', { n: S.levelNo }) + ' · ' + (S.def.name ? tr(S.def.name) : W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
-    $('movesNum').textContent = S.tut != null ? S.moves : left;
-    $('movesLbl').textContent = S.tut != null ? tr('hamle') : tr('hamle kaldı');
+    $('movesNum').textContent = rain ? Math.max(0, Math.ceil((rain.end - performance.now()) / 1000)) : S.tut != null ? S.moves : left;
+    $('movesLbl').textContent = rain ? tr('saniye') : S.tut != null ? tr('hamle') : tr('hamle kaldı');
     $('movesNum').classList.toggle('warn', S.tut == null && left <= 2 && !S.won);
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins - S.lootInAir + S.coinsTaken * S.coinMult;
@@ -1388,7 +1394,7 @@
         (fuses[w].length ? FUSE_WAIT + (fuses[w].some(i => S.L.rings[i].boss) ? BOSS_MS : FUSE_MS) : 0);
     }, 0);
     // Son halka: sahne bir an donar (hit-stop), sonra parlama ve ağır çekimde uçuş
-    if (finale && waves.length && !REDUCED) {
+    if (finale && waves.length && !REDUCED && !rain) {
       at[waves.length - 1] += HITSTOP_MS;
       // donma anında kamera bir tık daha yaklaşır; son halka uçunca gerilim sıfırlanır ve kamera geri sıçrar
       setTimeout(() => { if (S.won) $('game').style.setProperty('--zoom', '1.06'); }, Math.max(0, at[waves.length - 1] - HITSTOP_MS));
@@ -1498,7 +1504,7 @@
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null, slow: last && !REDUCED };
+        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null, slow: last && !REDUCED && !rain };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
@@ -1543,7 +1549,7 @@
       S.won = true;
       // Ödül açılıyorsa bölüm sonu ekranı onun ardından gelir
       const lootEnd = loot && loot.t0 != null ? loot.t0 + (loot.type === 'chest' ? CHEST_SHAKE_MS + 750 : TOKEN_MS + 500) - now : 0;
-      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS * SLOW_K + (fxOn() ? 350 : 0), lootEnd));
+      setTimeout(showWin, rain ? at[waves.length - 1] + WAVE_MS + FLY_MS : Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS * SLOW_K + (fxOn() ? 350 : 0), lootEnd));
     }
     updateHud();
   }
@@ -1553,7 +1559,7 @@
   function placeCoins() {
     const L = S.L;
     const order = L.links.map((_, i) => i).sort(() => Math.random() - 0.5);
-    const want = Math.min(L.links.length, S.loot && S.loot.type === 'gold' ? R.LOOT.goldCoins
+    const want = Math.min(L.links.length, rain ? RAIN_COINS : S.loot && S.loot.type === 'gold' ? R.LOOT.goldCoins
       : ECO.levelCoins[0] + Math.floor(Math.random() * (ECO.levelCoins[1] - ECO.levelCoins[0] + 1)));
     const out = [];
     // Dişli işaretlerinin (ters dişli oku, "×2" etiketi) üstüne altın konmaz
@@ -2050,7 +2056,7 @@
   // Tahtada kalan parça azaldıkça kenarlar kararır, kamera hafifçe yaklaşır; son iki parçada kalanlar titrer ve
   // kalp atışı duyulur. Uçuşu başlamamış parçalar tahtada sayılır. Bölüm bitince kamera geri sıçrar.
   function tensionOf(now) {
-    if (!S.L || S.failed || S.tut != null) return 0;
+    if (!S.L || S.failed || S.tut != null || rain) return 0;
     let total = 0, left = 0;
     for (let i = 0; i < S.L.rings.length; i++) {
       if (!(S.L.full & (1 << i))) continue;
@@ -2136,7 +2142,7 @@
   // Bölüm sonu övgüsü (son halkada, tahtanın ortasında): en az hamleyle bittiyse.
   // İpucusuz "Kusursuz!", ipucuyla "Mükemmel!"; ek hamleyle bitende ya da daha uzun çözümde yok.
   function endPraise() {
-    if (S.tut != null || S.extra) return null;
+    if (rain || S.tut != null || S.extra) return null;
     if (S.moves > (S.def.par ?? S.moves)) return null;
     return S.usedHint ? tr('Mükemmel!') : tr('Kusursuz!');
   }
@@ -2157,6 +2163,7 @@
   }
 
   function showWin() {
+    if (rain) { rainBoardDone(); return; }
     if (S.tut != null) { showTutorialWin(); return; }
     if (S.preview) { showPreviewWin(); return; }
     const par = S.def.par ?? S.moves;
@@ -2227,6 +2234,8 @@
     $('winMoves').textContent = S.moves;
     $('winPar').textContent = par;
     $('continue').textContent = W.posInGate(S.levelNo) === W.GATE_SIZE || S.levelNo >= TOTAL ? tr('Haritaya dön') : tr('Sonraki seviye');
+    // Kapının 5. bölümünden sonra, kapı başına bir kez: isteğe bağlı Altın Yağmuru
+    $('rainBtn').hidden = !(W.posInGate(S.levelNo) === 5 && !progress.rewards['rain:' + g]);
     $('win').classList.remove('hidden');
     Sound.win();
     for (let k = 1; k <= stars; k++) setTimeout(() => Sound.star(k), 400 + k * 180);
@@ -2235,6 +2244,99 @@
     updateHud();
     setTimeout(() => awardBadges(false), 1500);
   }
+
+  // ---- Altın Yağmuru (2.5, bütün kapılarda) ----
+  // 30 saniye boyunca art arda kolay, altınla dolu tahtalar gelir. Hamle sınırı ve kaybetmek yok; ipuçları ücretsiz.
+  // Tahta bitince altınlar hemen kasaya geçer; süre dolunca özet çıkar ve kalınan yerden devam edilir.
+  const RAIN_LAYOUTS = [
+    [[-56, 0, 70], [56, 0, 70]],
+    [[0, -58, 64], [-60, 44, 64], [60, 44, 64]],
+    [[-90, 0, 58], [0, 0, 58], [90, 0, 58]],
+    [[0, 0, 62], [0, -90, 50], [0, 90, 50], [-90, 0, 50], [90, 0, 50]],
+  ];
+  function makeRainBoard() {
+    const Lg = window.RingLogic;
+    for (let tries = 0; tries < 200; tries++) {
+      const lay = RAIN_LAYOUTS[Math.floor(Math.random() * RAIN_LAYOUTS.length)];
+      const def = { name: '', rings: lay.map(([x, y, r]) => ({ x: BOARD.w / 2 + x, y: BOARD.h / 2 + y, r, a: 15 * Math.floor(Math.random() * 24) })) };
+      const L = buildLevel(def);
+      if (Lg.cascade(L, L.startAngles, 0).mask) continue;
+      const sol = solveFast(L, L.startAngles, 0, 4000);
+      if (!sol || sol.moves > 2) continue;
+      def.par = sol.moves;
+      return def;
+    }
+    return null;
+  }
+  function startRain() {
+    const g = W.gateOf(S.levelNo);
+    progress.rewards['rain:' + g] = true;
+    saveProgress();
+    rain = { gate: g, end: performance.now() + RAIN_MS + 600, total: 0, boards: 0, back: S.levelNo, shown: -1 };
+    $('win').classList.add('hidden');
+    $('game').classList.add('rain');
+    Sound.praise(3);
+    nextRainBoard();
+  }
+  function nextRainBoard() {
+    const def = makeRainBoard();
+    if (!def) { endRain(); return; }
+    startDef(def, 0, null);
+    S.limit = Infinity;
+    updateHud();
+    // tahtanın üstünden dökülen altınlar
+    if (!REDUCED) {
+      const w = $('app').clientWidth;
+      for (let k = 0; k < 10; k++) confetti.push({ kind: 'coin', x: Math.random() * w, y: -20 - Math.random() * 80, vx: (Math.random() - 0.5) * 1.5, vy: 2 + Math.random() * 2, size: 8 + Math.random() * 4, rot: Math.random() * TAU, vr: 0.15, life: 1, fade: 0.006, g: 0.12 });
+    }
+  }
+  function rainBoardDone() {
+    const earned = S.coins.filter(c => c.taken).length * S.coinMult;
+    progress.coins += earned;
+    stat('coinsTotal', earned);
+    S.coins.forEach(c => { c.taken = false; });
+    S.coinsTaken = 0;
+    rain.total += earned; rain.boards++;
+    saveProgress();
+    if (performance.now() < rain.end) nextRainBoard(); else endRain();
+  }
+  // Süre dolunca: yarım kalan tahtanın toplanmış altınları da sayılır, özet çıkar
+  function endRain() {
+    if (!rain) return;
+    if (S.coins) {
+      const part = S.coins.filter(c => c.taken).length * S.coinMult;
+      if (part) { progress.coins += part; stat('coinsTotal', part); rain.total += part; S.coins.forEach(c => { c.taken = false; }); S.coinsTaken = 0; saveProgress(); }
+    }
+    S.won = true;
+    $('rainTotal').textContent = '+' + rain.total;
+    $('rainBoards').textContent = tr('{n} tahta temizlendi', { n: rain.boards });
+    $('rainEnd').classList.remove('hidden');
+    Sound.win();
+    launchConfetti(3);
+    updateHud();
+  }
+  function stepRain(now) {
+    if (!rain || !$('rainEnd').classList.contains('hidden')) return;
+    const left = Math.max(0, Math.ceil((rain.end - now) / 1000));
+    if (left !== rain.shown) {
+      rain.shown = left;
+      $('movesNum').textContent = Math.min(left, RAIN_MS / 1000);
+      $('movesNum').classList.toggle('warn', left <= 5);
+      if (left <= 5 && left > 0) Sound.tick();
+    }
+    // Süre dolduğunda tahta oynanırken (uçuş yoksa) yağmur biter; bitmekte olan tahta önce sayılır
+    if (left === 0 && !S.won && !Object.values(S.fly).some(f => now < f.t0 + flyMs(f)) && !S.kicks.length) endRain();
+  }
+  $('rainBtn').onclick = () => { Sound.tap(); startRain(); };
+  $('rainGo').onclick = () => {
+    Sound.tap();
+    const back = rain.back;
+    rain = null;
+    $('rainEnd').classList.add('hidden');
+    $('game').classList.remove('rain');
+    if (W.posInGate(back) !== W.GATE_SIZE && back < TOTAL && isUnlocked(back + 1)) loadLevel(back + 1);
+    else showScreen('levels');
+  };
 
   // 3 yıldız: ortadaki yıldızdan bütün ekrana yayılan altın ışık halkası
   function perfectWave() {
@@ -2732,7 +2834,7 @@
 
   // ---- İpucu: ampul sayacı ve kademeli ipucu ----
   // Dürtme her zaman ücretsiz; İpucu ve Hamleyi yap birer ampul. 1. kapıda ve denemelerde hepsi ücretsiz.
-  const hintsFree = () => S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
+  const hintsFree = () => !!rain || S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
 
   function renderHintCount() {
     const el = $('hintCount');
@@ -4465,6 +4567,7 @@
         drawTable(now);
         drawCouples();
         stepTension(now);
+        stepRain(now);
         renderBossBar(now);
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + flyMs(S.fly[i])));
         drawDeco(visible, now);
