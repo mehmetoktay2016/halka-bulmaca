@@ -281,6 +281,49 @@
         k.every(18, 32, t => k.blip(t, 180, 1.4, 0.02, 'sawtooth', 260));
         return 2.4;
       },
+      // Havai Fişek (2.5): uzaktan gelen fişek gümlemeleri ve ardından çıtırtı, alçak kalabalık uğultusu
+      fisek(k) {
+        const crowd = k.bed('bandpass', 500, 0.7, 0.02);
+        k.lfo(crowd.gain.gain, 0.06, 0.01);
+        k.every(4, 9, t => {
+          k.blip(t, 70, 0.6, 0.05, 'sine', 40);
+          k.puff(t, 'lowpass', 700, 0.7, 0.5, 0.05, 0.01);
+          const n = 6 + Math.floor(rand() * 10);
+          for (let i = 0; i < n; i++) k.puff(t + 0.35 + i * (0.03 + rand() * 0.08), 'highpass', 3500 + rand() * 2000, 0.8, 0.03, 0.025);
+        });
+        k.every(10, 20, t => k.blip(t, 900, 0.9, 0.01, 'sine', 2600));
+        return 3.0;
+      },
+      // Buzul (2.5): uluyan rüzgâr, uzakta buz çatırtısı, arada cam gibi şıngırtı
+      buzul(k) {
+        const wind = k.bed('bandpass', 500, 2.5, 0.07);
+        k.lfo(wind.filter.frequency, 0.07, 260);
+        k.lfo(wind.gain.gain, 0.05, 0.035);
+        const cave = k.echo(0.4, 0.35, 3000);
+        k.every(9, 18, t => { k.blip(t, 60, 0.9, 0.04, 'sine', 45); k.puff(t, 'bandpass', 900, 3, 0.25, 0.03); });
+        k.every(6, 12, t => { for (let i = 0; i < 3; i++) k.blip(t + i * 0.09, 2600 + rand() * 1600, 0.6, 0.008, 'sine', 0, cave); });
+        return 2.8;
+      },
+      // Değirmen (2.5): akan dere, ağır dönen çarkın tahta gıcırtısı ve tok vuruşu, arada kuş
+      degirmen(k) {
+        const brook = k.bed('bandpass', 1800, 0.9, 0.03);
+        k.lfo(brook.gain.gain, 0.3, 0.01);
+        k.pulse(2.4, (t, n) => {
+          k.puff(t, 'lowpass', 300, 0.8, 0.12, 0.05);
+          if (n % 2 === 0) k.blip(t + 0.6, 220, 0.5, 0.008, 'sawtooth', 170);
+        });
+        k.every(8, 16, t => { const f = 2400 + rand() * 600; for (let i = 0; i < 2; i++) k.blip(t + i * 0.15, f, 0.12, 0.012, 'sine', f * 1.2); });
+        return 3.0;
+      },
+      // Büyü Kulesi (2.5): yavaş salınan gizemli pad, yankılı parıltı arpejleri
+      buyu(k) {
+        const pad = [130.8, 196, 277.2].map(f => k.drone('sine', f, 0.014));
+        pad.forEach((p, i) => { k.lfo(p.gain.gain, 0.05 + i * 0.02, 0.009); k.lfo(p.osc.frequency, 0.1 + i * 0.03, 1.5); });
+        const hall = k.echo(0.45, 0.45, 3500);
+        const scale = [523.3, 587.3, 659.3, 739.9, 830.6, 932.3];
+        k.every(7, 14, t => { for (let i = 0; i < 4; i++) k.blip(t + i * 0.14, pick(scale) * (rand() < 0.3 ? 2 : 1), 0.7, 0.012, 'sine', 0, hall); });
+        return 2.6;
+      },
     };
 
     function stopScene(scene, fade) {

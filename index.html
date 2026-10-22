@@ -149,6 +149,8 @@
 
     <!-- Oyun -->
     <section id="game" class="screen" hidden>
+      <!-- Gerilim sahnesi: parça azaldıkça kenarlar kararır (--tension) -->
+      <div class="vignette" aria-hidden="true"></div>
       <header class="hud">
         <button id="menuBtn" class="round" aria-label="Seviye haritası" data-t-aria="Seviye haritası">
           <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>
@@ -162,10 +164,12 @@
       <div class="hud-center">
         <div id="levelLabel" class="eyebrow"></div>
         <div class="moves"><span id="movesNum">0</span><span id="movesLbl" class="par"></span></div>
+        <!-- Dev Halka can çubuğu (kapı finalleri) -->
+        <div id="bossBar" class="boss-bar" hidden><span data-t>Dev Halka</span><div class="segs"></div></div>
       </div>
 
       <div class="meter-row">
-        <span></span>
+        <div id="combo" class="combo" aria-label="Kombo" data-t-aria="Kombo"><span class="combo-bar"><i></i></span><b id="comboMul"></b></div>
         <div id="starMeter" class="meter" aria-label="Kazanılacak yıldız" data-t-aria="Kazanılacak yıldız"></div>
         <div id="coinPill" class="coin-pill" aria-label="Altın" data-t-aria="Altın"><span class="coin-ico"></span><span id="coinNum">0</span></div>
       </div>
@@ -184,31 +188,27 @@
         <div id="tip" class="tip"></div>
       </main>
 
-      <!-- Kademeli ipucu: ücretsiz dürtme, ipucu, hamleyi yap -->
-      <div id="hintMenu" class="hint-menu" hidden role="dialog" aria-label="İpucu seç" data-t-aria="İpucu seç">
-        <button class="hint-opt" data-tier="nudge">
-          <span><b data-t>Dürt</b><small data-t>Hangi halkayı çevireceğini gösterir</small></span><em class="cost free" data-t>Ücretsiz</em>
-        </button>
-        <button class="hint-opt" data-tier="hint">
-          <span><b data-t>İpucu</b><small data-t>Halkayı, yönü ve hedefi gösterir</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
-        </button>
-        <button class="hint-opt" data-tier="move">
-          <span><b data-t>Hamleyi yap</b><small data-t>Doğru hamleyi senin yerine yapar</small></span><em class="cost"><i class="bulb-ico"></i>1</em>
-        </button>
-        <button id="buyBulb" class="buy-row">
-          <span><b data-t>Ampul al</b><small id="buyNote" data-t>20 altın = 1 ampul</small></span><em class="cost coin"><i class="coin-ico"></i>20</em>
-        </button>
-        <p id="hintBank" class="hint-bank"></p>
-      </div>
-
       <footer class="controls">
         <button id="reset" class="tool">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg></span>
           <span class="lbl" data-t>Yeniden</span>
         </button>
-        <button id="hint" class="tool hint">
+        <!-- Kademeli ipucu, her kademe ayrı düğme: ücretsiz dürtme, ipucu (1 ampul), hamleyi yap (1 ampul), altınla ampul -->
+        <button id="nudge" class="tool help" title="Hangi halkayı çevireceğini gösterir" data-t-title="Hangi halkayı çevireceğini gösterir">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 10V8.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 11v-.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5-2.7l-1.9-3.7a1.5 1.5 0 0 1 2.5-1.6L9 15"/></svg><em class="free" data-t>Ücretsiz</em></span>
+          <span class="lbl" data-t>Dürt</span>
+        </button>
+        <button id="hint" class="tool hint" title="Halkayı, yönü ve hedefi gösterir" data-t-title="Halkayı, yönü ve hedefi gösterir">
           <span class="ico"><svg viewBox="0 0 24 24"><path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg><em id="hintCount">3</em></span>
           <span class="lbl" data-t>İpucu</span>
+        </button>
+        <button id="autoMove" class="tool help" title="Doğru hamleyi senin yerine yapar" data-t-title="Doğru hamleyi senin yerine yapar">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 20 14.5 9.5"/><path d="M13 8l3 3"/><path d="M17 3v3M15.5 4.5h3M20 10v3M18.5 11.5h3M9 3v2M8 4h2"/></svg></span>
+          <span class="lbl" data-t>Hamleyi yap</span>
+        </button>
+        <button id="buyBulb" class="tool buy">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M8 17.5h5M9 21h3"/><path d="M10.5 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2"/><path d="M19 4v6M16 7h6"/></svg><em id="bulbPrice" class="price"><i class="coin-ico"></i>50</em></span>
+          <span class="lbl" data-t>Ampul al</span>
         </button>
       </footer>
     </section>
@@ -233,6 +233,18 @@
           </button>
           <button id="continue" class="btn-primary"></button>
         </div>
+        <button id="rainBtn" class="rain-btn" hidden><span data-t>Altın Yağmuru</span><small data-t>30 saniye · kaybetmek yok</small></button>
+      </div>
+    </div>
+
+    <!-- Altın Yağmuru sonu -->
+    <div id="rainEnd" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rainTitle">
+      <div class="card">
+        <div class="eyebrow" data-t>Altın Yağmuru</div>
+        <h2 id="rainTitle" data-t>Süre doldu!</h2>
+        <div class="rain-total"><i class="coin-ico"></i><b id="rainTotal">+0</b></div>
+        <p id="rainBoards" class="win-note"></p>
+        <div class="row"><button id="rainGo" class="btn-primary" data-t>Devam et</button></div>
       </div>
     </div>
 
@@ -321,6 +333,10 @@
           <button class="toggle" role="switch" data-key="sound" aria-checked="true">
             <span><b data-t>Ses</b><small data-t>Dönme, patlama ve ödül sesleri</small></span><i aria-hidden="true"></i>
           </button>
+          <button class="toggle" role="switch" data-key="music" aria-checked="true">
+            <span><b data-t>Müzik</b><small data-t>Halkalarla birlikte çalan ezgi</small></span><i aria-hidden="true"></i>
+          </button>
+          <label class="vol-row"><b data-t>Müzik sesi</b><input id="musicVol" type="range" min="0" max="100" step="5"></label>
           <button class="toggle" role="switch" data-key="ambient" aria-checked="true">
             <span><b data-t>Ortam sesi</b><small data-t>Her dünyanın kendi arka plan sesi</small></span><i aria-hidden="true"></i>
           </button>
@@ -361,6 +377,9 @@
   <script src="deco.js"></script>
   <script src="scenery.js"></script>
   <script src="ambience.js"></script>
+  <script src="music.js"></script>
+  <script src="journey.js"></script>
+  <script src="adventure.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

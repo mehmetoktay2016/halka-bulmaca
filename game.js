@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, cascade, rotate, solveFast, norm, canRotate, spend, turnTable } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -39,11 +39,24 @@
   const FIXED_COLOR = W.PIECE_COLORS.fixed;
   const STROKE = 13;
   const FLY_MS = 520;
+  // 2.5 gerilim ve ödül anları (Z8, Z18): bütün bölümlerde
+  const HITSTOP_MS = 260;  // son halkadan önce sahne bir an donar
+  const SLOW_K = 2.4;      // son halka ağır çekimde bu kat yavaş uçar
+  const COMBO_FULL = 6;    // kombo metresinin dolması için gereken puan
+  const COMBO_COINS = 3;   // metre dolunca gelen altın patlaması
+  const RAIN_MS = 30000;   // Altın Yağmuru süresi (kapının 5. bölümünden sonra, isteğe bağlı, kapı başına bir kez)
+  const RAIN_COINS = 3;    // Altın Yağmurunda tahta başına en çok altın
+  const flyMs = f => (f.slow ? FLY_MS * SLOW_K : FLY_MS);
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const KEY_MS = 560;   // anahtarın kilide uçuşu
   const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
   const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
+  const BLAST_WAIT = 150; // bomba uçmaya başladıktan sonra patlaması
+  const BLAST_HOLD = 140; // patlamayla vurulan halkalar beyaz parlar, sonra uçar
+  const FUSE_WAIT = 160;  // kazanın basıncı dolduktan sonra düdüğün ötmesi
+  const FUSE_MS = 560;    // düdük öterken kazan akkor parlayıp sarsılır, sonra çıkıp patlar
+  const BOSS_MS = 760;    // Dev Halkanın zırhı bitince ağırlaşma (yükselen ses, sarsıntı), sonra parçalanır
   const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
   // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
@@ -144,6 +157,21 @@
       o.start(t);
       o.stop(t + dur + 0.03);
     }
+    // Sönen beyaz gürültü, alçak geçiren süzgeç fromHz'den toHz'e iner (patlama, gümbürtü)
+    function noise(dur, vol, fromHz, toHz, delay = 0) {
+      if (!progress.sound) return;
+      const a = audio();
+      if (!a) return;
+      const t = a.currentTime + delay;
+      const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+      const n = a.createBufferSource(); n.buffer = buf;
+      const f = a.createBiquadFilter(); f.type = 'lowpass';
+      f.frequency.setValueAtTime(fromHz, t); f.frequency.exponentialRampToValueAtTime(toHz, t + dur);
+      const g = a.createGain(); g.gain.value = vol;
+      n.connect(f).connect(g).connect(a.destination);
+      n.start(t);
+    }
     return {
       tick: () => tone(1400, 0.03, 'triangle', 0.035),
       // Halka kurtulma sesi: mağazadan seçilen pakete göre (k: zincirde kaçıncı dalga)
@@ -185,6 +213,62 @@
         tone(150, 0.7, 'sine', 0.28, 36);
         tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
         [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
+      },
+      // Bomba: gürültülü patlama ve alçalan bas; zincirde (k. patlama) her biri biraz daha tok
+      bang: (k = 0) => {
+        noise(0.7, 0.55, 2600 - Math.min(k, 4) * 300, 160);
+        tone(120 - Math.min(k, 4) * 10, 0.5, 'sine', 0.3, 36);
+        tone(1800, 0.05, 'square', 0.03, 600);
+      },
+      // Motor: çark dönerken tahta tık + metal tak
+      gear: () => {
+        noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
+        noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
+      },
+      // Kalp atışı: iki alçak, yumuşak vuruş (gerilim sahnesi)
+      heart: () => { tone(62, 0.16, 'sine', 0.22, 42); tone(56, 0.14, 'sine', 0.16, 40, 0.24); },
+      // Dev Halka ağırlaşırken (riser): yükselen hışırtı, tizleşen ses, hızlanan davul vuruşları
+      riser: () => {
+        const a = audio();
+        if (!a || !progress.sound) return;
+        const t = a.currentTime, len = 0.72;
+        const buf = a.createBuffer(1, Math.floor(a.sampleRate * len), a.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const n = a.createBufferSource(); n.buffer = buf;
+        const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+        bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(4200, t + len);
+        const ng = a.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.3, t + len);
+        n.connect(bp).connect(ng).connect(a.destination); n.start(t);
+        tone(98, len, 'sawtooth', 0.08, 392);
+        [0, 0.26, 0.44, 0.56, 0.64, 0.69].forEach((at, k) => tone(110, 0.14, 'sine', 0.22 + k * 0.05, 45, at));
+      },
+      // Dev Halka yenildi: hızlı yükselen zafer çıngılı, tam akor ve dökülen parıltı notaları
+      victory: () => {
+        [523.3, 659.3, 784, 1046.5].forEach((f, k) => tone(f, 0.25, 'triangle', 0.11, null, 0.08 + k * 0.07));
+        [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => tone(f, 0.9, 'triangle', 0.05, null, 0.4));
+        tone(130.8, 0.9, 'sine', 0.12, null, 0.4);
+        [2637, 2349, 2093, 1760, 1568, 1319].forEach((f, k) => tone(f, 0.4, 'sine', 0.03, null, 0.53 + k * 0.06));
+      },
+      // Zırh plakası kırıldı: metal tıngırtısı
+      clank: () => {
+        tone(420, 0.2, 'square', 0.05, 180);
+        tone(1750, 0.5, 'sine', 0.04); tone(2630, 0.5, 'sine', 0.035);
+      },
+      // Kazan düdüğü: yükselen tiz ses, altında kaynama gurultusu
+      whistle: () => {
+        tone(700, 0.55, 'sine', 0.08, 2200);
+        noise(0.5, 0.35, 300, 500);
+      },
+      // Portal: yükselen hışırtı ("fşşt") ve üstünde parıldayan üçlü
+      swoosh: () => {
+        noise(0.45, 0.4, 500, 5000);
+        [1319, 1760, 2637].forEach((f, k) => tone(f, 0.4, 'sine', 0.06, null, 0.12 + k * 0.07));
+      },
+      // Buz: çatlayınca kısa cam çıtırtısı, eriyince (melt) dökülen cam parçaları
+      crack: melt => {
+        (melt ? [2637, 3520, 2093, 3136, 4186] : [3136, 2349]).forEach((f, k) =>
+          tone(f * (0.97 + Math.random() * 0.06), 0.35, 'sine', 0.06, null, k * (melt ? 0.045 : 0.03)));
+        noise(0.12, melt ? 0.3 : 0.2, 7000, 2500);
       },
       // Zincir: halka sayısı arttıkça yükselen üçlü
       chain: n => [0, 4, 7].forEach((s, k) => tone(659 * Math.pow(2, (s + (n - 2) * 2) / 12), 0.22, 'triangle', 0.08, null, k * 0.06)),
@@ -229,6 +313,7 @@
         [1319, 1760].forEach((f, k) => tone(f, 0.3, 'sine', 0.05, null, 0.08 + k * 0.07));
         if (done) [523, 659, 784, 1047, 1319].forEach((f, k) => tone(f, 0.45, 'triangle', 0.09, null, 0.3 + k * 0.1));
       },
+      tone, noise,
       context: audio,
     };
   })();
@@ -242,6 +327,13 @@
   // Tarayıcı sesi ancak bir dokunuştan sonra açar: ilk dokunuşta ortam sesi başlar
   document.addEventListener('pointerdown', () => { if (progress.ambient !== false) { Sound.context(); ambience.resume(); } }, true);
   document.addEventListener('visibilitychange', syncAmbience);
+  // Müzik (2.5, music.js): oyun ekranında, bölüm sürerken çalar; ayarlardan ayrıca kapatılır, sesi ayarlanır (varsayılan kısık)
+  const music = window.RingMusic.Music(() => Sound.context());
+  function syncMusic() {
+    if (progress.music !== false && !document.hidden && !$('game').hidden && !S.won) { music.volume((progress.musicVol ?? 40) / 100); music.play(); }
+    else music.stop();
+  }
+  document.addEventListener('visibilitychange', syncMusic);
 
   // ---- Oyun durumu ----
   const S = {
@@ -260,17 +352,30 @@
   let particles = [];
   let confetti = [];
   let shocks = [];     // son halkanın şok dalgası { x, y, t0 } (uygulama koordinatı)
+  let flashT = 0;       // son halkadaki beyaz parlamanın başlangıcı
+  // Kombo metresi: art arda zincir yapan hamleler doldurur, dolunca altın patlaması (oturum boyunca sürer)
+  let comboPts = 0, comboStreak = 0;
+  // Altın Yağmuru: { gate, end, total, boards, back } (oynanırken), yoksa null
+  let rain = null;
+  // Meydan okuma (2.5): { k } — 20k. bölümün kapısında, haritadan açılan isteğe bağlı çok zor bölüm
+  let challenge = null;
+  const BONUS = window.RingLevels.BONUS;
+  const bonusCount = () => Math.floor(TOTAL / BONUS.every);
+  const bonusSrc = k => BONUS.first + k - 1;
+  const bonusReady = k => !!(window.RING_LEVEL_DATA && window.RING_LEVEL_DATA[bonusSrc(k)]);
   let floaters = [];   // yükselen yazılar, ör. "Harika!" { text, x, y, t0, big?, size?, sub?, colors?, life? } (uygulama koordinatı)
   let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
   // ---- Ekran geçişleri ----
   function showScreen(name) {
     for (const id of ['home', 'levels', 'game', 'trophies', 'shop']) $(id).hidden = id !== name;
+    if (name !== 'game') challenge = null;
     if (name === 'shop') renderShop();
     if (name === 'home') { renderHome(); maybeStreak(); }
     if (name === 'trophies') renderTrophies();
     if (name === 'levels') renderMap();
     if (name === 'game') requestAnimationFrame(resize);
+    syncMusic();
   }
 
   // ---- Dünya teması: zemin ve vurgu rengi dünyaya göre değişir, halka renkleri değişmez ----
@@ -278,6 +383,7 @@
   function applyWorld(world) {
     if (themeWorld === world.id) return;
     themeWorld = world.id;
+    music.world(world.id); // dünyanın müzik çeşitlemesi bir sonraki ölçüde girer
     const root = document.documentElement;
     root.style.setProperty('--scene', W.sceneCss(world.theme));
     root.style.setProperty('--accent', world.theme.accent);
@@ -309,6 +415,7 @@
   // oyuncunun şu an içinde bulunduğu kapı için (henüz kutlanmadıysa) yapılır.
   function settleRewards() {
     const fg = W.gateOf(frontier());
+    for (let g = 1; g < fg - 1; g++) progress.rewards['jar:' + g] = progress.rewards['jar:' + g] || 'eski';
     for (let g = 2; g < fg; g++) {
       if (progress.rewards['gate:' + g]) continue;
       progress.rewards['gate:' + g] = true;
@@ -343,10 +450,22 @@
         : type === 'gold' ? { name: tr('Altın halka'), coins: 0, bulbs: 0 }
         : { name: tr('Ampul halkası'), coins: 0, bulbs: 1 };
       loot = { type, ...what, ring, x, y };
+    } else if (mysteryAt(n)) {
+      // Gizem halka (2.5): ödül halkası olmayan bölümlerin yaklaşık sekizde birinde, sabit yerde
+      const spot = R.spotFor('bulb', spots(p));
+      if (spot) { const [ring, x, y] = spot; loot = { type: 'mystery', name: tr('Gizem halka'), coins: 0, bulbs: 0, ring, x, y }; }
     }
     return (lootCache[n] = loot);
   }
+  // Gizem halkanın bölümleri: her oyuncuda aynı (numaradan karışık bir sayı), kapı finalleri ve ilk bölümler hariç
+  const mysteryAt = n => {
+    if (n <= 3 || W.posInGate(n) === W.GATE_SIZE) return false;
+    let x = Math.imul(n ^ 0x5bd1e995, 2654435761);
+    x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12;
+    return ((x >>> 0) % 8) === 5;
+  };
   const LOOT_TIPS = {
+    mystery: { flag: 'mysteryTip', text: tr('Gizem halkayı kurtar: içinden rastgele bir ödül çıkar') },
     chest: { flag: 'lootTip', text: tr('Sandık, içinde durduğu halka kurtulunca açılır') },
     gold: { flag: 'goldTip', text: tr('Altın halkayı kurtar: bu bölümün altınları 2 kat sayılır') },
     bulb: { flag: 'bulbTip', text: tr('Ampul halkasını kurtar: +1 ampul') },
@@ -378,7 +497,8 @@
   // ---- Başarımlar (rozetler) ve şekil albümü ----
   const B = window.RingBadges;
   let failedLevel = null; // hamlesi biten bölüm: hemen ardından kazanılırsa "Pes Etmeyen"
-  const stat = (key, v = 1) => { progress.stats[key] = (progress.stats[key] || 0) + v; };
+  const stat = (key, v = 1) => { if (v) progress.stats[key] = (progress.stats[key] || 0) + v; };
+  let tries = 0, triesOf = 0; // aynı bölümün art arda kaçıncı denemesi ("Sabırlı" rozeti)
   let shapeList = null;
   const shapeLevels = () => shapeList || (shapeList = ORDER.map((_, i) => i + 1).filter(n => getLevel(srcOf(n)).name));
 
@@ -405,6 +525,7 @@
       coinsTotal: st.coinsTotal || 0,
       bulbsBought: progress.bulbsBought || 0,
       hintsUsed: st.hintsUsed || 0,
+      st, // 2.5 rozetlerinin sayaçları (bombs, iceCracks, boilers, teleports, bosses, rains, mysteries, bestStreak, lastBreath, patient)
     };
   }
 
@@ -429,7 +550,7 @@
   }
 
   const medalHtml = (b, done) =>
-    `<span class="medal${done ? '' : ' locked'}" style="--tc:${B.TIERS[b.tier].color}"><svg viewBox="0 0 24 24" aria-hidden="true">${B.ICONS[b.icon]}</svg></span>`;
+    `<span class="medal${done ? '' : ' locked'}" style="--tc:${B.TIERS[b.tier].color}"><svg viewBox="0 0 24 24" aria-hidden="true">${B.ICONS[b.secret && !done ? 'soru' : b.icon]}</svg></span>`;
 
   function nextToast() {
     if (toastBusy || !toastQ.length) return;
@@ -474,12 +595,15 @@
       const s = B.status(b, ctx);
       const done = !!progress.badges[b.id];
       const reward = B.TIERS[b.tier].coins;
+      // Gizli rozet kazanılana kadar adı, koşulu ve ilerlemesi görünmez
+      const hide = b.secret && !done;
       const meta = done
         ? `<span class="got">${tr('Kazanıldı · +{n} altın', { n: reward })}</span>`
+        : hide ? `<span>+${reward}</span>`
         : `<span class="bar-track"><i style="width:${Math.round(100 * s.value / s.goal)}%"></i></span><span>${s.value} / ${s.goal}</span><span>+${reward}</span>`;
       html += `<div class="badge-row${fresh.has(b.id) ? ' new' : ''}" style="--tc:${B.TIERS[b.tier].color}">
         ${medalHtml(b, done)}
-        <div><b>${b.name}</b><p>${b.desc}</p><div class="meta">${meta}</div></div>
+        <div><b>${hide ? '???' : b.name}</b><p>${hide ? tr('Gizli rozet: kazanınca görünür') : b.desc}</p><div class="meta">${meta}</div></div>
       </div>`;
     }
     return html;
@@ -632,11 +756,9 @@
   }
 
   // ---- Harita ----
-  const LOCK_SVG = '<svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 0h6V8a3 3 0 0 0-6 0z"/></svg>';
-  const MAP = { gap: 84, arch: 160, bottom: 56, teaser: 260, strip: 34 };
-  MAP.block = MAP.arch + W.GATE_SIZE * MAP.gap;
-  let mapGeo = null;      // son çizimin ölçüleri: düğüm ve kemer konumları
-  let lastWon = null;     // haritaya dönünce yıldızları parlayacak bölüm
+  const MAP = { strip: 34 }; // sağdaki kapı şeridinin genişliği
+  let mapGeo = null;      // son çizimin ölçüleri: kapıların konumları
+  let lastWon = null;     // haritaya dönünce Halka'nın bu bölümden sonrakine yürüyeceği bölüm
   let mapBusy = false;    // tören sürerken harita dokunmaya kapalı
 
   // Şekil bölümünün küçük resmi: halkalar ve çubuklar, renkli ya da gri siluet
@@ -663,94 +785,38 @@
     return `<svg viewBox="0 0 48 48" aria-hidden="true">${parts.join('')}</svg>`;
   }
 
-  // Noktalardan geçen yumuşak eğri (Catmull-Rom → Bezier)
-  function smoothPath(pts) {
-    if (!pts.length) return '';
-    let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-      const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
-      const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
-      d += ` C${c1.x},${c1.y} ${c2.x},${c2.y} ${p2.x},${p2.y}`;
-    }
-    return d;
-  }
-
-  // Harita ölçüleri: aşağıdan yukarı; her kapı bir kemer + 10 durak
-  function mapLayout(width) {
-    const teaser = GATE_COUNT < W.GATES.length;
-    const height = MAP.bottom + GATE_COUNT * MAP.block + (teaser ? MAP.teaser : 40);
-    const cx = width / 2;
-    const amp = Math.min(width * 0.27, 108);
-    const top = yb => height - yb;
-    const arches = [], nodes = [];
-    for (let g = 1; g <= GATE_COUNT + (teaser ? 1 : 0); g++) {
-      const base = MAP.bottom + (g - 1) * MAP.block;
-      arches[g] = { x: cx, y: top(base + MAP.arch * 0.42) };
-      if (g > GATE_COUNT) break;
-      for (let k = 1; k <= W.GATE_SIZE; k++) {
-        const n = W.gateStart(g) + k - 1;
-        const x = k === W.GATE_SIZE ? cx : cx + amp * Math.sin(n * 0.95 + 0.6);
-        nodes[n] = { x, y: top(base + MAP.arch + (k - 1) * MAP.gap + 20) };
-      }
-    }
-    // Yolun geçtiği noktalar: kemer, kapının durakları, sonraki kemer...
-    const pts = [], index = [];
-    for (let g = 1; g < arches.length; g++) {
-      pts.push(arches[g]);
-      if (g > GATE_COUNT) break;
-      for (let n = W.gateStart(g); n <= gateEnd(g); n++) { index[n] = pts.length; pts.push(nodes[n]); }
-    }
-    if (teaser) pts.push({ x: cx, y: 30 });
-    return { width, height, cx, arches, nodes, pts, index, teaser };
-  }
-
-  const lootSvg = l => (l.type === 'gold'
-    ? `<svg class="loot-ico token gold" viewBox="0 0 20 20" aria-hidden="true"><circle class="coin" cx="10" cy="10" r="8.5"/><text x="10" y="13.6">×2</text></svg>`
-    : l.type === 'bulb'
-      ? `<svg class="loot-ico token bulb" viewBox="0 0 20 20" aria-hidden="true"><circle class="glass" cx="10" cy="8" r="6.5"/><rect class="base" x="7" y="13.5" width="6" height="5" rx="1.2"/></svg>`
-      : `<svg class="loot-ico ${l.rarity}" viewBox="0 0 24 20" aria-hidden="true">
-    <path class="lid" d="M2 9V7.5C2 3 22 3 22 7.5V9z"/><rect class="box" x="2" y="9" width="20" height="9" rx="2"/>
-    <rect class="band" x="5" y="4" width="3" height="14"/><rect class="band" x="16" y="4" width="3" height="14"/></svg>`);
-
-  function nodeHtml(n, state, def) {
-    const got = starsOf(n);
-    const stars = `<span class="mini">${[1, 2, 3].map(k => `<span class="star-ico${k <= got ? ' on' : ''}"></span>`).join('')}</span>`;
-    if (def.name) return shapeSvg(def, state === 'done') + (state === 'done' ? stars : '');
-    if (state === 'locked') return LOCK_SVG;
-    return `<span class="num">${n}</span><span class="tier-dot ${tierOf(n).id}"></span>` + (state === 'done' ? stars : '');
-  }
-
-  // Dünya adı kemerin üstünde, kapının ilk durağının hemen altında durur: durağın ters yanına kayar
-  function worldNameShift(g, geo) {
-    const first = geo.nodes[W.gateStart(g)];
-    if (!first) return 0;
-    const dx = first.x - geo.arches[g].x;
-    return -(Math.sign(dx) || 1) * Math.max(15, 95 - Math.abs(dx));
-  }
-
-  function archHtml(g, geo) {
-    const gate = W.GATES[g - 1];
-    const world = W.worldById(gate.world);
-    const teaser = g > GATE_COUNT;
-    const open = !teaser && isUnlocked(W.gateStart(g)) && (g === 1 || progress.rewards['gate:' + g]);
-    const cls = ['arch', open ? 'open' : 'locked', !teaser && gateGold(g) ? 'gold' : '', teaser ? 'teaser' : ''].join(' ');
-    const label = teaser
-      ? `<span class="arch-sub">${tr('Yakında')}</span>`
-      : `<span class="arch-stars"><span class="star-ico"></span>${gateStars(g)} / ${W.GATE_SIZE * 3}</span>`;
-    return `<div class="${cls}" data-gate="${g}" style="left:${geo.arches[g].x}px;top:${geo.arches[g].y}px;--wa:${world.theme.accent}">
-      ${W.isWorldStart(g) ? `<span class="arch-world" style="transform:translateX(${worldNameShift(g, geo)}px)">${world.name}</span>` : ''}
-      <svg viewBox="0 0 230 100" aria-hidden="true">
-        <path class="arch-shadow" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <path class="arch-line" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <path class="arch-shine" d="M22 100 V56 A93 48 0 0 1 208 56 V100"/>
-        <g class="arch-lock" transform="translate(115 30)">
-          <circle class="l1" cx="-9" cy="-3" r="10"/><circle class="l2" cx="9" cy="-3" r="10"/><circle class="l3" cx="0" cy="9" r="10"/>
-        </g>
-      </svg>
-      <span class="arch-name">${tr('Kapı {n}', { n: g })} · ${gate.name}</span>
-      ${label}
-    </div>`;
+  // Macera haritası (adventure.js çizer). Dokunma ve erişilebilirlik için duraklar DOM düğmesi olarak üstte kalır.
+  // Şekil bölümlerinin istasyonunda şeklin küçük resmi durur (renkli: bitmiş, gri: henüz değil)
+  const shapeImgs = {};
+  let ADV = null;
+  function adv() {
+    if (ADV) return ADV;
+    ADV = window.RingAdventure.create({
+      canvas: $('mapFx'), scroller: $('map'), tr,
+      reduced: () => !fxOn(),
+      sound: Sound,
+      data: {
+        count: TOTAL, gateSize: W.GATE_SIZE,
+        worldOfGate: g => W.worldOfGate(g),
+        stars: starsOf, frontier,
+        shape: n => { const def = getLevel(srcOf(n)); return def.name ? { name: def.name, final: W.posInGate(n) === W.GATE_SIZE } : null; },
+        shapeImage: (n, colored) => {
+          const key = n + (colored ? 'c' : 'g');
+          if (!shapeImgs[key]) {
+            const img = new Image();
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(shapeSvg(getLevel(srcOf(n)), colored).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));
+            shapeImgs[key] = img;
+          }
+          return shapeImgs[key];
+        },
+        reward: n => { const l = lootWaiting(n); if (l) return ['mystery', 'gold', 'bulb'].includes(l.type) ? l.type : 'chest'; return pieceWaiting(n) ? 'piece' : null; },
+        gateOpen: g => isUnlocked(W.gateStart(g)) && (g === 1 || !!progress.rewards['gate:' + g]),
+        jar: () => ({ stars: gateStars(W.gateOf(frontier())), max: W.GATE_SIZE * 3 }),
+        bonusEvery: BONUS.every,
+        bonus: k => (bonusReady(k) ? { open: !!starsOf(k * BONUS.every), stars: progress.bonus[k] || 0 } : null),
+      },
+    });
+    return ADV;
   }
 
   function renderMap() {
@@ -758,91 +824,70 @@
     const inner = $('mapInner');
     const width = wrap.clientWidth - MAP.strip;
     if (width <= 0) return;
-    const geo = mapGeo = mapLayout(width);
+    const A = adv(), m = A.measure(width);
     const front = frontier();
     applyWorld(W.worldOfGate(W.gateOf(front)));
     $('starTotal').textContent = `${totalStars()} / ${TOTAL * 3}`;
-    inner.style.height = geo.height + 'px';
+    inner.style.height = m.height + 'px';
+    mapGeo = { arches: [] };
+    for (let g = 1; g <= GATE_COUNT; g++) mapGeo.arches[g] = m.gate(g);
 
-    // Yol: bütünü soluk; geçilen kısmı altın noktalı; yeni açılan parça ayrıca çizilip canlandırılır
-    const seen = Math.min(progress.seenFrontier || front, front);
-    const upTo = n => geo.pts.slice(0, geo.index[n] + 1);
-    let html = `<svg class="map-path" width="${width}" height="${geo.height}" aria-hidden="true">
-      <path class="road" d="${smoothPath(geo.pts)}"/>
-      <path class="road-done" d="${smoothPath(upTo(seen))}"/>
-      ${seen < front ? `<path class="road-new" d="${smoothPath(geo.pts.slice(geo.index[seen], geo.index[front] + 1))}"/>` : ''}
-    </svg>`;
-
-    // Kapı bantları (dünyanın rengiyle hafif ışık) ve kemerler
-    for (let g = 1; g < geo.arches.length; g++) {
-      const world = W.worldOfGate(g);
-      const yTop = geo.height - (MAP.bottom + g * MAP.block);
-      html += `<div class="gate-band" style="top:${Math.max(0, yTop)}px;height:${MAP.block}px;--wa:${world.theme.accent}"></div>`;
-    }
-    for (let g = 1; g < geo.arches.length; g++) html += archHtml(g, geo);
-
+    // Duraklar: görünmez düğmeler (çizim canvas'ta); ekran okuyucu için bölümün durumu ve ödülü
+    let html = '';
     for (let n = 1; n <= TOTAL; n++) {
       const def = getLevel(srcOf(n));
       const state = starsOf(n) ? 'done' : isUnlocked(n) ? 'open' : 'locked';
-      const fresh = n > seen && n <= front;
-      const chest = lootWaiting(n); // alınmamış ödül: düğmenin köşesinde (sandık nadirlik renginde)
-      const piece = pieceWaiting(n); // alınmamış çıkartma parçası: sol köşede, dünyanın renginde
-      const cls = ['node', state, def.name ? (W.posInGate(n) === W.GATE_SIZE ? 'final' : 'shape') : '',
-        n === front ? 'current' : '', fresh ? 'fresh' : '', n === lastWon ? 'won' : '',
-        state !== 'locked' && def.name ? 'colored' : ''].join(' ');
+      const chest = lootWaiting(n), piece = pieceWaiting(n), at = m.node(n);
       const label = `${tr('Seviye {n}', { n })}${def.name ? ', ' + tr(def.name) : ''}, ${tierOf(n).name.toLowerCase()}, ` +
         (state === 'locked' ? tr('kilitli') : state === 'done' ? tr('{n} yıldız', { n: starsOf(n) }) : tr('oynanmadı'));
-      html += `<button class="${cls}" data-n="${n}" style="left:${geo.nodes[n].x}px;top:${geo.nodes[n].y}px"
-        aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}>${nodeHtml(n, state, def)}${chest ? lootSvg(chest) : ''}${piece ? STK.pieceIcon(W.worldById(piece.world).theme.accent) : ''}</button>`;
+      html += `<button class="stop ${state}" data-n="${n}" style="left:${at.x}px;top:${at.y}px"
+        aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}></button>`;
     }
-    const cur = geo.nodes[front];
-    html += `<div class="marker${front > seen ? ' fresh' : ''}" style="left:${cur.x}px;top:${cur.y - 50}px" aria-hidden="true">
-      <svg viewBox="0 0 40 30"><circle cx="14" cy="15" r="9"/><circle cx="26" cy="15" r="9"/></svg></div>`;
-    if (geo.teaser) html += `<div class="map-fog" aria-hidden="true"></div>`;
+    // Meydan okuma sunakları (isteğe bağlı): 20k. bölüm bitince açılır
+    for (let k = 1; k <= bonusCount(); k++) {
+      if (!bonusReady(k)) continue;
+      const at = m.bonus(k), open = !!starsOf(k * BONUS.every), got = progress.bonus[k] || 0;
+      html += `<button class="stop" data-k="${k}" style="left:${at.x}px;top:${at.y}px"
+        aria-label="${tr('Meydan Okuma {n}', { n: k })}, ${tr('çok zor, isteğe bağlı')}, ${open ? (got ? tr('{n} yıldız', { n: got }) : tr('oynanmadı')) : tr('kilitli')}"${open ? '' : ' disabled'}></button>`;
+    }
+    const pl = m.play(front);
+    html += `<button class="stop-play" data-n="${front}" style="left:${pl.x}px;top:${pl.y}px;width:${pl.w}px;height:${pl.h}px">${tr('Oyna')}</button>`;
     inner.innerHTML = html;
-    inner.querySelectorAll('.node:not([disabled])').forEach(b => {
+    inner.querySelectorAll('button:not([disabled])').forEach(b => {
       b.onclick = () => {
-        if (mapBusy) return;
+        if (mapBusy || A.busy()) return;
         Sound.tap();
-        loadLevel(Number(b.dataset.n));
+        if (b.dataset.k) startChallenge(Number(b.dataset.k));
+        else loadLevel(Number(b.dataset.n));
         showScreen('game');
       };
     });
-    renderGateStrip(geo);
+    renderGateStrip(mapGeo);
 
-    // Açılışta şimdiki durağa kay; sonra (varsa) tören ve yolda ilerleme
-    const pending = pendingCelebration();
-    const focusY = pending && pending.gate ? geo.arches[pending.gate].y : cur.y;
-    wrap.scrollTop = focusY - wrap.clientHeight * 0.55;
+    // Az önce kazanılan bölümden sonrakine yolculuk: Halka önceki istasyonun nesnesiyle gider.
+    // Kapı geçişinde önce tören (kapı açılır, sis kalkar), sonra büyük zıplayış.
+    const seen = Math.min(progress.seenFrontier || front, front);
+    const won = lastWon;
     lastWon = null;
-    if (pending) celebrate(pending, () => advancePath(seen, front));
-    else advancePath(seen, front);
-  }
-
-  // Yeni açılan yol parçası çizilir, yeni duraklar sırayla belirir
-  function advancePath(seen, front) {
-    const inner = $('mapInner');
-    const path = inner.querySelector('.road-new');
-    const fresh = [...inner.querySelectorAll('.node.fresh')];
+    const walk = won != null && won === seen && front === seen + 1;
     progress.seenFrontier = front;
     saveProgress();
-    if (!path) return;
-    // Yeni parça uçtan uca çizilir; bitince yolun geri kalanı gibi noktalı olur
-    const settle = () => path.classList.replace('road-new', 'road-done');
-    if (REDUCED || !path.animate) settle();
-    else {
-      const len = path.getTotalLength();
-      path.style.strokeDasharray = `${len} ${len}`;
-      const anim = path.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-        { duration: 1100, easing: 'ease-in-out', fill: 'forwards' });
-      anim.onfinish = () => { anim.cancel(); path.style.strokeDasharray = ''; settle(); };
-    }
-    const marker = inner.querySelector('.marker');
-    fresh.forEach((el, k) => setTimeout(() => {
-      el.classList.add('pop');
-      Sound.unlock(k);
-      if (el.classList.contains('current') && marker) marker.classList.add('pop');
-    }, REDUCED ? 0 : 700 + k * 140));
+    const pending = pendingCelebration();
+    A.place(walk ? seen : front);
+    const focusY = pending && pending.gate ? m.gate(pending.gate).y : m.node(walk ? seen : front).y;
+    wrap.scrollTop = focusY - wrap.clientHeight * 0.62;
+    const go = () => {
+      if (!walk) return;
+      mapBusy = true;
+      A.travel(seen, front, starsOf(seen), () => {
+        mapBusy = false;
+        // Kutlama seyrek kalsın ki değeri olsun: her 5. bölüme varınca ya da kusursuz seri her 3'te
+        const streak = progress.streakPerfect || 0;
+        if (front % 5 === 0 || (streak >= 3 && streak % 3 === 0)) setTimeout(() => A.celebrate(front), 380);
+      });
+    };
+    if (pending) celebrate(pending, go);
+    else go();
   }
 
   function renderGateStrip(geo) {
@@ -869,8 +914,10 @@
   // Ekranın ortasındaki kapıyı şeritte işaretler
   function mapGateAt(y) {
     if (!mapGeo) return 1;
-    const yb = mapGeo.height - y;
-    return Math.max(1, Math.min(mapGeo.arches.length - 1, Math.floor((yb - MAP.bottom) / MAP.block) + 1));
+    // Kapılar yukarı doğru dizili: y'nin altında kalan en yüksek kapı
+    let g = 1;
+    for (let i = 1; i < mapGeo.arches.length; i++) if (mapGeo.arches[i].y >= y) g = i;
+    return g;
   }
   function updateGateStrip() {
     const wrap = $('map');
@@ -894,17 +941,23 @@
     mapBusy = true;
     const veil = $('ceremony');
     veil.hidden = false;
-    const arch = p.gate ? $('mapInner').querySelector(`.arch[data-gate="${p.gate}"]`) : null;
+    // Biten kapının kumbarası: kapıdaki yıldızlar kadar altın, kapı başına bir kez
+    const done1 = p.gate ? p.gate - 1 : 0, jar = done1 && !progress.rewards['jar:' + done1] ? gateStars(done1) * ECO.jarCoinsPerStar : 0;
+    if (done1) progress.rewards['jar:' + done1] = true;
+    if (jar) adv().burstJar(gateStars(done1), W.GATE_SIZE * 3);
     let shown = false;
     const showCard = () => {
       if (shown) return;
       shown = true;
-      if (arch) { arch.classList.add('opening', 'open'); arch.classList.remove('locked'); }
       const rewards = [];
       if (p.gate) {
         progress.rewards['gate:' + p.gate] = true;
         progress.hints += ECO.gateBulbs;
         rewards.push(`<span class="chip bulb">${tr('+{n} ampul', { n: ECO.gateBulbs })}</span>`);
+        if (jar) {
+          progress.coins += jar; stat('coinsTotal', jar);
+          rewards.push(`<span class="chip loot-chip gold">${tr('Kumbara: +{n} altın', { n: jar })}</span>`);
+        }
       }
       if (p.newTitle) {
         progress.title = p.newTitle;
@@ -930,40 +983,9 @@
       done();
     };
     veil.onclick = showCard; // dokununca tören atlanır
-    if (REDUCED || !arch) { Sound.gate(); showCard(); return; }
-    setTimeout(() => { arch.classList.add('opening'); Sound.gate(); }, 450);
+    if (REDUCED || !p.gate) { if (p.gate) adv().openGate(p.gate); Sound.gate(); showCard(); return; }
+    setTimeout(() => { adv().openGate(p.gate); Sound.gate(); }, 450);
     setTimeout(showCard, 2100);
-  }
-
-  // ---- Harita zemini: dünyanın renginde yavaşça yükselen ışık parçacıkları ----
-  const mapCanvas = $('mapFx');
-  const mctx = mapCanvas.getContext('2d');
-  let motes = [];
-  function drawMapFx(now) {
-    const wrap = mapCanvas.parentElement;
-    const w = wrap.clientWidth, h = wrap.clientHeight;
-    const dpr = window.devicePixelRatio || 1;
-    if (mapCanvas.width !== Math.round(w * dpr) || mapCanvas.height !== Math.round(h * dpr)) {
-      mapCanvas.width = Math.round(w * dpr);
-      mapCanvas.height = Math.round(h * dpr);
-      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    mctx.clearRect(0, 0, w, h);
-    if (REDUCED || !w) return;
-    const map = $('map');
-    const accent = W.worldOfGate(mapGateAt(map.scrollTop + map.clientHeight / 2)).theme.accent;
-    while (motes.length < 22) {
-      motes.push({ x: Math.random() * w, y: h + Math.random() * h, r: 1 + Math.random() * 2.4,
-                   v: 0.15 + Math.random() * 0.35, ph: Math.random() * TAU });
-    }
-    mctx.fillStyle = accent;
-    for (const m of motes) {
-      m.y -= m.v;
-      if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
-      mctx.globalAlpha = 0.25 + 0.25 * Math.sin(now / 900 + m.ph);
-      mctx.beginPath(); mctx.arc(m.x + Math.sin(now / 1600 + m.ph) * 8, m.y, m.r, 0, TAU); mctx.fill();
-    }
-    mctx.globalAlpha = 1;
   }
 
   // ---- Yeni dünyaya ilk giriş kartı ----
@@ -1063,7 +1085,8 @@
   for (const p of PCS.PIECES) if (progress.stars[String(p.intro)]) progress.seenPieces[p.id] = true;
   let pieceQueue = [], pieceAnim = 0;
   function maybePieceCard(def) {
-    const f = window.RingLevels.features(def);
+    // Dev Halka bir tanıtım bölümüyle değil, ilk kapı finalinde kartla tanıtılır
+    const f = window.RingLevels.features(def).concat(def.rings.some(r => r.boss) ? ['boss'] : []);
     pieceQueue = PCS.PIECES.filter(p => f.includes(p.id) && !progress.seenPieces[p.id]);
     if (pieceQueue.length && $('worldCard').classList.contains('hidden')) showPieceCard();
   }
@@ -1161,12 +1184,11 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
-    closeHintMenu();
-    $('hint').classList.remove('pulse');
+    $('nudge').classList.remove('pulse');
     S.angles = S.L.startAngles.slice();
     S.left = S.L.tokens.slice(); // jetonlu halkaların kalan jetonları
     S.sw = S.L.startSw;           // şalterin gösterdiği renk
@@ -1186,9 +1208,12 @@
     lightWaves = [];
     $('win').classList.add('hidden');
     $('fail').classList.add('hidden');
+    $('rainBtn').hidden = true;
     $('game').classList.toggle('tutorial', tut != null);
     renderMeter(true);
     updateHud();
+    music.mode(rain ? 'rain' : S.L.bosses.length ? 'boss' : null);
+    syncMusic(); // yeni bölüm: müzik baştan, yalnız pad ve bas (Altın Yağmuru'nda kesintisiz sürer)
   }
 
   // Deneme bölümü: el işareti ve açıklama kartıyla rehberli
@@ -1215,6 +1240,7 @@
     if (!def) { showTip(tr('Bu seviye yüklenemedi')); return; }
     applyWorld(W.worldOfGate(W.gateOf(n)));
     if (n !== failedLevel) failedLevel = null;
+    tries = n === triesOf ? tries + 1 : 1; triesOf = n;
     startDef(def, n, null);
     maybeWorldCard(n);
     maybePieceCard(def);
@@ -1266,12 +1292,14 @@
   }
 
   function updateHud() {
-    $('levelLabel').textContent = S.tut != null ? tr('Nasıl oynanır')
+    $('levelLabel').textContent = rain ? tr('Altın Yağmuru')
+      : challenge ? tr('Meydan Okuma {n}', { n: challenge.k }) + ' · ' + tr('çok zor, isteğe bağlı')
+      : S.tut != null ? tr('Nasıl oynanır')
       : S.preview ? tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name)
       : tr('Seviye {n}', { n: S.levelNo }) + ' · ' + (S.def.name ? tr(S.def.name) : W.GATES[W.gateOf(S.levelNo) - 1].name);
     const left = S.limit - S.moves;
-    $('movesNum').textContent = S.tut != null ? S.moves : left;
-    $('movesLbl').textContent = S.tut != null ? tr('hamle') : tr('hamle kaldı');
+    $('movesNum').textContent = rain ? Math.max(0, Math.ceil((rain.end - performance.now()) / 1000)) : S.tut != null ? S.moves : left;
+    $('movesLbl').textContent = rain ? tr('saniye') : S.tut != null ? tr('hamle') : tr('hamle kaldı');
     $('movesNum').classList.toggle('warn', S.tut == null && left <= 2 && !S.won);
     $('scoreNum').textContent = fmt(shownScore);
     $('coinNum').textContent = progress.coins - S.lootInAir + S.coinsTaken * S.coinMult;
@@ -1290,17 +1318,103 @@
 
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
-    const { mask, waves, kicks, tokens, angles, left } = cascade(S.L, S.angles, S.mask, S.left, S.ph);
+    // Hamlenin kurtardıkları uçar, sonra motor halkalar birer adım döner (dönüşleri tekmeler arasında gelir)
+    const { mask, waves, kicks, tokens, blasts, portals, fuses, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
-    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü bekler
+    // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
+    // bomba patladıysa patlamayı bekler
     const at = [];
-    waves.reduce((t, _, w) => { at[w] = t; return t + (kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS); }, 0);
+    waves.reduce((t, _, w) => {
+      at[w] = t;
+      return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0) +
+        (fuses[w].length ? FUSE_WAIT + (fuses[w].some(i => S.L.rings[i].boss) ? BOSS_MS : FUSE_MS) : 0);
+    }, 0);
+    // Son halka: sahne bir an donar (hit-stop), sonra parlama ve ağır çekimde uçuş
+    if (finale && waves.length && !REDUCED && !rain) {
+      at[waves.length - 1] += HITSTOP_MS;
+      // donma anında kamera bir tık daha yaklaşır; son halka uçunca gerilim sıfırlanır ve kamera geri sıçrar
+      setTimeout(() => { if (S.won) $('game').style.setProperty('--zoom', '1.06'); }, Math.max(0, at[waves.length - 1] - HITSTOP_MS));
+    }
+    // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
+    const blastFrom = {};
+    // Kazan: basıncı dolunca düdük öter, kazan akkor parlar; sonraki dalgada çıkıp bomba gibi patlar
+    let boiled = -1, boils = 0;
+    fuses.forEach((fs, w) => {
+      for (const i of fs) {
+        const L0 = S.L;
+        if (S.L.rings[i].boss) {
+          // Dev Halka: zırhı bitti; ağırlaşır (yükselen ses, sarsıntı, can çubuğu yanıp söner), sonraki dalgada parçalanır
+          setTimeout(() => { if (S.L === L0) { S.bossFuse[i] = performance.now(); Sound.riser(); } }, at[w] + FUSE_WAIT);
+          continue;
+        }
+        boiled = i; boils++;
+        setTimeout(() => { if (S.L === L0) { S.boilFuse[i] = performance.now(); Sound.whistle(); } }, at[w] + FUSE_WAIT);
+      }
+    });
+    // Dev Halka: dalga dalga zırh plakası kırılır (çizimde kırılma anına dek eski plaka sayısı kalır)
+    let bossDown = -1;
+    if (S.L.bosses.length) {
+      const L0 = S.L;
+      let m = S.mask;
+      waves.forEach((wave, w) => {
+        const was = L0.bosses.map(i => armorLeft(L0, i, m));
+        for (const i of wave) m |= 1 << i;
+        L0.bosses.forEach((i, k) => {
+          if (wave.includes(i)) { bossDown = i; setTimeout(() => { if (S.L === L0) bossBreak(i); }, at[w]); return; }
+          if (m & (1 << i)) return;
+          const left = armorLeft(L0, i, m);
+          if (left === was[k]) return;
+          (S.armorHold[i] = S.armorHold[i] || []).push({ left: was[k], until: now + at[w] });
+          setTimeout(() => { if (S.L === L0) plateBreak(i); }, at[w]);
+        });
+      });
+    }
+    // Portal: kurtulan halkanın ikizi sonraki dalgada yerinde dönerek girdaba çekilir
+    const teleOf = {};
+    portals.forEach((ps, w) => {
+      for (const p of ps) {
+        teleOf[p.to] = p.from;
+        setTimeout(() => portalOpen(p.to), at[w] + 60);
+      }
+    });
+    let bangs = 0;
+    blasts.forEach((bs, w) => {
+      for (const b of bs) {
+        for (const h of b.hits) blastFrom[h] = b.from;
+        const k = bangs++;
+        setTimeout(() => bombBlast(b, k), at[w] + BLAST_WAIT);
+      }
+    });
+    S.bombs = bangs;
+    // Motor döndükten sonraki dalgalarda kurtulanlar "tam zamanında" kurtuldu
+    const motorAt = kicks.findIndex(ks => ks.some(k => k.motor));
+    const onTime = motorAt < 0 ? [] : waves.slice(motorAt + 1).flat();
+    // Buz halkalar dalga dalga çatlar: çizimde eski kat sayısı çatlama anına dek kalır
+    let melted = -1, cracks = 0;
+    if (S.L.hasIce) {
+      const L0 = S.L;
+      let m = S.mask;
+      waves.forEach((wave, w) => {
+        const was = L0.rings.map((_, i) => iceLeft(L0, i, m));
+        for (const i of wave) m |= 1 << i;
+        L0.rings.forEach((r, i) => {
+          if (!was[i] || (m & (1 << i))) return;
+          const left = iceLeft(L0, i, m);
+          if (left === was[i]) return;
+          (S.iceHold[i] = S.iceHold[i] || []).push({ left: was[i], until: now + at[w] });
+          if (!left) melted = i;
+          cracks++;
+          setTimeout(() => { if (S.L === L0) iceCrack(i, !left); }, at[w]);
+        });
+      });
+    }
     let before = S.angles;
     kicks.forEach((ks, w) => {
       for (const k of ks) {
         S.kicks.push({ ring: k.target, delta: k.turn, t0: now + at[w] + KICK_WAIT, done: 0 });
-        setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
+        if (k.motor) setTimeout(() => Sound.gear(), at[w] + KICK_WAIT);
+        else setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
         before = rotate(S.L, before, k.target, k.turn);
       }
     });
@@ -1324,10 +1438,11 @@
           const s = ux * dx + uy * dy >= 0 ? 1 : -1;
           dx = ux * s; dy = uy * s;
         } else {
+          if (blastFrom[i] != null) { const B = S.L.rings[blastFrom[i]]; dx = r.x - B.x; dy = r.y - B.y; }
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + at[w], dx, dy };
+        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null, slow: last && !REDUCED && !rain };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
@@ -1342,9 +1457,21 @@
       }
     });
     const freed = waves.flat();
+    // müzik: kurtulanların notaları, boşalan tahtaya göre katmanlar, son halkada çözülüş
+    music.free(freed.length);
+    music.progress(S.L.rings.filter((_, i) => mask & (1 << i)).length / S.L.rings.length);
+    if (finale && !rain) music.resolve(); // Altın Yağmuru tahtalar arasında durmaz, süre bitince çözülür
+    if (!S.preview && S.tut == null) {
+      setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
+      stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
+      if (bossDown >= 0) stat('bosses');
+    }
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
-    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord), at[waves.length - 1]);
+    const teled = Object.keys(teleOf).map(Number);
+    const word = bossDown >= 0 ? 'boss' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1361,6 +1488,7 @@
       const t0 = now + at[Math.max(w, 0)];
       if (loot.type === 'chest') openChest(t0);
       else if (loot.type === 'gold') openGold(t0);
+      else if (loot.type === 'mystery') openMystery(t0);
       else openBulbRing(t0);
     }
     if (waves.length && navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* yok say */ } }
@@ -1368,7 +1496,7 @@
       S.won = true;
       // Ödül açılıyorsa bölüm sonu ekranı onun ardından gelir
       const lootEnd = loot && loot.t0 != null ? loot.t0 + (loot.type === 'chest' ? CHEST_SHAKE_MS + 750 : TOKEN_MS + 500) - now : 0;
-      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
+      setTimeout(showWin, rain ? at[waves.length - 1] + WAVE_MS + FLY_MS : Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS * SLOW_K + (fxOn() ? 350 : 0), lootEnd));
     }
     updateHud();
   }
@@ -1378,7 +1506,7 @@
   function placeCoins() {
     const L = S.L;
     const order = L.links.map((_, i) => i).sort(() => Math.random() - 0.5);
-    const want = Math.min(L.links.length, S.loot && S.loot.type === 'gold' ? R.LOOT.goldCoins
+    const want = Math.min(L.links.length, rain ? RAIN_COINS : S.loot && S.loot.type === 'gold' ? R.LOOT.goldCoins
       : ECO.levelCoins[0] + Math.floor(Math.random() * (ECO.levelCoins[1] - ECO.levelCoins[0] + 1)));
     const out = [];
     // Dişli işaretlerinin (ters dişli oku, "×2" etiketi) üstüne altın konmaz
@@ -1518,6 +1646,34 @@
     }, Math.max(0, t0 - performance.now()));
   }
 
+  // Gizem halka: kurtulunca rastgele ödül; çoğunlukla 5-10 altın, bazen ampul, nadiren 20 altın. Bölüm başına bir kez.
+  function openMystery(t0) {
+    const c = S.loot;
+    c.t0 = t0;
+    const roll = Math.random();
+    if (roll < 0.25) c.bulbs = 1;
+    else c.coins = roll < 0.9 ? 5 + Math.floor(Math.random() * 6) : 20;
+    progress.loot[idOf(S.levelNo)] = 'mystery';
+    stat('mysteries');
+    progress.coins += c.coins;
+    progress.hints += c.bulbs;
+    stat('coinsTotal', c.coins);
+    S.lootInAir = c.coins;
+    bulbsInAir += c.bulbs;
+    saveProgress();
+    setTimeout(() => {
+      if (S.loot !== c) return;
+      Sound.chestOpen(c.coins >= 20 ? 'epic' : 'rare');
+      lootBurst(c, '#c9a7ff', 46);
+      const p = boardToApp(c.x, c.y), w = $('app').clientWidth;
+      floaters.push({ text: tr('Gizem halka') + '!', sub: c.bulbs ? tr('+{n} ampul', { n: c.bulbs }) : tr('+{n} altın', { n: c.coins }),
+        x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), size: 34, colors: ['#ffffff', '#c9a7ff'], life: 1500 });
+      if (c.coins) lootCoins(c, p);
+      if (c.bulbs) setTimeout(() => flyBulbs(c.bulbs, p.x, p.y, true), 300);
+      awardBadges(false);
+    }, Math.max(0, t0 - performance.now()));
+  }
+
   // Ampul halkası: +1 ampul hemen kayda yazılır, ampul ipucu düğmesine uçar
   function openBulbRing(t0) {
     const c = S.loot;
@@ -1632,6 +1788,20 @@
     ctx.fillText('×' + R.LOOT.goldMult, x, y + 1);
     ctx.restore();
   }
+  // Gizem halka: mor küre, ortasında sallanan soru işareti
+  function drawMysteryToken(x, y, s, now) {
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    const g = ctx.createRadialGradient(-4, -4, 1, 0, 0, 13);
+    g.addColorStop(0, '#e9dcff'); g.addColorStop(1, '#7a52d6');
+    ctx.fillStyle = g; ctx.strokeStyle = '#3d2580'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.rotate(REDUCED ? 0 : Math.sin(now / 300) * 0.15);
+    ctx.fillStyle = '#fff'; ctx.font = '900 16px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', 0, 1);
+    ctx.restore();
+  }
+
   function drawBulbToken(x, y, s) {
     ctx.save();
     ctx.translate(x, y);
@@ -1672,7 +1842,7 @@
       if (k >= 1) { c.done = true; return; }
     }
     drawLootBase(c, now);
-    const color = c.type === 'gold' ? '#ffc94a' : '#fff3b0';
+    const color = c.type === 'gold' ? '#ffc94a' : c.type === 'mystery' ? '#c9a7ff' : '#fff3b0';
     const pulse = 0.5 + 0.5 * Math.sin(now / 380 + c.phase);
     const bob = REDUCED || c.t0 != null ? 0 : Math.sin(now / 500 + c.phase) * 1.5;
     const x = c.x, y = c.y + bob - 10 * k;
@@ -1685,7 +1855,9 @@
     ctx.fillStyle = grd;
     ctx.beginPath(); ctx.arc(x, y, glow, 0, TAU); ctx.fill();
     const s = 1 + 0.45 * Math.sin(Math.min(k, 0.5) * Math.PI);
-    if (c.type === 'gold') drawGoldToken(x, y, s, now); else drawBulbToken(x, y, s);
+    if (c.type === 'gold') drawGoldToken(x, y, s, now);
+    else if (c.type === 'mystery') drawMysteryToken(x, y, s, now);
+    else drawBulbToken(x, y, s);
     ctx.restore();
   }
 
@@ -1790,12 +1962,132 @@
   // Son halka: gümleme, şok dalgası, beyaz parlama ve tahtada kısa bir sarsıntı
   function finaleBlast(wave) {
     Sound.boom();
+    if (fxOn()) flashT = performance.now();
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (e) { /* yok say */ } }
     if (!fxOn()) return;
     const c = waveCenter(wave);
     shocks.push({ ...boardToApp(c.x, c.y), t0: performance.now() });
     const wrap = canvas.parentElement;
     wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+
+  // Bomba patladı (k: bu hamlede kaçıncı patlama): ses, titreşim, şok dalgası, kor parçaları, sarsıntı;
+  // vurulan halkalar bir an beyaz parlar
+  function bombBlast(b, k) {
+    const r = S.L.rings[b.from], t0 = performance.now();
+    Sound.bang(k);
+    if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e) { /* yok say */ } }
+    for (const h of b.hits) S.flash[h] = t0;
+    if (REDUCED) return;
+    for (let q = 0; q < 34; q++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 5;
+      particles.push({ x: r.x, y: r.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, size: 2 + Math.random() * 3.5,
+        color: ['#ffd34a', '#ff7a45', '#ffffff', '#ff5a3d'][q % 4] });
+    }
+    if (!fxOn()) return;
+    shocks.push({ ...boardToApp(r.x, r.y), t0 });
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+
+  // Buz çatladı (melt: tamamen eridi): cam sesi, saçılan buz kırıkları; kabuk ve rozet bir an kabarır
+  function iceCrack(i, melt) {
+    const r = S.L.rings[i];
+    S.iceCrack[i] = performance.now();
+    Sound.crack(melt);
+    if (REDUCED) return;
+    for (let k = 0; k < (melt ? 30 : 12); k++) {
+      const a = Math.random() * TAU, sp = (melt ? 1.6 : 1) * (0.8 + Math.random() * 2);
+      particles.push({ x: r.x + Math.cos(a) * r.r, y: r.y + Math.sin(a) * r.r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        life: 1, size: 2.5 + Math.random() * (melt ? 4 : 2.5), color: 'rgba(235,250,255,.95)', shape: 'shard', rot: Math.random() * TAU });
+    }
+  }
+  // ---- Kombo metresi (2.5) ----
+  // Zincir (2+ halka) yapan hamle metreyi (halka-1) × seri kadar doldurur; seri art arda zincirde 3'e kadar büyür,
+  // zincirsiz hamlede sıfırlanır (metre boşalmaz). Metre dolunca altın patlaması: altınlar metreden kasaya uçar.
+  function addCombo(n) {
+    if (n >= 2) {
+      comboStreak = Math.min(3, comboStreak + 1);
+      comboPts += (n - 1) * comboStreak;
+    } else comboStreak = 0;
+    let bursts = 0;
+    while (comboPts >= COMBO_FULL) { comboPts -= COMBO_FULL; bursts++; }
+    renderCombo(n >= 2);
+    if (n >= 3 || comboStreak >= 2) music.sparkle(n);
+    if (bursts) comboBurst(bursts);
+  }
+  function renderCombo(bump) {
+    const el = $('combo');
+    el.querySelector('i').style.width = `${Math.round(comboPts / COMBO_FULL * 100)}%`;
+    $('comboMul').textContent = comboStreak >= 2 ? '×' + comboStreak : '';
+    if (bump) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+  }
+  function comboBurst(times) {
+    const el = $('combo'), r = el.getBoundingClientRect(), ar = $('app').getBoundingClientRect();
+    const x = r.left - ar.left + r.width / 2, y = r.top - ar.top + r.height / 2, n = COMBO_COINS * times;
+    el.classList.remove('full'); void el.offsetWidth; el.classList.add('full');
+    for (let k = 0; k < n; k++) coinFly.push({ x: x + (k - n / 2) * 8, y, t0: performance.now() + k * 110 });
+    for (let k = 0; k < 18; k++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 4;
+      confetti.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2, w: 2.5, color: k % 2 ? '#ffd54a' : '#fff3b0', life: 1, fade: 0.03, g: 0.1, rot: 0, vr: 0 });
+    }
+    floaters.push({ text: tr('Altın patlaması!'), sub: tr('+{n} altın', { n }), x: $('app').clientWidth / 2, y: y + 70, t0: performance.now(),
+      size: 34, colors: ['#fff3b0', '#ffc94a'], life: 1500 });
+    Sound.praise(3);
+    for (let k = 0; k < n; k++) setTimeout(() => Sound.coin(), COIN_MS + k * 110);
+    setTimeout(() => {
+      progress.coins += n;
+      saveProgress();
+      updateHud();
+      const pill = $('coinPill');
+      pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+    }, COIN_MS + n * 110);
+  }
+
+  // ---- Gerilim sahnesi (2.5, bütün bölümlerde) ----
+  // Tahtada kalan parça azaldıkça kenarlar kararır, kamera hafifçe yaklaşır; son iki parçada kalanlar titrer ve
+  // kalp atışı duyulur. Uçuşu başlamamış parçalar tahtada sayılır. Bölüm bitince kamera geri sıçrar.
+  function tensionOf(now) {
+    if (!S.L || S.failed || S.tut != null || rain) return 0;
+    let total = 0, left = 0;
+    for (let i = 0; i < S.L.rings.length; i++) {
+      if (!(S.L.full & (1 << i))) continue;
+      total++;
+      if (present(i) || (S.fly[i] && now < S.fly[i].t0)) left++;
+    }
+    if (total < 3 || left === 0) return 0;
+    const gone = 1 - left / total;
+    return Math.min(1, Math.max(left <= 1 ? 1 : left === 2 ? 0.65 : 0, (gone - 0.4) / 0.6 * 0.55));
+  }
+  function stepTension(now) {
+    const T = tensionOf(now);
+    if (Math.abs(T - (S.tension || 0)) > 0.01) {
+      S.tension = T;
+      const g = $('game');
+      g.style.setProperty('--tension', T.toFixed(3));
+      g.style.setProperty('--zoom', REDUCED ? 1 : (1 + 0.035 * T).toFixed(4));
+      if (T >= 0.65) S.heart = { next: now + 350, n: 0 }; else S.heart = null;
+    }
+    // Kalp atışı: son parçalarda, oyuncu beklerken en çok altı kez
+    const h = S.heart;
+    if (h && now >= h.next && h.n < 6 && !S.won && !S.kicks.length && !S.auto) { Sound.heart(); h.n++; h.next = now + 1050; }
+  }
+
+  // Parça övgüleri: buz eridi ("Buz kırıldı!"), motor döndükten sonra kurtuldu ("Tam zamanında!")
+  const WORD = {
+    ice: { text: 'Buz kırıldı!', colors: ['#ffffff', '#9be7ff'] },
+    time: { text: 'Tam zamanında!', colors: ['#fff4e6', '#ffb35c'] },
+    tele: { text: 'Işınlandı!', colors: ['#ffffff', '#c9a7ff'] },
+    boil: { text: 'Kazan patladı!', colors: ['#fff3b0', '#ff5a28'] },
+    boss: { text: 'Dev Halka yenildi!', colors: ['#ffffff', '#ff6b6b'] },
+  };
+  // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
+  function showWord(i, word) {
+    if (S.tut != null) return;
+    const r = S.L.rings[i], p = boardToApp(r.x, r.y);
+    const w = $('app').clientWidth;
+    floaters.push({ text: tr(WORD[word].text), x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(),
+      size: PRAISE[1].size, colors: WORD[word].colors, life: 1300 });
   }
 
   // Övgü sözleri: tek hamlede kurtulan halka sayısına göre kademeli (art arda aynı söz gelmez).
@@ -1814,7 +2106,9 @@
 
   // Bir hamlede birden çok halka açılırsa: övgü ve altında "Zincir ×N" (N = açılan halka sayısı).
   // quiet: son hamlede bölüm sonu övgüsü gelecekse zincir yalnızca sayılır (yazı ve ses ona kalır).
-  function showChain(freed, quiet) {
+  // bangs: hamlede patlayan bomba sayısı (iki ve üstü "Zincirleme!", tek bombayla 5+ halka "Büyük patlama!")
+  // word: bu hamlenin parça övgüsü (WORD; bomba yoksa genel övgünün yerine geçer)
+  function showChain(freed, quiet, bangs = 0, word = null) {
     if (S.tut != null) return;
     const n = freed.length;
     const c = waveCenter(freed);
@@ -1822,10 +2116,12 @@
     const w = $('app').clientWidth;
     const x = Math.max(110, Math.min(w - 110, p.x));
     if (!quiet) {
-      const tier = n >= 4 ? 3 : n === 3 ? 2 : 1;
+      const tier = n >= 4 || bangs >= 2 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      floaters.push({ text: praiseWord(pr.words), sub: tr('Zincir ×{n}', { n }), x, y: p.y, t0: performance.now(),
-        size: pr.size, colors: pr.colors, life: 1500 });
+      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : word ? tr(WORD[word].text) : praiseWord(pr.words);
+      const sub = bangs >= 2 ? tr('{b} patlama · Zincir ×{n}', { b: bangs, n }) : tr('Zincir ×{n}', { n });
+      floaters.push({ text, sub, x, y: p.y, t0: performance.now(),
+        size: pr.size, colors: word && !(bangs >= 2 || (bangs && n >= 5)) ? WORD[word].colors : bangs ? ['#fff3b0', '#ff7a45'] : pr.colors, life: 1500 });
       Sound.praise(tier);
     }
     if (S.preview) return;
@@ -1838,7 +2134,7 @@
   // Bölüm sonu övgüsü (son halkada, tahtanın ortasında): en az hamleyle bittiyse.
   // İpucusuz "Kusursuz!", ipucuyla "Mükemmel!"; ek hamleyle bitende ya da daha uzun çözümde yok.
   function endPraise() {
-    if (S.tut != null || S.extra) return null;
+    if (rain || S.tut != null || S.extra) return null;
     if (S.moves > (S.def.par ?? S.moves)) return null;
     return S.usedHint ? tr('Mükemmel!') : tr('Kusursuz!');
   }
@@ -1859,16 +2155,29 @@
   }
 
   function showWin() {
+    if (rain) { rainBoardDone(); return; }
     if (S.tut != null) { showTutorialWin(); return; }
     if (S.preview) { showPreviewWin(); return; }
+    if (challenge) { showChallengeWin(); return; }
     const par = S.def.par ?? S.moves;
     const stars = S.extra ? 1 : starsFor(S.moves, par);
     const key = idOf(S.levelNo);
     const firstClear = !progress.stars[key];
     if (stars > (progress.stars[key] || 0)) lastWon = S.levelNo;
     progress.stars[key] = Math.max(progress.stars[key] || 0, stars);
-    const earned = S.coins.filter(c => c.taken).length * S.coinMult;
+    let earned = S.coins.filter(c => c.taken).length * S.coinMult;
     if (S.coinMult > 1) progress.loot[key] = 'gold';
+    // Kusursuz seri (2.5): üst üste en iyi hamleyle ve ipucusuz biten bölümlerde altın 3. bölümden ×2, 6.dan ×3;
+    // seri bozulunca yalnız sıfırlanır
+    const flawless = !S.extra && !S.usedHint && S.moves <= par;
+    progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
+    const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
+    progress.stats.bestStreak = Math.max(progress.stats.bestStreak || 0, progress.streakPerfect);
+    if (progress.streakPerfect === 3 || progress.streakPerfect === 6) music.jingle(); // altın çarpanı arttı
+    if (!S.extra && S.moves >= S.limit) stat('lastBreath');
+    if (tries >= 5) stat('patient');
+    const streakBonus = earned * (streakMult - 1);
+    earned += streakBonus;
     progress.coins += earned;
     stat('coinsTotal', earned);
     if (!S.usedHint) progress.clean[key] = true;
@@ -1907,6 +2216,7 @@
       (S.coinMult > 1 ? `<span class="chip loot-chip gold">${tr('Altın halka')}: <b>${tr('altınlar ×{n}', { n: S.coinMult })}</b></span>` : '') +
       (opened && opened.type === 'bulb' ? `<span class="chip bulb">${tr('Ampul halkası')}: <b>${tr('+{n} ampul', { n: opened.bulbs })}</b></span>` : '') +
       (goldGate ? `<span class="chip bulb">${tr('Altın kapı')}: <b>${tr('+{n} ampul', { n: GOLD_GATE_BULBS })}</b></span>` : '') +
+      (progress.streakPerfect >= 2 ? `<span class="chip streak-chip">${tr('Kusursuz seri {n}', { n: progress.streakPerfect })}${streakMult > 1 ? `: <b>${tr('altınlar ×{n}', { n: streakMult })}${streakBonus ? ' (+' + streakBonus + ')' : ''}</b>` : ''}</span>` : '') +
       (piece ? stickerWinHtml(piece, setDone) : '');
     if (piece) setTimeout(() => Sound.piece(setDone), 900);
     if (goldGate) {
@@ -1929,6 +2239,8 @@
     $('winMoves').textContent = S.moves;
     $('winPar').textContent = par;
     $('continue').textContent = W.posInGate(S.levelNo) === W.GATE_SIZE || S.levelNo >= TOTAL ? tr('Haritaya dön') : tr('Sonraki seviye');
+    // Kapının 5. bölümünden sonra, kapı başına bir kez: isteğe bağlı Altın Yağmuru
+    $('rainBtn').hidden = !(W.posInGate(S.levelNo) === 5 && !progress.rewards['rain:' + g]);
     $('win').classList.remove('hidden');
     Sound.win();
     for (let k = 1; k <= stars; k++) setTimeout(() => Sound.star(k), 400 + k * 180);
@@ -1937,6 +2249,137 @@
     updateHud();
     setTimeout(() => awardBadges(false), 1500);
   }
+
+  // ---- Meydan okuma: 20k. bölümün kapısında açılır; tahtada altın ve sandık yok, hamle hakkı en iyi çözüm + 1 ----
+  function startChallenge(k) {
+    const def = getLevel(bonusSrc(k)), back = k * BONUS.every;
+    challenge = { k };
+    applyWorld(W.worldOfGate(W.gateOf(back)));
+    startDef(def, back, null);
+    Object.assign(S, { loot: null, coins: [], limit: def.par + BONUS.slack });
+    hideTip();
+    updateHud();
+  }
+  function showChallengeWin() {
+    const stars = starsFor(S.moves, S.def.par), first = !progress.bonus[challenge.k];
+    progress.bonus[challenge.k] = Math.max(progress.bonus[challenge.k] || 0, stars);
+    const coins = first ? ECO.bonusCoins : 0;
+    if (coins) { progress.coins += coins; stat('coinsTotal', coins); }
+    saveProgress();
+    $('winRewards').innerHTML = coins ? `<span class="chip loot-chip gold">${tr('Meydan Okuma ödülü')}: <b>${tr('+{n} altın', { n: coins })}</b></span>` : '';
+    $('winCoins').textContent = '+' + coins;
+    $('winScore').textContent = '+0';
+    const card = $('win').querySelector('.card');
+    card.classList.remove('tut');
+    card.classList.toggle('perfect', stars === 3 && fxOn());
+    $('winLevel').textContent = tr('Meydan Okuma {n} tamamlandı', { n: challenge.k });
+    $('winTitle').textContent = stars === 3 ? tr('Mükemmel!') : stars === 2 ? tr('Harika!') : tr('Başardın!');
+    $('stars').innerHTML = [1, 2, 3].map(i => `<span class="star-ico${i <= stars ? '' : ' off'}" style="animation-delay:${200 + i * 180}ms"></span>`).join('');
+    $('winMoves').textContent = S.moves;
+    $('winPar').textContent = S.def.par;
+    $('continue').textContent = tr('Haritaya dön');
+    $('rainBtn').hidden = true;
+    $('win').classList.remove('hidden');
+    Sound.win();
+    for (let i = 1; i <= stars; i++) setTimeout(() => Sound.star(i), 400 + i * 180);
+    launchConfetti(stars);
+    updateHud();
+  }
+
+  // ---- Altın Yağmuru (2.5, bütün kapılarda) ----
+  // 30 saniye boyunca art arda kolay, altınla dolu tahtalar gelir. Hamle sınırı ve kaybetmek yok; ipuçları ücretsiz.
+  // Tahta bitince altınlar hemen kasaya geçer; süre dolunca özet çıkar ve kalınan yerden devam edilir.
+  const RAIN_LAYOUTS = [
+    [[-56, 0, 70], [56, 0, 70]],
+    [[0, -58, 64], [-60, 44, 64], [60, 44, 64]],
+    [[-90, 0, 58], [0, 0, 58], [90, 0, 58]],
+    [[0, 0, 62], [0, -90, 50], [0, 90, 50], [-90, 0, 50], [90, 0, 50]],
+  ];
+  function makeRainBoard() {
+    const Lg = window.RingLogic;
+    for (let tries = 0; tries < 200; tries++) {
+      const lay = RAIN_LAYOUTS[Math.floor(Math.random() * RAIN_LAYOUTS.length)];
+      const def = { name: '', rings: lay.map(([x, y, r]) => ({ x: BOARD.w / 2 + x, y: BOARD.h / 2 + y, r, a: 15 * Math.floor(Math.random() * 24) })) };
+      const L = buildLevel(def);
+      if (Lg.cascade(L, L.startAngles, 0).mask) continue;
+      const sol = solveFast(L, L.startAngles, 0, 4000);
+      if (!sol || sol.moves > 2) continue;
+      def.par = sol.moves;
+      return def;
+    }
+    return null;
+  }
+  function startRain() {
+    const g = W.gateOf(S.levelNo);
+    progress.rewards['rain:' + g] = true;
+    saveProgress();
+    rain = { gate: g, end: performance.now() + RAIN_MS + 600, total: 0, boards: 0, back: S.levelNo, shown: -1 };
+    $('win').classList.add('hidden');
+    $('game').classList.add('rain');
+    Sound.praise(3);
+    nextRainBoard();
+  }
+  function nextRainBoard() {
+    const def = makeRainBoard();
+    if (!def) { endRain(); return; }
+    startDef(def, 0, null);
+    S.limit = Infinity;
+    updateHud();
+    // tahtanın üstünden dökülen altınlar
+    if (!REDUCED) {
+      const w = $('app').clientWidth;
+      for (let k = 0; k < 10; k++) confetti.push({ kind: 'coin', x: Math.random() * w, y: -20 - Math.random() * 80, vx: (Math.random() - 0.5) * 1.5, vy: 2 + Math.random() * 2, size: 8 + Math.random() * 4, rot: Math.random() * TAU, vr: 0.15, life: 1, fade: 0.006, g: 0.12 });
+    }
+  }
+  function rainBoardDone() {
+    const earned = S.coins.filter(c => c.taken).length * S.coinMult;
+    progress.coins += earned;
+    stat('coinsTotal', earned);
+    S.coins.forEach(c => { c.taken = false; });
+    S.coinsTaken = 0;
+    rain.total += earned; rain.boards++;
+    saveProgress();
+    if (performance.now() < rain.end) nextRainBoard(); else endRain();
+  }
+  // Süre dolunca: yarım kalan tahtanın toplanmış altınları da sayılır, özet çıkar
+  function endRain() {
+    if (!rain) return;
+    stat('rains');
+    if (S.coins) {
+      const part = S.coins.filter(c => c.taken).length * S.coinMult;
+      if (part) { progress.coins += part; stat('coinsTotal', part); rain.total += part; S.coins.forEach(c => { c.taken = false; }); S.coinsTaken = 0; saveProgress(); }
+    }
+    S.won = true;
+    music.resolve(); music.jingle();
+    $('rainTotal').textContent = '+' + rain.total;
+    $('rainBoards').textContent = tr('{n} tahta temizlendi', { n: rain.boards });
+    $('rainEnd').classList.remove('hidden');
+    Sound.win();
+    launchConfetti(3);
+    updateHud();
+  }
+  function stepRain(now) {
+    if (!rain || !$('rainEnd').classList.contains('hidden')) return;
+    const left = Math.max(0, Math.ceil((rain.end - now) / 1000));
+    if (left !== rain.shown) {
+      rain.shown = left;
+      $('movesNum').textContent = Math.min(left, RAIN_MS / 1000);
+      $('movesNum').classList.toggle('warn', left <= 5);
+      if (left <= 5 && left > 0) Sound.tick();
+    }
+    // Süre dolduğunda tahta oynanırken (uçuş yoksa) yağmur biter; bitmekte olan tahta önce sayılır
+    if (left === 0 && !S.won && !Object.values(S.fly).some(f => now < f.t0 + flyMs(f)) && !S.kicks.length) endRain();
+  }
+  $('rainBtn').onclick = () => { Sound.tap(); startRain(); };
+  $('rainGo').onclick = () => {
+    Sound.tap();
+    const back = rain.back;
+    rain = null;
+    $('rainEnd').classList.add('hidden');
+    $('game').classList.remove('rain');
+    if (W.posInGate(back) !== W.GATE_SIZE && back < TOTAL && isUnlocked(back + 1)) loadLevel(back + 1);
+    else showScreen('levels');
+  };
 
   // 3 yıldız: ortadaki yıldızdan bütün ekrana yayılan altın ışık halkası
   function perfectWave() {
@@ -2002,13 +2445,13 @@
     S.failed = true;
     failedLevel = S.levelNo;
     S.hint = null;
-    closeHintMenu();
     const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
-    const can = progress.coins >= EXTRA_PRICE;
+    const can = !challenge && progress.coins >= EXTRA_PRICE;
+    $('extraMoves').hidden = !!challenge;
     $('failNote').textContent = left === 1 ? tr('Tek halka kaldı!') : tr('{n} halka kaldı.', { n: left });
     $('extraPrice').textContent = EXTRA_PRICE;
     $('extraMoves').disabled = !can;
-    $('extraNote').hidden = can;
+    $('extraNote').hidden = can || !!challenge;
     $('extraNote').textContent = tr('{n} altın daha gerekir (sende {have}).', { n: EXTRA_PRICE - progress.coins, have: progress.coins });
     // Ek hamle alınamıyorsa öne çıkan düğme "Baştan başla" olur
     $('failRetry').className = can ? 'btn-ghost' : 'btn-primary';
@@ -2110,7 +2553,6 @@
 
   canvas.addEventListener('pointerdown', e => {
     if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
-    closeHintMenu();
     S.help.lastAct = performance.now();
     const p = toBoard(e);
     if (S.L.table && Math.hypot(p.x - S.L.table.x, p.y - S.L.table.y) < HUB + 10) { spinTable(); return; }
@@ -2122,6 +2564,9 @@
       Sound.deny();
       if (isBar(i)) showTip(tr('Çubuk dönmez: halkaların boşluğunu çubuğa getir'));
       else if (isFrame(i)) showTip(tr('Çerçeve yerinden oynamaz: halkaları etrafından kurtar'));
+      else if (S.L.rings[i].boss) showTip(tr('Dev Halka zırhlı: değdiği halkaları kurtar, zırhı kırılsın'));
+      else if (S.L.rings[i].motor) showTip(tr('Motor halkayı sen çeviremezsin. Her hamlenden sonra kendisi bir adım döner'));
+      else if (iceLeft(S.L, i, S.mask)) showTip(tr('Bu halka donmuş. Değdiği halkalardan birini kurtar, buzu çatlasın'));
       else if (S.L.rings[i].lockedBy >= 0) {
         // Anahtarlı halka: anahtarın durduğu halka kısa bir süre parlar
         S.keyPulse = { ring: S.L.rings[i].lockedBy, t0: performance.now() };
@@ -2197,7 +2642,7 @@
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     renderMeter(false);
     settle();
-    if (S.mask !== before.mask) $('hint').classList.remove('pulse');
+    if (S.mask !== before.mask) $('nudge').classList.remove('pulse');
     if (S.tut != null) guide();
     else if (!S.won && S.moves >= S.limit) showFail();
   }
@@ -2213,7 +2658,10 @@
   // ---- Ayarlar ----
   const toggles = [...document.querySelectorAll('#settings .toggle')];
   const langBtns = [...document.querySelectorAll('#settings [data-lang]')];
+  $('musicVol').oninput = e => { progress.musicVol = Number(e.target.value); music.volume(progress.musicVol / 100); };
+  $('musicVol').onchange = saveProgress;
   function renderSettings() {
+    $('musicVol').value = progress.musicVol ?? 40;
     for (const b of toggles) b.setAttribute('aria-checked', String(progress[b.dataset.key] !== false));
     for (const b of langBtns) b.setAttribute('aria-checked', String(b.dataset.lang === I18N.lang));
   }
@@ -2235,6 +2683,7 @@
       saveProgress();
       renderSettings();
       if (key === 'ambient') syncAmbience();
+      if (key === 'music') syncMusic();
       Sound.tap();
     };
   }
@@ -2244,7 +2693,7 @@
     $('settings').classList.remove('hidden');
   };
   $('settingsClose').onclick = () => { Sound.tap(); $('settings').classList.add('hidden'); };
-  const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : loadLevel(S.levelNo));
+  const restart = () => (S.tut != null ? loadTutorial(S.tut) : S.preview ? loadPreview(S.preview) : challenge ? startChallenge(challenge.k) : loadLevel(S.levelNo));
   $('reset').onclick = () => { Sound.tap(); restart(); };
   $('again').onclick = () => { Sound.tap(); restart(); };
   $('failRetry').onclick = () => { Sound.tap(); restart(); };
@@ -2261,6 +2710,7 @@
 
   $('continue').onclick = () => {
     Sound.tap();
+    if (challenge) { $('win').classList.add('hidden'); showScreen('levels'); return; }
     if (S.tut != null) {
       if (S.tut < TUTORIAL.length - 1) loadTutorial(S.tut + 1);
       else finishTutorial();
@@ -2269,7 +2719,7 @@
     if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
     // 200. bölüm ilk kez bitince Büyük Makine (yeni dünyalar açılır), son bölüm ilk kez bitince Yıldız Haritası finali
     if (S.levelNo === MACHINE_END && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding('machine'); return; }
-    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards.finale) { $('win').classList.add('hidden'); showEnding('finale'); return; }
+    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards[FINALE_KEY]) { $('win').classList.add('hidden'); showEnding('finale'); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
@@ -2280,6 +2730,8 @@
   // Yıldız Haritası: 12 dünyanın halkası (dünyanın kendi renginde) yıldız çemberine oturur, aralarına takımyıldız
   // çizgileri çekilir, altın merkez halka hepsini döndürür. İkisinde de ardından yolculuğun özeti gelir.
   const MACHINE_END = 20 * W.GATE_SIZE;
+  // Final, o anki son bölüme bağlı: oyuna bölüm eklenince yeni sonda yeniden oynar (eski kayıtların 'finale' alanı 300'ündü)
+  const FINALE_KEY = 'finale:' + TOTAL;
   const END_RINGS = {
     machine: COLORS.slice(0, 8),
     finale: LIVE_WORLDS.map(w => w.theme.accent),
@@ -2287,7 +2739,7 @@
   let endingRun = null;
   function showEnding(kind, replay) {
     if (!replay) {
-      progress.rewards[kind === 'finale' ? 'finale' : 'ending'] = today();
+      progress.rewards[kind === 'finale' ? FINALE_KEY : 'ending'] = today();
       saveProgress();
     }
     const el = $('ending');
@@ -2299,10 +2751,10 @@
     const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
     const perfect = nums.filter(n => starsOf(n) === 3).length;
-    $('endingEyebrow').textContent = kind === 'finale' ? tr('Yolculuğun sonu') : tr('İlk 8 dünya tamam');
-    $('endingTitle').textContent = kind === 'finale' ? tr('Yıldız Haritası tamamlandı!') : tr('Büyük Makine çalıştı!');
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Üçüncü perde tamam') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Anka kanatlandı!') : tr('Büyük Makine çalıştı!');
     $('endingLead').textContent = kind === 'finale'
-      ? tr('{n} bölümün hepsini bitirdin. Bütün dünyaların ustası sensin.', { n: TOTAL })
+      ? tr('{n} bölümün hepsini bitirdin. Anka\'nın ateşi bütün dünyalara ışık taşıyor.', { n: TOTAL })
       : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
       [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],
@@ -2313,6 +2765,7 @@
     const missing = last - perfect;
     $('endingMore').textContent = kind === 'machine' && TOTAL > MACHINE_END
       ? tr('Yeni dünyalar açıldı: {names}. Yolculuk sürüyor.', { names: LIVE_WORLDS.slice(8).map(w => tr(w.name)).join(', ') })
+      : kind === 'finale' && missing > 0 ? tr('Yolculuk sürüyor: yeni bölümler yolda. {n} bölüm hâlâ 3 yıldızı bekliyor.', { n: missing })
       : missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
     $('endingGo').textContent = kind === 'machine' && TOTAL > MACHINE_END ? tr('Yeni dünyalara') : tr('Haritaya dön');
     const quick = REDUCED || !fxOn();
@@ -2417,10 +2870,14 @@
     // Altın merkez halka: halkalar yerleşince belirir, sonra hepsini döndürür
     const core = ease((t - 1.4) / 0.6);
     if (core > 0) ring(cx, cy, R * 0.62 * (0.6 + 0.4 * core), '#ffd36b', -run2 * (t - 1.8) * 0.8, 13, core);
-    // Kıvılcımlar
+    const rise = finale ? ease((t - 2.2) / 1.4) : 0;
+    // kuyruk başlığa binmesin (küçük ekranlarda): kuş halkanın biraz üstünde durur
+    if (rise > 0) phoenix(g, cx, cy - R * 0.35 + R * 0.5 * (1 - rise) + Math.sin(t * 2) * 3, R * 0.008 * (0.4 + 0.6 * rise), quick ? 0.4 : Math.sin(t * 5), rise);
+    // Kıvılcımlar (finalde Anka'nın kanat uçlarından alev)
     if (run2 > 0 && !quick && Math.random() < 0.6) {
-      const a = Math.random() * Math.PI * 2;
-      run.sparks.push({ x: cx + Math.cos(a) * R * 0.62, y: cy + Math.sin(a) * R * 0.62, vx: Math.cos(a) * (1 + Math.random() * 2.5), vy: Math.sin(a) * (1 + Math.random() * 2.5), life: 1 });
+      const a = Math.random() * Math.PI * 2, wing = rise > 0.5 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+      const x = wing ? cx + wing * R * 0.95 : cx + Math.cos(a) * R * 0.62, y = wing ? cy - R * 0.35 : cy + Math.sin(a) * R * 0.62;
+      run.sparks.push({ x, y, vx: wing ? wing * Math.random() : Math.cos(a) * (1 + Math.random() * 2.5), vy: wing ? 0.5 + Math.random() : Math.sin(a) * (1 + Math.random() * 2.5), life: 1 });
     }
     run.sparks = run.sparks.filter(s => (s.life -= 0.02) > 0);
     for (const s of run.sparks) {
@@ -2431,9 +2888,46 @@
     g.globalAlpha = 1;
   }
 
+  // Anka Kuşu (400 finali): alev kanatlar (flap -1..1 çırpış), tepeli baş, üç kuyruk tüyü; s ölçek, 100 birim kanat yarısı
+  function phoenix(g, x, y, s, flap, alpha) {
+    g.save(); g.translate(x, y); g.scale(s, s); g.globalAlpha = alpha;
+    const flame = (r0, r1) => { const gr = g.createRadialGradient(0, -10, r0, 0, -10, r1); gr.addColorStop(0, '#fff6c2'); gr.addColorStop(0.35, '#ffc94a'); gr.addColorStop(0.7, '#ff7a2e'); gr.addColorStop(1, '#d9342b'); return gr; };
+    g.shadowColor = 'rgba(255,150,60,.9)'; g.shadowBlur = 30;
+    // kuyruk: üç uzun tüy, uçları kıvrık
+    g.fillStyle = flame(5, 120);
+    for (const k of [-1, 0, 1]) {
+      g.beginPath(); g.moveTo(-6, 10); g.bezierCurveTo(k * 30 - 10, 50, k * 40, 80, k * 52 + 8 * k, 118);
+      g.bezierCurveTo(k * 30 + 6, 92, k * 16 + 8, 50, 6, 10); g.closePath(); g.fill();
+    }
+    // kanatlar: gövdeden açılır, arka kenarı tüy tüy
+    for (const side of [-1, 1]) {
+      const lift = flap * 26;
+      g.beginPath(); g.moveTo(0, -12);
+      g.bezierCurveTo(side * 40, -60 - lift, side * 80, -70 - lift, side * 104, -48 - lift * 1.4);
+      for (let i = 1; i <= 5; i++) {
+        const u = i / 5, ex = side * (104 - u * 92), ey = -48 - lift * 1.4 * (1 - u) + u * 52;
+        g.quadraticCurveTo(ex + side * 14, ey - 4, ex, ey + 4);
+      }
+      g.closePath(); g.fillStyle = flame(10, 110); g.fill();
+      g.strokeStyle = 'rgba(255,240,190,.55)'; g.lineWidth = 1.5;
+      for (let i = 1; i <= 4; i++) { const u = i / 5; g.beginPath(); g.moveTo(side * 8, -8); g.lineTo(side * (104 - u * 92), -44 - lift * 1.4 * (1 - u) + u * 52); g.stroke(); }
+    }
+    // gövde ve baş
+    g.fillStyle = flame(2, 40);
+    g.beginPath(); g.ellipse(0, 0, 12, 24, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(0, -30, 10, 0, Math.PI * 2); g.fill();
+    g.shadowBlur = 0;
+    // tepe alevleri, gaga, göz
+    g.fillStyle = '#ffb347';
+    for (const k of [-1, 0, 1]) { g.beginPath(); g.moveTo(k * 4 - 3, -37); g.quadraticCurveTo(k * 10, -52, k * 7 + k * 4, -58 + Math.abs(k) * 6); g.quadraticCurveTo(k * 3 + 2, -46, k * 4 + 3, -37); g.fill(); }
+    g.fillStyle = '#ffd36b'; g.beginPath(); g.moveTo(-3, -27); g.lineTo(0, -18); g.lineTo(3, -27); g.closePath(); g.fill();
+    g.fillStyle = '#5a1a10'; g.beginPath(); g.arc(-3.5, -32, 1.8, 0, Math.PI * 2); g.arc(3.5, -32, 1.8, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+
   // ---- İpucu: ampul sayacı ve kademeli ipucu ----
   // Dürtme her zaman ücretsiz; İpucu ve Hamleyi yap birer ampul. 1. kapıda ve denemelerde hepsi ücretsiz.
-  const hintsFree = () => S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
+  const hintsFree = () => !!rain || S.tut != null || S.preview != null || W.gateOf(S.levelNo) === 1;
 
   function renderHintCount() {
     const el = $('hintCount');
@@ -2442,10 +2936,12 @@
     el.textContent = free ? '∞' : shown;
     el.classList.toggle('empty', !free && shown <= 0);
     $('hint').setAttribute('aria-label', free ? tr('İpucu (ücretsiz)') : tr('İpucu ({n} ampul)', { n: shown }));
+    $('autoMove').classList.toggle('locked', !free && shown <= 0);
+    $('buyBulb').hidden = free;
   }
 
   // İpucunun önerdiği hamle: en kısa yolu arayan yavaş arama, olmazsa hızlı arama.
-  // Sonuç tahtanın durumuna göre saklanır; menü açılınca arka planda hazırlanır.
+  // Sonuç tahtanın durumuna göre saklanır; ipucu düğmesi nabız atınca arka planda hazırlanır.
   let hintCache = null; // { key, sol }
   const boardKey = () => S.mask + ':' + S.angles.map(a => a.toFixed(4)).join(',') + ':' + S.left.join(',') + ':' + S.sw + S.ph;
   function bestMove() {
@@ -2457,35 +2953,15 @@
     return sol;
   }
 
-  function openHintMenu() {
-    setTimeout(() => { if (!$('hintMenu').hidden && !S.won && !S.failed) bestMove(); }, 60);
-    const free = hintsFree();
-    for (const b of $('hintMenu').querySelectorAll('.hint-opt')) {
-      if (b.dataset.tier === 'nudge') continue;
-      const cost = b.querySelector('.cost');
-      cost.innerHTML = free ? tr('Ücretsiz') : '<i class="bulb-ico"></i>1';
-      cost.classList.toggle('free', free);
-      b.classList.toggle('locked', !free && progress.hints <= 0);
-    }
-    $('hintBank').innerHTML = free ? tr('Bu kapıda bütün ipuçları ücretsiz.')
-      : progress.hints > 0 ? `${tr('Ampulün')}: <b>${progress.hints}</b>` : tr('Ampulün kalmadı. Dürtme her zaman ücretsiz.');
-    renderBuy();
-    $('hintMenu').hidden = false;
-  }
-
   // ---- Ampul kazanma: altınla alma, günlük hediye, ödül uçuşu ----
-  function renderBuy() {
-    const free = hintsFree();
-    const btn = $('buyBulb');
-    btn.hidden = free;
-    const have = progress.coins;
-    btn.disabled = have < BULB_PRICE;
-    btn.querySelector('.cost').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
-    $('buyNote').textContent = have >= BULB_PRICE ? tr('Altının: {n}', { n: have }) : tr('{n} altın daha topla (sende {have})', { n: BULB_PRICE - have, have });
-  }
-
+  // Altın yetmiyorsa ne kadar eksik olduğunu söyler
   function buyBulb() {
-    if (progress.coins < BULB_PRICE) { Sound.deny(); return; }
+    if (S.auto) return;
+    if (progress.coins < BULB_PRICE) {
+      Sound.deny();
+      showTip(tr('{n} altın daha topla (sende {have})', { n: BULB_PRICE - progress.coins, have: progress.coins }));
+      return;
+    }
     progress.coins -= BULB_PRICE;
     progress.hints++;
     progress.bulbsBought = (progress.bulbsBought || 0) + 1;
@@ -2494,13 +2970,13 @@
     Sound.coin();
     const r = $('buyBulb').getBoundingClientRect(), ar = $('app').getBoundingClientRect();
     bulbsInAir++;
-    flyBulbs(1, r.left - ar.left + r.width - 40, r.top - ar.top + r.height / 2);
-    openHintMenu();
+    flyBulbs(1, r.left - ar.left + r.width / 2, r.top - ar.top + 30);
     updateHud();
     const pill = $('coinPill');
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
   }
   $('buyBulb').onclick = buyBulb;
+  $('bulbPrice').innerHTML = `<i class="coin-ico"></i>${BULB_PRICE}`;
 
   // Günlük hediye: ampulü hiç kalmayan oyuncuya günde bir ampul. Verildiyse true.
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -2578,13 +3054,10 @@
     }
     bulbFly = bulbFly.filter(f => !f.landed);
   }
-  function closeHintMenu() { $('hintMenu').hidden = true; }
-
   function useHint(tier) {
     if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
-    closeHintMenu();
     const sol = bestMove();
     // Çözüm bulunamazsa ampul harcanmaz
     if (!sol || !sol.first) { showTip(tr('İpucu bulunamadı, yeniden başlatmayı dene')); return; }
@@ -2594,7 +3067,7 @@
       const el = $('hintCount');
       el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     }
-    $('hint').classList.remove('pulse');
+    $('nudge').classList.remove('pulse');
     S.help.lastAct = performance.now();
     S.usedHint = true;
     // Önizleme (kapıya yerleşmemiş tanıtım) sayaçlara ve rozetlere dokunmaz
@@ -2625,17 +3098,14 @@
     updateHud();
   }
 
-  $('hint').onclick = () => {
-    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
-    if (S.tut != null) { guide(); return; }
-    Sound.tap();
-    if ($('hintMenu').hidden) openHintMenu(); else closeHintMenu();
-  };
-  for (const b of $('hintMenu').querySelectorAll('.hint-opt')) b.onclick = () => useHint(b.dataset.tier);
-  // Menünün dışına dokununca kapanır
-  document.addEventListener('pointerdown', e => {
-    if (!$('hintMenu').hidden && !e.target.closest('#hintMenu, #hint')) closeHintMenu();
-  }, true);
+  // Her kademe kendi düğmesinde; eğitimde üçü de rehberi gösterir
+  for (const [id, tier] of [['nudge', 'nudge'], ['hint', 'hint'], ['autoMove', 'move']]) {
+    $(id).onclick = () => {
+      if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
+      if (S.tut != null) { guide(); return; }
+      useHint(tier);
+    };
+  }
 
   // "Hamleyi yap": halka doğru açıya kendiliğinden döner, sonra normal bir hamle gibi sayılır
   function stepAuto(now) {
@@ -3002,7 +3472,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.ice || r.motor || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3087,6 +3557,376 @@
     }
   }
 
+  // ---- Bomba halka çizimi (2.5) ----
+  // Rozet: halkanın en boş yerinde fitili yanan bomba. Bombanın kesiştiği yerlerde dönen turuncu yıldızlar:
+  // patlama oradaki halkaları da uçurur.
+  function drawBombBadge(s, now) {
+    const r = S.L.rings[s], th = springBadgeAt(s);
+    const x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,8,20,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 16, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(x - 5, y - 5, 1, x, y, 14);
+    g.addColorStop(0, '#6a6470'); g.addColorStop(1, '#1b1820');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.fill();
+    ctx.strokeStyle = ringColor(s); ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#3a3640'; ctx.fillRect(x + 4, y - 15, 7, 5);
+    ctx.strokeStyle = '#d9b48a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + 8, y - 15); ctx.quadraticCurveTo(x + 12, y - 23, x + 17, y - 21); ctx.stroke();
+    const fl = REDUCED ? 1 : 0.75 + 0.35 * Math.sin(now / 55) * Math.sin(now / 83);
+    const sg = ctx.createRadialGradient(x + 17, y - 21, 0, x + 17, y - 21, 9 * fl);
+    sg.addColorStop(0, '#fff'); sg.addColorStop(0.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + 17, y - 21, 9 * fl, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  function drawBombs(now) {
+    if (!S.L.hasBomb) return;
+    for (const link of S.L.links) {
+      const a = S.L.rings[link.a], b = S.L.rings[link.b];
+      if (!(a.bomb || b.bomb) || !springLive(link.a) || !springLive(link.b)) continue;
+      for (const p of link.pts) {
+        const pulse = REDUCED ? 1 : 0.8 + 0.25 * Math.sin(now / 160 + p.x);
+        ctx.save();
+        ctx.translate(p.x, p.y); ctx.rotate(REDUCED ? 0 : now / 900);
+        ctx.fillStyle = '#ff7a45'; ctx.strokeStyle = 'rgba(10,8,20,.9)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const rr = (k % 2 ? 3.2 : 8) * pulse, q = k * Math.PI / 5;
+          ctx.lineTo(Math.cos(q) * rr, Math.sin(q) * rr);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.restore();
+      }
+    }
+    S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
+  // ---- Dev Halka (2.5, kapı finalleri) ----
+  // Gösterilen plaka: kırılma anına dek eski sayı (mantıkta hemen düşer)
+  function armorShown(i, now) {
+    const h = (S.armorHold[i] || []).find(e => now < e.until);
+    return h ? h.left : armorLeft(S.L, i, S.mask);
+  }
+  // Plaka kırıldı: tıngırtı, plaka beyaz parlar, çelik kıymıklar
+  function plateBreak(i) {
+    S.plateHit[i] = performance.now();
+    Sound.clank();
+    if (navigator.vibrate) { try { navigator.vibrate(20); } catch (e) { /* yok say */ } }
+    if (REDUCED) return;
+    const r = S.L.rings[i];
+    for (let k = 0; k < 14; k++) {
+      const a = Math.random() * TAU, sp = 1 + Math.random() * 2.5;
+      particles.push({ x: r.x + Math.cos(a) * r.r, y: r.y + Math.sin(a) * r.r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+        life: 1, size: 2.5 + Math.random() * 3, color: '#c3cada', edge: '#4a5368', shape: 'shard', rot: Math.random() * TAU });
+    }
+  }
+  // Dev Halka parçalandı: gümleme ve zafer çıngılı, kendi renginde büyük parça yağmuru, şok dalgası ve sarsıntı
+  function bossBreak(i) {
+    const r = S.L.rings[i];
+    Sound.boom(); Sound.victory(); music.hit();
+    if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch (e) { /* yok say */ } }
+    if (REDUCED) return;
+    const color = ringColor(i);
+    for (let k = 0; k < 60; k++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 5;
+      particles.push({ x: r.x + Math.cos(a) * r.r * Math.random(), y: r.y + Math.sin(a) * r.r * Math.random(), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+        life: 1, size: 3 + Math.random() * 5, color: k % 3 ? color : '#ffffff', edge: 'rgba(255,255,255,.8)', shape: 'shard', rot: Math.random() * TAU });
+    }
+    if (!fxOn()) return;
+    flashT = performance.now();
+    shocks.push({ ...boardToApp(r.x, r.y), t0: performance.now() });
+    const wrap = canvas.parentElement;
+    wrap.classList.remove('quake'); void wrap.offsetWidth; wrap.classList.add('quake');
+  }
+  // Zırh: halkanın boşluğa uzak tarafında, kalan plaka sayısı kadar perçinli çelik plaka
+  function drawBossArmor(i, ang, cx, cy, left, now) {
+    const r = S.L.rings[i], n = r.boss, span = TAU * 0.78 / n;
+    const hit = S.plateHit[i] && now - S.plateHit[i] < 250;
+    for (let k = 0; k < Math.min(left, n); k++) {
+      const c = ang + Math.PI + (k - (n - 1) / 2) * span, a0 = c - span * 0.42, a1 = c + span * 0.42;
+      ctx.save();
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = 'rgba(10,8,20,.6)'; ctx.lineWidth = STROKE + 12;
+      ctx.beginPath(); ctx.arc(cx + 1, cy + 2, r.r, a0, a1); ctx.stroke();
+      ctx.strokeStyle = hit && k === left - 1 ? '#ffffff' : '#9aa6bd'; ctx.lineWidth = STROKE + 9;
+      ctx.beginPath(); ctx.arc(cx, cy, r.r, a0, a1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r.r - (STROKE + 9) / 2 + 2, a0 + 0.02, a1 - 0.02); ctx.stroke();
+      ctx.fillStyle = '#4a5368';
+      for (const a of [a0 + 0.06, a1 - 0.06]) { ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r.r, cy + Math.sin(a) * r.r, 2.4, 0, TAU); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+  // Can çubuğu (üst bilgi alanında): plaka sayısı kadar dilim; yalnız değişince yeniden yazılır
+  let bossBarKey = '';
+  function renderBossBar(now) {
+    const b = S.L && S.L.bosses.length ? S.L.bosses[0] : -1;
+    const alive = b >= 0 && (present(b) || (S.fly[b] && now < S.fly[b].t0));
+    const n = alive ? S.L.rings[b].boss : 0, left = alive ? armorShown(b, now) : 0, fuse = alive && !!S.bossFuse[b];
+    const key = alive ? `${n}:${left}:${fuse}` : '';
+    if (key === bossBarKey) return;
+    bossBarKey = key;
+    const el = $('bossBar');
+    el.hidden = !alive;
+    if (!alive) return;
+    el.classList.toggle('fuse', fuse);
+    el.querySelector('.segs').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${k < left ? 'on' : ''}"></i>`).join('');
+  }
+
+  // ---- Basınç kazanı çizimi (2.5) ----
+  // Isı: basıncın dolan payı (0-1), uçuşu henüz başlamamış komşular sayılmaz; düdük öttüyse 1
+  function heatOf(i, now) {
+    if (S.boilFuse[i]) return 1;
+    let seen = 0;
+    S.L.rings.forEach((_, k) => { if (!present(k) && !(S.fly[k] && now < S.fly[k].t0)) seen |= 1 << k; });
+    return 1 - pressureLeft(S.L, i, seen) / S.L.rings[i].boiler;
+  }
+  // Halkanın rengi ısıyla kora döner
+  function heatColor(base, h) {
+    if (!/^#[0-9a-f]{6}$/i.test(base)) return h > 0.5 ? '#ff5a28' : base;
+    const a = parseInt(base.slice(1), 16), b = [255, 90, 40];
+    const c = [a >> 16, (a >> 8) & 255, a & 255].map((v, k) => Math.round(v + (b[k] - v) * Math.min(1, h * 0.85)));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  // Rozet: basınç göstergesi (yeşilden kırmızıya kadran, ibre, ortada kalan sayı; dolunca "!"); ısındıkça buhar tüter
+  function drawBoilers(now) {
+    if (!S.L.boilers.length) return;
+    for (const i of S.L.boilers) {
+      // Uçuşu planlanmış ama başlamamış kazan (düdük öterken) rozetini korur
+      const f = S.fly[i];
+      if ((f ? now >= f.t0 : !present(i)) || (S.turn && S.L.table.carried.includes(i))) continue;
+      const r = S.L.rings[i], h = heatOf(i, now), fuse = !!S.boilFuse[i];
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      const jit = REDUCED ? 0 : (fuse ? 2.2 : h * 0.9) * Math.sin(now / 23);
+      if (!REDUCED && h > 0 && Math.random() < 0.04 + h * 0.25) S.steam.push({ x: x + (Math.random() - 0.5) * 8, y: y - 14, t0: now, dx: (Math.random() - 0.5) * 0.4, s: 3 + Math.random() * 3 });
+      ctx.save();
+      ctx.translate(x + jit, y);
+      ctx.fillStyle = 'rgba(20,8,8,.92)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#f4ece6'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#7a4a3a'; ctx.lineWidth = 2; ctx.stroke();
+      const A0 = Math.PI * 0.75, SPAN = Math.PI * 1.5;
+      [['#4caf6a', 0, 0.45], ['#ffc94a', 0.45, 0.75], ['#ff5a3d', 0.75, 1]].forEach(([c, a, b]) => {
+        ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 10.5, A0 + SPAN * a, A0 + SPAN * b); ctx.stroke();
+      });
+      const na = A0 + SPAN * Math.min(1, h + (fuse && !REDUCED ? 0.04 * Math.sin(now / 40) : 0));
+      ctx.strokeStyle = '#2a0e0a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(na) * 9, Math.sin(na) * 9); ctx.stroke();
+      ctx.fillStyle = '#2a0e0a'; ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff1ec'; ctx.font = '800 9px "Nunito", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(fuse ? '!' : String(Math.round((1 - h) * r.boiler)), 0, 0.5);
+      ctx.restore();
+    }
+    S.steam = S.steam.filter(p => now - p.t0 < 1100);
+    for (const p of S.steam) {
+      const t = (now - p.t0) / 1100;
+      ctx.save();
+      ctx.globalAlpha = 0.45 * (1 - t);
+      ctx.fillStyle = '#fff1ec';
+      ctx.beginPath(); ctx.arc(p.x + p.dx * t * 60 + Math.sin(t * 6) * 3, p.y - t * 46, p.s * (1 + t * 1.6), 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ---- İkiz portal çizimi (2.5) ----
+  // İkiz çiftlerinin renk ve işaretleri: 1 ay (mor), 2 yıldız (camgöbeği), sonrası sırayla
+  const TWINS = [{ color: '#c9a7ff', mark: 'moon' }, { color: '#5fe3ff', mark: 'star' }];
+  const twinOf = i => TWINS[(S.L.rings[i].portal + TWINS.length - 1) % TWINS.length];
+  // İkizin portalı açılır: ses, ikizin üstünde girdap, ikiz beyaz parlar
+  function portalOpen(i) {
+    const r = S.L.rings[i];
+    if (!r) return;
+    Sound.swoosh();
+    S.flash[i] = performance.now();
+    if (!REDUCED) S.vortex.push({ x: r.x, y: r.y, r: r.r, color: twinOf(i).color, t0: performance.now() });
+  }
+  function markPath(mark, s) {
+    ctx.beginPath();
+    if (mark === 'moon') {
+      ctx.arc(0, 0, s, 0.6, TAU - 0.6 + 0.0001); ctx.arc(s * 0.55, 0, s * 0.78, TAU - 1.05, 1.05, true);
+    } else {
+      for (let k = 0; k < 10; k++) { const rr = k % 2 ? s * 0.45 : s, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    }
+    ctx.closePath();
+  }
+  // İkizleri bağlayan akan ışıltılı iz, girdap rozetleri ve açılan girdaplar
+  function drawPortals(now) {
+    const L = S.L;
+    if (L.twin.some(o => o >= 0)) {
+      const spot = i => { const r = L.rings[i], th = springBadgeAt(i); return { x: r.x + Math.cos(th) * r.r, y: r.y + Math.sin(th) * r.r }; };
+      for (let i = 0; i < L.rings.length; i++) {
+        const o = L.twin[i];
+        if (o < i || !springLive(i) || !springLive(o)) continue;
+        const a = spot(i), b = spot(o), tw = twinOf(i);
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - Math.max(40, Math.hypot(a.x - b.x, a.y - b.y) * 0.35);
+        ctx.save();
+        ctx.strokeStyle = tw.color; ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.setLineDash([2, 7]); ctx.lineDashOffset = REDUCED ? 0 : -now / 40;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(mx, my, b.x, b.y); ctx.stroke();
+        ctx.restore();
+      }
+      for (let i = 0; i < L.rings.length; i++) {
+        if (L.twin[i] < 0 || !springLive(i)) continue;
+        const tw = twinOf(i), { x, y } = spot(i);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = 'rgba(12,9,24,.92)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+        const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 14);
+        g.addColorStop(0, '#2a1f4d'); g.addColorStop(1, '#120d24');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+        ctx.strokeStyle = tw.color; ctx.lineWidth = 2; ctx.stroke();
+        ctx.save();
+        ctx.rotate(REDUCED ? 0 : now / 700);
+        ctx.strokeStyle = tw.color; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        for (let k = 0; k < 3; k++) { ctx.rotate(TAU / 3); ctx.beginPath(); ctx.arc(4, 0, 7, Math.PI * 0.9, Math.PI * 1.6); ctx.stroke(); }
+        ctx.restore();
+        ctx.fillStyle = tw.color; markPath(tw.mark, 6); ctx.fill();
+        ctx.restore();
+      }
+    }
+    S.vortex = S.vortex.filter(v => now - v.t0 < 700);
+    for (const v of S.vortex) {
+      const t = Math.max(0, (now - v.t0) / 700), e = Math.sin(Math.PI * t);
+      ctx.save();
+      ctx.translate(v.x, v.y); ctx.rotate(t * 6);
+      ctx.strokeStyle = v.color; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        ctx.globalAlpha = (1 - t) * (1 - k * 0.25);
+        ctx.beginPath(); ctx.arc(0, 0, v.r * (0.3 + 0.25 * k) * e + 2, k, k + Math.PI * 1.3); ctx.stroke();
+      }
+      for (let k = 0; k < 10; k++) {
+        const a = k * TAU / 10, d = v.r * 1.3 * (1 - t);
+        ctx.globalAlpha = 1 - t; ctx.fillStyle = k % 2 ? '#ffffff' : v.color;
+        ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 2.4, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ---- Motor halka çizimi (2.5) ----
+  // Dişler: halkanın dışında, halkayla birlikte dönen pirinç dişler (halkanın altında kalır)
+  function drawMotorTeeth(i, ang, cx, cy) {
+    const r = S.L.rings[i], n = 30, rr = r.r + STROKE / 2;
+    ctx.save();
+    ctx.fillStyle = '#c98f45'; ctx.strokeStyle = 'rgba(18,12,7,.9)'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < n; k++) {
+      const a = ang + 0.12 + k * TAU / n;
+      if (r.gaps.some(g => angDist(a, ang + g) < GAP_HALF + 0.08)) continue;
+      ctx.save();
+      ctx.translate(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); ctx.rotate(a);
+      ctx.beginPath(); ctx.rect(-1, -4.5, 7, 9); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  // Boşluğun bir sonraki yeri (koyu boşluk, iki yanında kesikli çizgi; yanıp söner) ve rozet: yön oklu çark
+  function drawMotors(now) {
+    if (!S.L.motors.length) return;
+    const still = !S.kicks.length && !S.auto && !S.drag;
+    for (const i of S.L.motors) {
+      if (!springLive(i)) continue;
+      const r = S.L.rings[i], ang = S.angles[i];
+      if (still) {
+        ctx.save();
+        ctx.globalAlpha = REDUCED ? 0.85 : 0.6 + 0.3 * Math.sin(now / 260);
+        for (const g of r.gaps) {
+          const c = ang + g + r.motor, a0 = c - GAP_HALF * 0.8, a1 = c + GAP_HALF * 0.8;
+          ctx.strokeStyle = 'rgba(18,12,7,.8)'; ctx.lineWidth = STROKE + 3; ctx.lineCap = 'butt';
+          ctx.beginPath(); ctx.arc(r.x, r.y, r.r, a0, a1); ctx.stroke();
+          ctx.strokeStyle = '#fff4e6'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+          for (const rr of [r.r - STROKE / 2 - 2, r.r + STROKE / 2 + 2]) { ctx.beginPath(); ctx.arc(r.x, r.y, rr, a0, a1); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+        ctx.restore();
+      }
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r, dir = Math.sign(r.motor);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(18,12,7,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.save();
+      ctx.rotate(ang);
+      ctx.fillStyle = '#e0a85c'; ctx.strokeStyle = '#5a3a14'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let k = 0; k < 16; k++) {
+        const a = k * Math.PI / 8, rr = k % 2 ? 10 : 13.5;
+        ctx.lineTo(Math.cos(a - 0.12) * rr, Math.sin(a - 0.12) * rr); ctx.lineTo(Math.cos(a + 0.12) * rr, Math.sin(a + 0.12) * rr);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#2a1a0c'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#fff4e6'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, 3.6, dir > 0 ? -2.4 : -0.74, dir > 0 ? 0.74 : 2.4); ctx.stroke();
+      const tip = dir > 0 ? 0.74 : 2.4, tx = Math.cos(tip) * 3.6, ty = Math.sin(tip) * 3.6;
+      ctx.fillStyle = '#fff4e6'; ctx.beginPath();
+      ctx.moveTo(tx + Math.cos(tip + dir * Math.PI / 2) * 2.6, ty + Math.sin(tip + dir * Math.PI / 2) * 2.6);
+      ctx.lineTo(tx + Math.cos(tip) * 2.2, ty + Math.sin(tip) * 2.2); ctx.lineTo(tx - Math.cos(tip) * 2.2, ty - Math.sin(tip) * 2.2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ---- Buz halka çizimi (2.5) ----
+  // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
+  function iceShown(i, now) {
+    const h = (S.iceHold[i] || []).find(e => now < e.until);
+    return h ? h.left : iceLeft(S.L, i, S.mask);
+  }
+  // Kabuk: halkanın üstünde yarı saydam açık mavi kalın katman ve parıltı çentikleri. Çok katlı buz daha kalın
+  // ve donuk, tek katta koyu çatlaklar görünür. Çatlayınca kabuk bir an kabarır.
+  function drawIceShell(i, ang, cx, cy, left, now) {
+    const r = S.L.rings[i];
+    const ct = S.iceCrack[i] ? (now - S.iceCrack[i]) / 300 : 1;
+    const pop = ct < 1 ? 1 + 0.08 * Math.sin(ct * Math.PI) : 1;
+    const thick = left >= 2, w = thick ? 9 : 7;
+    ctx.save();
+    ctx.shadowColor = '#9be7ff'; ctx.shadowBlur = thick ? 14 : 8;
+    strokeRing(r, ang, thick ? 'rgba(170,230,255,.78)' : 'rgba(170,230,255,.55)', (STROKE + (thick ? 12 : 8)) * pop, cx, cy);
+    ctx.shadowBlur = 0;
+    strokeRing(r, ang, 'rgba(255,255,255,.55)', 2.5, cx - 1.5, cy - 2);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 16; k++) {
+      const p = ang + 0.2 + k * TAU / 16;
+      if (r.gaps.some(g => angDist(p, ang + g) < GAP_HALF + 0.12)) continue;
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(p - 0.05) * (r.r - w), cy + Math.sin(p - 0.05) * (r.r - w));
+      ctx.lineTo(cx + Math.cos(p + 0.05) * (r.r + w), cy + Math.sin(p + 0.05) * (r.r + w));
+      ctx.stroke();
+      if (left === 1 && k % 3 === 1) {
+        ctx.strokeStyle = 'rgba(30,60,80,.75)'; ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        let rr = r.r - 10, aa = p + 0.12;
+        ctx.moveTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr);
+        for (let q = 0; q < 4; q++) { rr += 5; aa += (q % 2 ? -1 : 1) * 0.06; ctx.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr); }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+  // Rozet: halkanın en boş yerinde kar tanesi, ortasında kalan kat sayısı
+  function drawIceBadges(now) {
+    if (!S.L.hasIce) return;
+    S.L.rings.forEach((r, i) => {
+      if (!r.ice || !springLive(i)) return;
+      const left = iceShown(i, now);
+      if (!left) return;
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      const ct = S.iceCrack[i] ? (now - S.iceCrack[i]) / 300 : 1;
+      const sc = ct < 1 ? 1 + 0.35 * Math.sin(ct * Math.PI) : 1;
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(sc, sc);
+      ctx.fillStyle = 'rgba(6,14,22,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#4cb8e6'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = '#3a9ccc'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); ctx.stroke();
+      }
+      ctx.fillStyle = '#dff6ff'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d3a52'; ctx.font = '800 13px "Nunito", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(left), 0, 1);
+      ctx.restore();
+    });
+  }
+
   function drawSprings(now) {
     S.L.rings.forEach((r, i) => {
       if (!r.kick || !springLive(i)) return;
@@ -3105,7 +3945,8 @@
     const stuck = S.moves > (S.def.par ?? 99) || now - S.help.lastAct > HELP_IDLE_MS;
     if (!stuck) return;
     S.help.shown = true;
-    $('hint').classList.add('pulse');
+    $('nudge').classList.add('pulse');
+    setTimeout(() => { if (!S.won && !S.failed) bestMove(); }, 60);
     if (!progress.helpTip) {
       showTip(tr('Takıldıysan ipucuna dokun: dürtme ücretsiz'), 4000);
       progress.helpTip = true;
@@ -3144,27 +3985,44 @@
   // Halkanın o anki konumu: uçuş, sallanma ve büyüme dahil
   function ringPose(i, now) {
     const ring = S.L.rings[i];
-    let cx = ring.x, cy = ring.y, alpha = 1, grow = 1;
+    let cx = ring.x, cy = ring.y, alpha = 1, grow = 1, spin = 0;
     const off = tableOffset(now);
     if (off && S.L.table.carried.includes(i)) {
       const T = S.L.table, dx = cx - T.x, dy = cy - T.y, c = Math.cos(off), s = Math.sin(off);
       cx = T.x + dx * c - dy * s; cy = T.y + dx * s + dy * c;
     }
     const f = S.fly[i];
-    if (f) {
-      const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
+    if (f && f.tele) {
+      // Işınlanan ikiz yerinde dönerek küçülür
+      const t = Math.min(Math.max((now - f.t0) / flyMs(f), 0), 1), e = t * t;
+      alpha = 1 - e;
+      grow = Math.max(0.02, 1 - e);
+      spin = 5 * e;
+    } else if (f) {
+      // Son halka ağır çekimde: daha yavaş, biraz daha büyüyerek ve dönerek gider
+      const t = Math.min(Math.max((now - f.t0) / flyMs(f), 0), 1);
       const e = t * t;
-      cx += f.dx * 420 * e;
-      cy += f.dy * 420 * e;
+      cx += f.dx * (f.spin ? 520 : 420) * e;
+      cy += f.dy * (f.spin ? 520 : 420) * e;
       alpha = 1 - t;
       grow = 1 + 0.15 * t;
+      spin = (f.spin || 0) * e;
+    }
+    // Gerilim: son parçalar hafifçe titrer
+    if (!f && S.tension >= 0.65 && !REDUCED) { cx += Math.sin(now / 45 + i * 1.7) * 0.9 * S.tension; cy += Math.cos(now / 53 + i) * 0.6 * S.tension; }
+    // Dev Halka: zırhı bitince parçalanmadan önce sarsılır
+    if (ring.boss && S.bossFuse[i] && (!f || now < f.t0) && !REDUCED) { cx += Math.sin(now / 19) * 3; cy += Math.cos(now / 23) * 2; }
+    // Kazan ısındıkça titrer, düdük öterken sarsılır
+    if (ring.boiler && (!f || now < f.t0) && !REDUCED) {
+      const h = heatOf(i, now);
+      if (h) { const a = S.boilFuse[i] ? 3 : h * 1.6; cx += Math.sin(now / 21) * a; cy += Math.cos(now / 27) * a * 0.6; }
     }
     const sh = S.shake[i];
     if (sh != null) {
       const t = (now - sh) / 350;
       if (t < 1) cx += Math.sin(t * 30) * 5 * (1 - t);
     }
-    return { cx, cy, alpha, grow };
+    return { cx, cy, alpha, grow, spin };
   }
 
   // Süs katmanı (yüzler vb.) halkalardan önce çizilir; halka uçarken onunla gider.
@@ -3213,12 +4071,14 @@
     if (isBar(i)) { drawBar(i, now); return; }
     if (isFrame(i)) { drawFrame(i, now); return; }
     const ring = S.L.rings[i];
-    const { cx, cy, alpha, grow } = ringPose(i, now);
+    const { cx, cy, alpha, grow, spin } = ringPose(i, now);
+    const ang = S.angles[i] + spin;
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
     ctx.save();
     ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
-    const color = ringColor(i);
+    const heat = ring.boiler && (!S.fly[i] || now < S.fly[i].t0) ? heatOf(i, now) : 0;
+    const color = heat ? heatColor(ringColor(i), heat) : ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
     const active = mover >= 0 && S.L.group[mover].includes(i);
     if (active) {
@@ -3226,10 +4086,22 @@
       ctx.shadowBlur = 18;
     }
     if (ring.step) drawStepDots(i, cx, cy, now);
-    strokeRing(ring, S.angles[i], 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
+    if (ring.motor) drawMotorTeeth(i, ang, cx, cy);
+    strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
-    strokeRing(ring, S.angles[i], color, STROKE, cx, cy);
-    strokeRing(ring, S.angles[i], 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    // Kazan: ısındıkça kalınlaşır ve kor gibi parlar, düdükte akkor
+    if (heat) {
+      ctx.shadowColor = S.boilFuse[i] ? '#fff3b0' : '#ff5a28';
+      ctx.shadowBlur = 8 + heat * 22 + (S.boilFuse[i] && !REDUCED ? 10 * Math.abs(Math.sin(now / 60)) : 0);
+    }
+    strokeRing(ring, ang, color, STROKE * (1 + 0.3 * heat), cx, cy);
+    ctx.shadowBlur = 0;
+    if (ring.boss && (!S.fly[i] || now < S.fly[i].t0)) drawBossArmor(i, ang, cx, cy, armorShown(i, now), now);
+    strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
+    const icy = ring.ice ? iceShown(i, now) : 0;
+    if (icy) drawIceShell(i, ang, cx, cy, icy, now);
+    const fl = S.flash[i] ? 1 - (now - S.flash[i]) / 260 : 0;
+    if (fl > 0 && fl <= 1) { ctx.globalAlpha = alpha * fl; strokeRing(ring, ang, '#fff', STROKE + 4, cx, cy); ctx.globalAlpha = alpha; }
     if (ring.pulse >= 0) drawPulseCover(i, cx, cy, now);
     if (ring.fixed) drawLock(cx, cy);
     if (ring.lockedBy >= 0) {
@@ -3588,9 +4460,9 @@
     p.x += p.vx; p.y += p.vy;
     p.vx *= 0.96; p.vy *= 0.96;
     if (p.shape === 'bubble') p.vy -= 0.06;
-    p.life -= p.shape === 'bubble' ? 0.018 : 0.025;
+    p.life -= p.shape === 'bubble' || p.shape === 'shard' ? 0.016 : 0.025;
     const a = Math.max(p.life, 0), s = p.size * (p.shape === 'dot' || !p.shape ? a : 0.6 + 0.6 * a);
-    g.globalAlpha = a;
+    g.globalAlpha = p.shape === 'shard' ? Math.min(1, a * 1.6) : a;
     g.fillStyle = p.color;
     g.strokeStyle = p.color;
     if (p.shape === 'star') {
@@ -3611,6 +4483,13 @@
       g.bezierCurveTo(p.x - r * 2, p.y - r * 0.2, p.x - r * 0.9, p.y - r * 1.6, p.x, p.y - r * 0.5);
       g.bezierCurveTo(p.x + r * 0.9, p.y - r * 1.6, p.x + r * 2, p.y - r * 0.2, p.x, p.y + r * 1.2);
       g.fill();
+    } else if (p.shape === 'shard') {
+      // Buz kırığı: düşen, dönen açık mavi üçgen
+      p.vy += 0.15; p.rot += 0.12;
+      g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
+      g.strokeStyle = p.edge || '#4cb8e6'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(0, -s * 1.4); g.lineTo(s * 1.1, s); g.lineTo(-s, s * 0.7); g.closePath(); g.fill(); g.stroke();
+      g.restore();
     } else if (p.shape === 'bolt') {
       const ang = Math.atan2(p.vy, p.vx), r = s * 2.2;
       g.save(); g.translate(p.x, p.y); g.rotate(ang);
@@ -3656,9 +4535,18 @@
 
   // Övgü ve "Zincir ×N" yazıları: büyüyerek belirir, yükselir ve söner (efektler kapalıysa büyümeden)
   const FLOAT_FONT = '"Baloo F", "Baloo 2", "Trebuchet MS", sans-serif';
+  // Yazılar üst üste binmez: ekranda yeni bir yazı varken gelen yazı, öncekinin çıkışından FLOAT_GAP sonra sıraya girer
+  const FLOAT_GAP = 650;
   function drawFloaters(now) {
+    for (const f of floaters) {
+      if (f.queued) continue;
+      f.queued = true;
+      const prev = floaters.filter(o => o !== f && o.queued && o.t0 + (o.life || 1300) > f.t0).reduce((m, o) => Math.max(m, o.t0), -Infinity);
+      if (f.t0 < prev + FLOAT_GAP) f.t0 = prev + FLOAT_GAP;
+    }
     floaters = floaters.filter(f => now < f.t0 + (f.life || 1300));
     for (const f of floaters) {
+      if (now < f.t0) continue;
       const t = (now - f.t0) / (f.life || 1300);
       const pop = !fxOn() ? 1 : t < 0.12 ? 0.5 + (t / 0.12) * 0.7 : t < 0.25 ? 1.2 - ((t - 0.12) / 0.13) * 0.2 : 1;
       const size = f.size || (f.big ? 38 : 32);
@@ -3726,6 +4614,11 @@
         drawCoin(fctx, x, y, r, now / 120);
       }
     }
+    // Son halkanın beyaz parlaması
+    if (flashT && now - flashT < 320) {
+      fctx.fillStyle = `rgba(255,252,235,${0.55 * (1 - (now - flashT) / 320)})`;
+      fctx.fillRect(0, 0, fx.width, fx.height);
+    }
     drawShocks(now);
     drawLightWaves(now);
     drawConfetti();
@@ -3775,12 +4668,20 @@
         checkHelp(now);
         drawTable(now);
         drawCouples();
-        const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
+        stepTension(now);
+        stepRain(now);
+        renderBossBar(now);
+        const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + flyMs(S.fly[i])));
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
         if (!S.turn) drawOpenPoints(now);
         drawSprings(now);
+        drawBombs(now);
+        drawIceBadges(now);
+        drawMotors(now);
+        drawPortals(now);
+        drawBoilers(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);
@@ -3793,7 +4694,7 @@
         drawParticles();
       }
       backdrop.draw(now, fxOn() && $('levels').hidden);
-      if (!$('levels').hidden) drawMapFx(now);
+      if (!$('levels').hidden && ADV) ADV.draw(now);
       drawPreviews(now);
       drawFx(now);
     } catch (err) {
@@ -3874,7 +4775,6 @@
       if (!$('splash').hidden) return;
       if (!$('ending').hidden) { $('endingGo').click(); return; }
       if (!$('settings').classList.contains('hidden')) { $('settingsClose').click(); return; }
-      if (!$('hintMenu').hidden) { closeHintMenu(); return; }
       if (!$('worldCard').classList.contains('hidden')) { $('worldGo').click(); return; }
       if (!$('pieceCard').classList.contains('hidden')) { $('pieceGo').click(); return; }
       if (!$('gateCard').classList.contains('hidden')) { $('gateGo').click(); return; }
@@ -3941,8 +4841,10 @@
   if (params.has('gallery')) showGallery();
 
   if (params.has('debug')) {
-    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, badgeCtx, awardBadges, showScreen,
-      fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
+    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, addCombo, badgeCtx, awardBadges, showScreen,
+      fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }),
+      // haritadaki yolculuğu sınamak için: bu bölüm az önce kazanılmış gibi
+      wonLevel: n => { lastWon = n; } };
   }
   requestAnimationFrame(frame);
 })();

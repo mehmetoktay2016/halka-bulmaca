@@ -11,11 +11,12 @@ function test(name, fn) {
 // Hiçbir şey yapmamış oyuncu
 const zero = {
   wins: 0, gatesDone: 0, worldsSeen: 1, stars: 0, perfect: 0, goldGates: 0, hintless: 0,
-  bestChain: 0, chains: 0, comebacks: 0, shapes: 0, shapesTotal: 10, coinsTotal: 0, bulbsBought: 0, hintsUsed: 0,
+  bestChain: 0, chains: 0, comebacks: 0, shapes: 0, shapesTotal: 10, coinsTotal: 0, bulbsBought: 0, hintsUsed: 0, st: {},
 };
 
-test('28 rozet, kimlikler tekil ve kebab-case', () => {
-  assert.strictEqual(B.BADGES.length, 28);
+test('45 rozet, kimlikler tekil ve kebab-case', () => {
+  assert.strictEqual(B.BADGES.length, 45);
+  assert.ok(B.BADGES.every(b => B.ICONS[b.icon] && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(b.id)));
   const ids = B.BADGES.map(b => b.id);
   assert.strictEqual(new Set(ids).size, ids.length);
   for (const id of ids) assert.match(id, /^[a-z0-9-]+$/);
@@ -59,6 +60,12 @@ test('albüm hedefi oyundaki şekil sayısına göre', () => {
 test('zincir rozetleri bir hamledeki halka sayısına bakar', () => {
   const ids = B.newlyEarned({}, { ...zero, bestChain: 3 }).map(b => b.id);
   assert.deepStrictEqual(ids.sort(), ['domino', 'zincirleme']);
+});
+
+test('2.5 sayaç rozetleri oyuncu kaydının stats alanına bakar', () => {
+  const ids = B.newlyEarned({}, { ...zero, st: { bosses: 1, rains: 1, lastBreath: 1 } }).map(b => b.id);
+  assert.deepStrictEqual(ids.sort(), ['dev-avcisi', 'son-nefes', 'yagmur-cocugu']);
+  assert.ok(B.BADGES.filter(b => b.secret).length === 3);
 });
 
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm rozet testleri geçti');

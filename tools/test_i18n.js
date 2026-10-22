@@ -22,7 +22,7 @@ function sources() {
   // data-t tam ad olarak (data-tier gibi özellikler sayılmaz)
   for (const m of html.matchAll(/<(\w+)[^>]*\sdata-t(?:="([^"]*)")?(?=[\s>])[^>]*>([\s\S]*?)<\/\1>/g)) out.set((m[2] || m[3]).trim(), 'index.html');
   for (const m of html.matchAll(/data-t-(?:aria|title)="([^"]+)"/g)) out.set(m[1], 'index.html');
-  for (const f of ['game.js']) {
+  for (const f of ['game.js', 'adventure.js']) {
     const js = read(f).replace(/^\s*\/\/.*$/gm, ''); // açıklama satırlarındaki örnekler sayılmaz
     for (const m of js.matchAll(/\btr\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g)) out.set(m[2].replace(/\\(['"`])/g, '$1'), f);
   }
@@ -37,6 +37,7 @@ function dataSources() {
   const STK = require('../stickers.js'), Lv = require('../levels.js');
   for (const w of W.WORLDS) { add(w.name, 'worlds.js'); add(w.intro, 'worlds.js'); add(w.title, 'worlds.js (unvan)'); }
   for (const g of W.GATES) add(g.name, 'worlds.js');
+  for (const stops of Object.values(require('../journey.js').STOPS)) for (const st of stops) add(st[0], 'journey.js (durak)');
   for (let k = 0; k <= W.GATES.length; k++) add(W.titleFor(k), 'worlds.js (unvan)');
   for (const b of B.BADGES) { add(b.name, 'achievements.js'); add(b.desc, 'achievements.js'); add(b.group, 'achievements.js'); }
   for (const c of Object.values(R.SHOP)) { add(c.title, 'rewards.js'); add(c.tab, 'rewards.js'); for (const it of c.items) { add(it.name, 'rewards.js'); add(it.desc, 'rewards.js'); } }

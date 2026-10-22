@@ -123,12 +123,67 @@
       // Nabız halka (pulse: 0 ya da 1): boşluğunda bir kapak var, her hamlede açılıp kapanır.
       // Hamle sayısının teki/çifti ph ile tutulur; kapak ph === pulse iken açıktır (başta ph = 0).
       pulse: r.pulse == null ? -1 : r.pulse,
+      // Bomba halka (bomb: true): tahtadan çıkınca patlar, kesiştiği halkalar ve çubuklar öbür bağlarına
+      // bakılmadan bir sonraki dalgada uçar. Patlamaya yakalanan bomba da patlar (zincir).
+      bomb: !!r.bomb,
+      // Buz halka (ice: n, 1 ya da 2): donmuştur, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça
+      // buzu bir kat çatlar; n parça çıkınca erir ve döner. Donmuşken de boşluğu denk gelirse kurtulabilir.
+      ice: r.ice || 0,
+      // Motor halka (motor: derece, artı saat yönü): oyuncu çeviremez; oyuncunun her hamlesinden sonra
+      // (o hamlenin kurtardıkları uçtuktan sonra) kendiliğinden bu kadar döner. Dönüşü açının içinde kalır.
+      motor: r.motor ? r.motor * DEG : 0,
+      // İkiz portal (portal: n): aynı numarayı taşıyan iki halka ikizdir. Biri tahtadan çıkınca öbürü kendi
+      // bağlarına bakılmadan bir sonraki dalgada ışınlanıp çıkar (portal: -1 portalsız).
+      portal: r.portal == null ? -1 : r.portal,
+      // Basınç kazanı (boiler: n, 1-3): kesiştiği parçalardan n tanesi tahtadan çıkınca basınç dolar, kazan
+      // bir sonraki dalgada kendiliğinden çıkar. Nasıl çıkarsa çıksın bomba gibi patlar: hâlâ değdiği parçalar da uçar.
+      boiler: r.boiler || 0,
+      // Dev Halka (boss: n, 1-6): zırhlıdır, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça zırhından
+      // bir plaka kırılır; n plaka kırılınca bir sonraki dalgada parçalanıp kendiliğinden çıkar (patlamaz).
+      boss: r.boss || 0,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
       const k = def.rings[r.lockedBy];
       if (!k || r.lockedBy === i || k.type === 'bar' || k.type === 'frame') throw new Error(`Halka ${i}: anahtar halkası geçersiz`);
       if (r.fixed) throw new Error(`Halka ${i}: hem sabit hem anahtarlı olamaz`);
+    }
+    for (const [i, r] of def.rings.entries()) {
+      if (r.bomb && r.type) throw new Error(`Parça ${i}: bomba yalnızca halka olabilir`);
+      // Bomba ve yay rozeti aynı halkada yer kapışırdı
+      if (r.bomb && r.kick) throw new Error(`Halka ${i}: bomba yaylı olamaz`);
+      // Buz rozeti bomba ve yay rozetiyle aynı yere düşerdi
+      if (r.ice && (r.bomb || r.kick)) throw new Error(`Halka ${i}: buz halka bomba ya da yaylı olamaz`);
+      if (r.ice && (r.type || r.fixed || r.tokens != null || !(r.ice >= 1 && r.ice <= 3))) throw new Error(`Halka ${i}: buz 1-3 kat, sabit ya da jetonlu olmayan halkada olur`);
+    }
+    const portalRings = {};
+    for (const [i, r] of def.rings.entries()) {
+      if (!r.boss) continue;
+      if (r.type || r.bomb || r.kick || r.ice || r.motor || r.boiler || r.portal != null || r.fixed || r.tokens != null || r.lockedBy != null || !(r.boss >= 1 && r.boss <= 6)) {
+        throw new Error(`Halka ${i}: dev halka 1-6 zırhlı, başka parçayla birleşmeyen halkada olur`);
+      }
+    }
+    for (const [i, r] of def.rings.entries()) {
+      if (!r.boiler) continue;
+      // Kazan rozeti öbür rozetlerle aynı yere düşerdi; bir halka hem kazan hem bomba olmaz (kazan zaten patlar)
+      if (r.type || r.bomb || r.kick || r.ice || r.motor || r.portal != null || r.fixed || !(r.boiler >= 1 && r.boiler <= 3)) {
+        throw new Error(`Halka ${i}: kazan 1-3 basınçlı, başka parçayla birleşmeyen halkada olur`);
+      }
+    }
+    for (const [i, r] of def.rings.entries()) {
+      if (r.portal == null) continue;
+      // Portal rozeti bomba, yay, buz ve motor rozetiyle aynı yere düşerdi
+      if (r.type || r.bomb || r.kick || r.ice || r.motor) throw new Error(`Halka ${i}: portal yalnızca bombasız, yaysız, buzsuz, motorsuz halkada olur`);
+      (portalRings[r.portal] = portalRings[r.portal] || []).push(i);
+    }
+    for (const [n, list] of Object.entries(portalRings)) if (list.length !== 2) throw new Error(`Portal ${n}: tam iki halkada olmalı`);
+    for (const [i, r] of def.rings.entries()) {
+      if (!r.motor) continue;
+      if (r.type || 360 % Math.abs(r.motor)) throw new Error(`Halka ${i}: motor adımı 360'ı tam bölmeli`);
+      // Motor yalnız düz halkada: başka bir kural onu durdurur ya da döndürürse adımı şaşardı
+      if (r.fixed || r.step || r.lockedBy != null || r.kick || r.tokens != null || r.side != null || r.pulse != null || r.bomb || r.ice) {
+        throw new Error(`Halka ${i}: motor halka başka bir parçayla birleşemez`);
+      }
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
@@ -206,6 +261,9 @@
       if (group[r.id].some(k => rings[k].side !== r.side)) throw new Error(`Halka ${r.id}: eşler aynı şalter renginde olmalı`);
       if (r.side >= 0 && def.switch == null) throw new Error(`Halka ${r.id}: şalter rengi var ama bölümde şalter yok`);
     }
+    // Buz halka eşli olamaz: eşi döndürülünce donmuş halka da dönerdi
+    for (const r of rings) if (r.ice && group[r.id].length > 1) throw new Error(`Halka ${r.id}: buz halka eşli olamaz`);
+    for (const r of rings) if (r.motor && group[r.id].length > 1) throw new Error(`Halka ${r.id}: motor halka eşli olamaz`);
     // Anahtarlı halka da eşli olamaz (kilidi tek başına açılmalı, eşini kilitlememeli)
     for (const r of rings) if (r.lockedBy >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: anahtarlı halka eşli olamaz`);
     const rotatable = rings.map((r, i) => group[i].every(k => !rings[k].fixed));
@@ -214,7 +272,7 @@
     for (const r of rings) {
       if (!r.kick) continue;
       const t = rings[r.kick.target];
-      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
+      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
       if (!r.kick.turn) throw new Error(`Halka ${r.id}: yayın tekmesi sıfır olamaz`);
       for (const k of group[t.id]) {
         const st = rings[k].step;
@@ -223,8 +281,17 @@
       kickedBy[t.id].push(r.id);
     }
 
+    // Buz halkanın ve kazanın komşuları (çerçeve hiç çıkmadığı için sayılmaz)
+    const iceNbrs = rings.map((r, i) => (!r.ice && !r.boiler && !r.boss ? [] : [...new Set(ringLinks[i].map(li => (links[li].a === i ? links[li].b : links[li].a)))]
+      .filter(o => rings[o].kind !== 'frame')));
+    for (const r of rings) if (r.ice && iceNbrs[r.id].length < r.ice) throw new Error(`Halka ${r.id}: buzu eritecek kadar komşusu yok`);
+    for (const r of rings) if (r.boiler && iceNbrs[r.id].length < r.boiler) throw new Error(`Halka ${r.id}: kazanı dolduracak kadar komşusu yok`);
+    for (const r of rings) if (r.boss && iceNbrs[r.id].length < r.boss) throw new Error(`Halka ${r.id}: dev halkanın zırhını kıracak kadar komşusu yok`);
+    // Dev halka eşli olamaz: eşi dönünce zırhlı halka da dönerdi
+    for (const r of rings) if (r.boss && group[r.id].length > 1) throw new Error(`Halka ${r.id}: dev halka eşli olamaz`);
+
     return {
-      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
       full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
@@ -234,6 +301,13 @@
       hasSwitch: def.switch != null,
       startSw: def.switch || 0,
       hasPulse: rings.some(r => r.pulse >= 0),
+      hasBomb: rings.some(r => r.bomb),
+      hasIce: rings.some(r => r.ice),
+      boilers: rings.filter(r => r.boiler).map(r => r.id),
+      bosses: rings.filter(r => r.boss).map(r => r.id),
+      motors: rings.filter(r => r.motor).map(r => r.id),
+      // Portal ikizi (yoksa -1)
+      twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
     };
   }
 
@@ -245,11 +319,40 @@
     return out;
   }
 
-  // Halka i şu an döndürülebilir mi? Sabit değil, (anahtarlıysa) anahtarı tahtadan çıkmış ve
+  // Buz halkanın kalan katı: kat sayısından, tahtadan çıkmış komşular düşülür (buzsuz halkada 0)
+  function iceLeft(L, i, mask) {
+    const n = L.rings[i].ice;
+    if (!n) return 0;
+    let gone = 0;
+    for (const o of L.iceNbrs[i]) if (mask & (1 << o)) gone++;
+    return Math.max(0, n - gone);
+  }
+
+  // Kazanın dolmasına kalan: basınçtan tahtadan çıkmış komşular düşülür (kazansız halkada 0)
+  function pressureLeft(L, i, mask) {
+    const n = L.rings[i].boiler;
+    if (!n) return 0;
+    let gone = 0;
+    for (const o of L.iceNbrs[i]) if (mask & (1 << o)) gone++;
+    return Math.max(0, n - gone);
+  }
+
+  // Dev halkanın kalan zırh plakası: plaka sayısından tahtadan çıkmış komşular düşülür (dev olmayan halkada 0)
+  function armorLeft(L, i, mask) {
+    const n = L.rings[i].boss;
+    if (!n) return 0;
+    let gone = 0;
+    for (const o of L.iceNbrs[i]) if (mask & (1 << o)) gone++;
+    return Math.max(0, n - gone);
+  }
+
+  // Halka i şu an döndürülebilir mi? Sabit değil, buzu erimiş, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
     if (!L.rotatable[i]) return false;
+    if (L.rings[i].motor) return false;
+    if (iceLeft(L, i, mask) || armorLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
     const side = L.rings[i].side;
     if (side >= 0 && side !== (sw == null ? L.startSw : sw)) return false;
@@ -290,13 +393,19 @@
   // tekmelerden sonraki açılar `angles` olarak döner. Jeton taşıyan halkalar çıkınca jetonları
   // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
+  // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
+  // Dalgada çıkan portalın ikizi tahtadaysa ışınlanır: portals[w] = [{ from, to }]; ikiz sonraki dalgada uçar.
+  // Dalgadan sonra basıncı dolan kazanlar ve zırhı biten dev halkalar: fuses[w] = [halka]; sonraki dalgada çıkarlar
+  // (kazan patlar, dev halka yalnızca parçalanır).
   function cascade(L, angles, mask, left, ph) {
     left = left || L.tokens;
-    const waves = [], kicks = [], tokens = [];
+    const waves = [], kicks = [], tokens = [], blasts = [], portals = [], fuses = [];
+    let hit = 0; // patlamanın vurduğu ya da portalla ışınlanan, sonraki dalgada zorla uçacak parçalar
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (!(mask & (1 << i)) && L.rings[i].kind !== 'frame' && isFree(L, i, angles, mask, ph)) wave.push(i);
+        if (mask & (1 << i) || L.rings[i].kind === 'frame') continue;
+        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
@@ -314,11 +423,61 @@
         left = left.slice(); left[t]++;
         ts.push({ from: i, to: t });
       }
+      const bs = [];
+      hit = 0;
+      for (const i of wave) {
+        if (!L.rings[i].bomb && !L.rings[i].boiler) continue;
+        const hits = [];
+        for (const li of L.ringLinks[i]) {
+          const k = L.links[li], o = k.a === i ? k.b : k.a;
+          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame') continue;
+          hit |= 1 << o;
+          hits.push(o);
+        }
+        if (hits.length) bs.push({ from: i, hits });
+      }
+      const ps = [];
+      for (const i of wave) {
+        const o = L.twin[i];
+        if (o < 0 || mask & (1 << o) || hit & (1 << o)) continue;
+        hit |= 1 << o;
+        ps.push({ from: i, to: o });
+      }
+      const fs = [];
+      for (const i of L.boilers.concat(L.bosses)) {
+        if (mask & (1 << i) || hit & (1 << i) || pressureLeft(L, i, mask) || armorLeft(L, i, mask)) continue;
+        hit |= 1 << i;
+        fs.push(i);
+      }
       waves.push(wave);
       kicks.push(ks);
       tokens.push(ts);
+      blasts.push(bs);
+      portals.push(ps);
+      fuses.push(fs);
     }
-    return { mask, waves, kicks, tokens, angles, left };
+    return { mask, waves, kicks, tokens, blasts, portals, fuses, angles, left };
+  }
+
+  // Oyuncunun hamlesinden sonraki her şey: önce serbest kalanlar uçar, sonra tahtada kalan motor halkalar
+  // birer adım döner ve yeniden serbest kalanlar uçar. Motor dönüşleri son ilk-aşama dalgasının tekmeleri
+  // arasında { from, target, turn, motor: true } olarak döner (o aşamada dalga yoksa boş bir dalga açılır).
+  function afterMove(L, angles, mask, left, ph) {
+    const c = cascade(L, angles, mask, left, ph);
+    const turning = L.motors.filter(i => !(c.mask & (1 << i)));
+    if (!turning.length) return c;
+    let a = c.angles;
+    const ms = turning.map(i => {
+      a = rotate(L, a, i, L.rings[i].motor);
+      return { from: i, target: i, turn: L.rings[i].motor, motor: true };
+    });
+    const d = cascade(L, a, c.mask, c.left, ph);
+    const out = { mask: d.mask, angles: d.angles, left: d.left, waves: c.waves.slice(), kicks: c.kicks.slice(), tokens: c.tokens.slice(), blasts: c.blasts.slice(), portals: c.portals.slice(), fuses: c.fuses.slice() };
+    if (!out.waves.length) { out.waves.push([]); out.kicks.push([]); out.tokens.push([]); out.blasts.push([]); out.portals.push([]); out.fuses.push([]); }
+    const w = out.kicks.length - 1;
+    out.kicks[w] = [...out.kicks[w], ...ms];
+    out.waves.push(...d.waves); out.kicks.push(...d.kicks); out.tokens.push(...d.tokens); out.blasts.push(...d.blasts); out.portals.push(...d.portals); out.fuses.push(...d.fuses);
+    return out;
   }
 
   // Halka i'yi delta kadar döndürür; eşleri kendi oranlarıyla döner
@@ -360,8 +519,9 @@
         }
       }
     }
-    // Nabızlı bölümde boşa hamle de anlamlı olabilir (kapağın açılmasını beklemek): küçük bir çevirme
-    if (L.hasPulse) {
+    // Nabızlı ya da motorlu bölümde boşa hamle de anlamlı olabilir (kapağın açılmasını, motorun gelmesini
+    // beklemek): küçük bir çevirme
+    if (L.hasPulse || L.motors.length) {
       const t = snapStep(L, i, norm(angles[i] + (ring.step || 20 * DEG)));
       if (!out.some(o => angDist(o, t) < DEG)) out.push(t);
     }
@@ -384,12 +544,12 @@
   function expand(node, emit) {
     const L = node.L, ph2 = node.ph ^ (L.hasPulse ? 1 : 0);
     if (L.hasSwitch) {
-      const c = cascade(L, node.angles, node.mask, node.left, ph2);
+      const c = afterMove(L, node.angles, node.mask, node.left, ph2);
       if (emit({ L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw ^ 1, ph: ph2 }, { toggle: true, ring: -1 })) return true;
     }
     if (L.table) {
       const t = turnTable(L, node.angles);
-      const c = cascade(t.L, t.angles, node.mask, node.left, ph2);
+      const c = afterMove(t.L, t.angles, node.mask, node.left, ph2);
       if (emit({ L: t.L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw, ph: ph2 }, { table: true, ring: -1 })) return true;
     }
     for (let i = 0; i < L.rings.length; i++) {
@@ -397,7 +557,7 @@
       const spent = spend(L, node.left, i);
       for (const target of candidates(L, node.angles, node.mask, i, ph2)) {
         const delta = signedDelta(node.angles[i], target);
-        const c = cascade(L, rotate(L, node.angles, i, delta), node.mask, spent, ph2);
+        const c = afterMove(L, rotate(L, node.angles, i, delta), node.mask, spent, ph2);
         if (emit({ L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw, ph: ph2 }, { ring: i, target, delta })) return true;
       }
     }
@@ -512,7 +672,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

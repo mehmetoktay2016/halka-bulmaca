@@ -260,5 +260,187 @@ test('döner tabla: çözücü tablayı da kullanır; tablasız daha uzun', () =
   assert.strictEqual(Logic.solveFast(L, L.startAngles, 0, 30000, 0.8).moves, 2);
 });
 
+// Bomba halka: tanıtım düzeni ve zincirleme (Z1)
+const BOMB = [{ x: 200, y: 215, r: 70, a: 255, bomb: true }, { x: 140, y: 320, r: 64, a: 210 }, { x: 260, y: 320, r: 64, a: 105 }];
+const BOMB_CHAIN = [{ x: 80, y: 160, r: 58, a: 60 }, { x: 150, y: 220, r: 60, a: 60, bomb: true }, { x: 235, y: 210, r: 58, a: 285, bomb: true },
+  { x: 290, y: 285, r: 60, a: 15, bomb: true }, { x: 255, y: 375, r: 62, a: 180 }, { x: 160, y: 380, r: 58, a: 225 }];
+const noBomb = rings => rings.map(({ bomb, ...r }) => r);
+
+test('bomba halka: kurtulunca kesiştiği halkalar kilitli olsalar da sonraki dalgada uçar', () => {
+  const L = Logic.buildLevel({ rings: BOMB });
+  assert.strictEqual(Logic.cascade(L, L.startAngles, 0).mask, 0);
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.deepStrictEqual(c.waves, [[0], [1, 2]]);
+  assert.deepStrictEqual(c.blasts, [[{ from: 0, hits: [1, 2] }], []]);
+  const P = Logic.buildLevel({ rings: noBomb(BOMB) });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 2);
+});
+
+test('bomba halka: patlamaya yakalanan bomba da patlar (zincir), çıkmış halka vurulmaz', () => {
+  const L = Logic.buildLevel({ rings: BOMB_CHAIN });
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  const after1 = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  const s2 = Logic.solve(L, after1.angles, after1.mask);
+  const c = Logic.cascade(L, Logic.rotate(L, after1.angles, s2.first.ring, s2.first.delta), after1.mask);
+  assert.deepStrictEqual(c.blasts.flat(), [{ from: 1, hits: [2] }, { from: 2, hits: [3] }, { from: 3, hits: [4] }]);
+  assert.strictEqual(c.mask, L.full);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: noBomb(BOMB_CHAIN) }), L.startAngles, 0).moves, 5);
+});
+
+test('bomba halka: yalnızca halka bomba olabilir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, bomb: true }] }), /bomba yalnızca halka/);
+});
+
+// Buz halka (Z2): çift katlı göbek halka, iki komşusu çıkınca erir
+const ICE = [{ x: 145, y: 280, r: 66, a: 135, ice: 2 }, { x: 200, y: 375, r: 60, a: 180 }, { x: 255, y: 280, r: 66, a: 165 }, { x: 200, y: 185, r: 60, a: 15 }];
+
+test('buz halka: donmuşken dönmez, her çıkan komşu bir kat çatlatır, bitince döner', () => {
+  const L = Logic.buildLevel({ rings: ICE });
+  assert.strictEqual(Logic.iceLeft(L, 0, 0), 2);
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.strictEqual(Logic.iceLeft(L, 0, 1 << 1), 1);
+  assert.strictEqual(Logic.canRotate(L, 0, 1 << 1), false);
+  assert.strictEqual(Logic.iceLeft(L, 0, 1 << 1 | 1 << 2), 0);
+  assert.strictEqual(Logic.canRotate(L, 0, 1 << 1 | 1 << 2), true);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 3);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: ICE.map(({ ice, ...r }) => r) }), L.startAngles, 0).moves, 2);
+});
+
+test('buz halka: patlama donmuş halkayı da uçurur', () => {
+  const rings = [{ x: 145, y: 280, r: 66, a: 0, ice: 2 }, { x: 200, y: 375, r: 60, a: 45 }, { x: 255, y: 280, r: 66, a: 15, bomb: true }, { x: 200, y: 185, r: 60, a: 180 }];
+  const L = Logic.buildLevel({ rings });
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
+test('buz halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ ice: 2 }, {}), /eritecek kadar komşusu/);
+  assert.throws(() => two({ ice: 1, fixed: true }, {}), /buz/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ice: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /buz halka eşli/);
+  assert.throws(() => two({ kick: [1, 90] }, { ice: 1 }), /hedefi geçersiz/);
+});
+
+// Motor halka (Z3): üstteki halka motorlu, her hamleden sonra çeyrek tur döner
+const MOTOR = [{ x: 200, y: 215, r: 70, a: 240, motor: 90 }, { x: 140, y: 320, r: 64, a: 15 }, { x: 260, y: 320, r: 64, a: 180 }];
+
+test('motor halka: oyuncu çeviremez, her hamleden sonra kendiliğinden bir adım döner', () => {
+  const L = Logic.buildLevel({ rings: MOTOR });
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  // İlk hamle hiçbir halkayı kurtarmasa da motor döner (boş dalgada motor tekmesi)
+  const a = Logic.rotate(L, L.startAngles, 1, 10 * DEG);
+  const c = Logic.afterMove(L, a, 0);
+  assert.deepStrictEqual(c.waves, [[]]);
+  assert.deepStrictEqual(c.kicks[0].map(k => [k.target, k.motor]), [[0, true]]);
+  close(c.angles[0], 330 * DEG);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: MOTOR.map(({ motor, ...r }) => r) }), L.startAngles, 0).moves, 1);
+});
+
+test('motor halka: hamlenin kurtardıkları önce uçar, motor sonra döner ve yeni dalgalar gelir', () => {
+  const L = Logic.buildLevel({ rings: MOTOR });
+  let st = { angles: L.startAngles, mask: 0 };
+  for (let k = 0; k < 2; k++) {
+    const s = Logic.solve(L, st.angles, st.mask);
+    const c = Logic.afterMove(L, Logic.rotate(L, st.angles, s.first.ring, s.first.delta), st.mask);
+    const w = c.kicks.findIndex(ks => ks.some(x => x.motor));
+    // motor tekmesi hep ilk aşamanın son dalgasında; ondan sonraki dalgalarda motor yok
+    assert.ok(w >= 0 || (c.mask & 1));
+    st = c;
+  }
+  assert.strictEqual(st.mask, L.full);
+});
+
+test('motor halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ motor: 70 }, {}), /motor adımı/);
+  assert.throws(() => two({ motor: 90, ice: 1 }, {}), /motor halka başka/);
+  assert.throws(() => two({ motor: 90, step: 45 }, {}), /motor halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, motor: 90 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /motor halka eşli/);
+  assert.throws(() => two({ kick: [1, 90] }, { motor: 90 }), /hedefi geçersiz/);
+});
+
+// İkiz portal (Z4): üstteki ve sağdaki halka ikiz
+const PORTAL = [{ x: 200, y: 215, r: 70, a: 195, portal: 1 }, { x: 140, y: 320, r: 64, a: 300 }, { x: 260, y: 320, r: 64, a: 330, portal: 1 }];
+
+test('ikiz portal: biri çıkınca öbürü bağlarına bakılmadan sonraki dalgada çıkar', () => {
+  const L = Logic.buildLevel({ rings: PORTAL });
+  assert.deepStrictEqual(L.twin, [2, -1, 0]);
+  const s = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(s.moves, 1);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, s.first.ring, s.first.delta), 0);
+  assert.strictEqual(c.mask, L.full);
+  const tp = c.portals.flat();
+  assert.strictEqual(tp.length, 1);
+  assert.strictEqual(L.twin[tp[0].from], tp[0].to);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: PORTAL.map(({ portal, ...r }) => r) }), L.startAngles, 0).moves, 2);
+});
+
+test('ikiz portal: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ portal: 1 }, {}), /tam iki halkada/);
+  assert.throws(() => two({ portal: 1, bomb: true }, { portal: 1 }), /portal yalnızca/);
+  assert.throws(() => two({ portal: 1 }, { portal: 1, motor: 90 }), /portal yalnızca/);
+  // Portalsız çubuklar birbirinin ikizi sayılmamalı
+  const bars = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100 }, { type: 'bar', x1: 100, y1: 40, x2: 100, y2: 160 }] });
+  assert.deepStrictEqual(bars.twin, [-1, -1, -1]);
+});
+
+// Basınç kazanı (Z19): zincirin ortasındaki halka 1 basınçlı kazan
+const BOILER = [{ x: 80, y: 160, r: 58, a: 45 }, { x: 150, y: 220, r: 60, a: 75 }, { x: 235, y: 210, r: 58, a: 300, boiler: 1 },
+  { x: 290, y: 285, r: 60, a: 0 }, { x: 255, y: 375, r: 62, a: 45 }];
+
+test('basınç kazanı: komşusu çıkınca basınç dolar, kazan çıkıp patlar ve değdiklerini uçurur', () => {
+  const L = Logic.buildLevel({ rings: BOILER });
+  assert.strictEqual(Logic.pressureLeft(L, 2, 0), 1);
+  assert.strictEqual(Logic.pressureLeft(L, 2, 1 << 1), 0);
+  // En iyi çözümde kazan basınçla dolar: dolduğu dalgadan sonra çıkar ve hâlâ değdiği komşusunu patlatır
+  let st = { angles: L.startAngles, mask: 0 }, fusedAt = -1, c = null;
+  while (st.mask !== L.full && fusedAt < 0) {
+    const q = Logic.solve(L, st.angles, st.mask);
+    c = Logic.cascade(L, Logic.rotate(L, st.angles, q.first.ring, q.first.delta), st.mask);
+    fusedAt = c.fuses.findIndex(f => f.includes(2));
+    st = c;
+  }
+  assert.ok(fusedAt >= 0);
+  assert.ok(c.waves[fusedAt + 1].includes(2));
+  assert.ok(c.blasts[fusedAt + 1].some(b => b.from === 2 && b.hits.length));
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  assert.strictEqual(Logic.solve(Logic.buildLevel({ rings: BOILER.map(({ boiler, ...r }) => r) }), L.startAngles, 0).moves, 4);
+});
+
+test('basınç kazanı: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ boiler: 2 }, {}), /dolduracak kadar komşusu/);
+  assert.throws(() => two({ boiler: 1, bomb: true }, {}), /kazan 1-3/);
+  assert.throws(() => two({ boiler: 4 }, {}), /kazan 1-3/);
+});
+
+// Dev halka (Z9): Davul şeklinin gövdesi 2 zırhlı dev halka (3 komşusu var); iki komşusu gidince parçalanır
+const BOSS = [{ x: 200, y: 260, r: 84, a: 45, boss: 2 }, { x: 140.6, y: 200.6, r: 26, a: 75 }, { x: 259.4, y: 200.6, r: 26, a: 255 }, { x: 200, y: 348, r: 30, a: 300 }];
+
+test('dev halka: zırhlıyken dönmez, komşuları gittikçe plaka kırılır, zırh bitince parçalanıp çıkar', () => {
+  const L = Logic.buildLevel({ rings: BOSS, couples: [[1, 2, -1]] });
+  assert.strictEqual(Logic.armorLeft(L, 0, 0), 2);
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.strictEqual(Logic.armorLeft(L, 0, 1 << 1), 1);
+  // Bir komşusu gitmiş tahtada ikinci komşu (2) kurtulunca zırh biter: dev halka sonraki dalgada parçalanır, patlamaz
+  let c = null;
+  for (let d = 0; d < 360 && !(c && c.waves[0] && c.waves[0].includes(2) && !c.waves[0].includes(0)); d += 5) c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 2, d * DEG), 1 << 1);
+  assert.ok(c.waves[0].includes(2));
+  const w = c.fuses.findIndex(f => f.includes(0));
+  assert.ok(w >= 0 && c.waves[w + 1].includes(0));
+  assert.ok(!c.blasts.flat().some(b => b.from === 0));
+});
+
+test('dev halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ boss: 2 }, {}), /zırhını kıracak kadar komşusu/);
+  assert.throws(() => two({ boss: 1, ice: 1 }, {}), /dev halka 1-6/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, boss: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /dev halka eşli/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

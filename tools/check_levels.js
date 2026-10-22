@@ -108,7 +108,9 @@ for (let g = 0; g < order.length / G; g++) {
   if (!flat && avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
   const near = row.filter(generated).map(s => Levels.closeness(get(s)));
   const third = Math.max(1, Math.floor(near.length / 3));
-  if (near.length >= 3 && avg(near.slice(0, third)) < avg(near.slice(-third)) + 0.06) {
+  // 2.5 (kullanıcı kararı): kapı 31-40 merkezden dışa büyütülerek üretilir; zorluk sıkışıklıktan değil parçalardan
+  // gelir, halka aralıkları benzerdir. Ferah baş kuralı yalnız kapı 1-30'da aranır.
+  if (g + 1 <= 30 && near.length >= 3 && avg(near.slice(0, third)) < avg(near.slice(-third)) + 0.06) {
     problems.push(`kapının başı sonundan ferah değil (${avg(near.slice(0, third)).toFixed(2)} / ${avg(near.slice(-third)).toFixed(2)})`);
   }
   console.log(`Kapı ${String(g + 1).padStart(2)} ${(gate ? gate.name : '?').padEnd(14)} ` +

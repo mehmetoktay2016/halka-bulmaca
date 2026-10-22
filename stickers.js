@@ -98,6 +98,38 @@
         <path d="M64 18l5 11 12 1.5-9 8 2.5 12L64 45l-10.5 5.5 2.5-12-9-8 12-1.5Z" fill="${c.ink}"/>
         <circle cx="82" cy="70" r="3" fill="${c.ink}"/><circle cx="30" cy="22" r="2.5" fill="${c.ink}"/>`,
     },
+    // 2.5: yeni dünyalar
+    fisek: {
+      name: 'Gök Fişeği',
+      art: c => `<g stroke="${c.ink}" stroke-width="4" stroke-linecap="round">
+          <path d="M50 18v10M50 72v10M18 50h10M72 50h10M27 27l7 7M73 27l-7 7M27 73l7-7M73 73l-7-7"/></g>
+        <circle cx="50" cy="50" r="12" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>
+        <g fill="${c.ink}"><circle cx="50" cy="12" r="3"/><circle cx="88" cy="50" r="3"/><circle cx="50" cy="88" r="3"/><circle cx="12" cy="50" r="3"/></g>`,
+    },
+    buzul: {
+      name: 'Kar Tanesi',
+      art: c => `<g stroke="${c.ink}" stroke-width="5" stroke-linecap="round">
+          <path d="M50 14V86M19 32l62 36M19 68l62-36"/></g>
+        <g stroke="${c.ink}" stroke-width="3.5" stroke-linecap="round" fill="none">
+          <path d="M42 20l8 8 8-8M42 80l8-8 8 8M18 42l11 3-3 11M82 58l-11-3 3-11M18 58l11-3-3-11M82 42l-11 3 3 11"/></g>
+        <circle cx="50" cy="50" r="7" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>`,
+    },
+    degirmen: {
+      name: 'Yel Değirmeni',
+      art: c => `<path d="M38 88L42 46h16l4 42Z" fill="${c.ink}"/><path d="M40 46l10-10 10 10Z" fill="${c.ink}"/>
+        <rect x="46" y="70" width="8" height="18" rx="3" fill="${c.hi}"/>
+        <g transform="rotate(20 50 38)" fill="${c.hi}" stroke="${c.ink}" stroke-width="2.5">
+          <rect x="47" y="8" width="10" height="28" rx="2"/><rect x="43" y="40" width="10" height="28" rx="2"/>
+          <rect x="14" y="35" width="28" height="10" rx="2"/><rect x="58" y="31" width="28" height="10" rx="2"/></g>
+        <circle cx="50" cy="38" r="5" fill="${c.ink}"/>`,
+    },
+    buyu: {
+      name: 'Büyücü Şapkası',
+      art: c => `<path d="M14 78Q50 66 86 78Q50 90 14 78Z" fill="${c.ink}"/>
+        <path d="M30 74L52 14Q56 10 58 16L70 74Z" fill="${c.ink}"/>
+        <path d="M33 66Q50 60 67 66" stroke="${c.hi}" stroke-width="5" fill="none"/>
+        <path d="M56 30l2 5 5 .6-3.8 3.4 1 5-4.2-2.6-4.2 2.6 1-5L49 35.6l5-.6Z" fill="${c.hi}"/>`,
+    },
   };
   const PIECES = 5;
 
@@ -136,11 +168,7 @@
     return html + '</svg>';
   }
 
-  // Haritadaki parça işareti: yapboz parçası
-  const pieceIcon = accent => `<svg class="piece-ico" viewBox="0 0 25 24" aria-hidden="true">
-    <path d="M3 8.5h5a3.2 3.2 0 1 1 6 0h5v5a3.2 3.2 0 1 1 0 6V22H3z" fill="${accent}" stroke="#1d1934" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-
-  const api = { SETS, PIECES, svg, wedge, pieceIcon };
+  const api = { SETS, PIECES, svg, wedge };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingStickers = api;
 })(this);
