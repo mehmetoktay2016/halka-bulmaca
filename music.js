@@ -112,7 +112,7 @@
         const h = env(t, 0.002, 0.08 * v, 0, 0.07); osc('sine', hz(m) * 4, t, t + 0.12, h);
         out(g, 1, 0.3); out(h, 1, 0);
       },
-      celesta(t, m, v) { const g = env(t, 0.004, 0.22 * v, 0, 1.3); partials(t, m, [[1, 1], [2, 0.3], [3, 0.12]], g, t + 1.5); out(g, 0.8, 0.9); },
+      celesta(t, m, v) { const g = env(t, 0.004, 0.22 * v, 0, 1.3); partials(t, m, [[1, 1], [2, 0.3]], g, t + 1.5); out(g, 0.8, 0.9); },
       // müzik kutusu: bir oktav yukarıda, tiz uyumsuz kısmi tonla tınlayan dil
       musicBox(t, m, v) { const g = env(t, 0.002, 0.2 * v, 0, 1.6); partials(t, m + 12, [[1, 1], [4.2, 0.25], [8.4, 0.06]], g, t + 1.8); out(g, 0.8, 0.8); },
       // zil (glockenspiel): uyumsuz kısmi tonlar, parlak
@@ -182,7 +182,6 @@
       if (mode === 'boss' && st % 4 === 2) bass(t, R - 24 + BASS[bar % 4], 0.6, q);
       if (mode === 'rain' && st % 8 === 0) drum(t, 0.7);
       if (on[3]) for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
-      if (st % 2 === 0) release(t, ch);
     }
     // bekleyen kurtuluş notaları ve parıltı bir sonraki 8'liğe oturur
     function release(t, ch) {
@@ -191,8 +190,21 @@
       if (glitter) { sparkle(t + sp(), ch, glitter); glitter = 0; }
       if (boom) { drum(t, 1.5); bass(t, style[0] - 24, 1.2, sp() * 6); pad(t, ch.map(n => style[0] + 12 + n), 1.6, sp() * 6); boom = false; }
     }
+    // Notalar AHEAD saniye önceden zamanlanır: telefon bir an takılsa da müzik kesilmez. Zamanlayıcı yine de
+    // geride kalırsa kaçan adımlar atlanır (geçmişe yazılan nota zarfı aniden başlar, hoparlörde tıkırdar)
+    const AHEAD = 0.35;
     function tick() {
-      while (nextT < ac.currentTime + 0.12) { schedule(step, nextT); nextT += sp(); step++; }
+      while (nextT < ac.currentTime + 0.02) { nextT += sp(); step++; }
+      while (nextT < ac.currentTime + AHEAD) { schedule(step, nextT); nextT += sp(); step++; }
+      flush();
+    }
+    // Kurtuluş notaları önden zamanlanan akışı beklemez: zaten zamanlanmış ızgaradaki bir sonraki 8'liğe oturur
+    function flush() {
+      if (!playing || !(pending || glitter || boom)) return;
+      const q = sp(), soon = ac.currentTime + 0.03;
+      let e = step - Math.floor((nextT - soon) / q);
+      if (e % 2) e++;
+      release(nextT - (step - e) * q, CHORDS[Math.floor(e / 16) % 4]);
     }
 
     // Bölüm başında: döngü baştan, yalnız pad ve bas
@@ -203,7 +215,7 @@
       bus.gain.setTargetAtTime(level * VOLUME, ac.currentTime, 0.3);
       if (playing) return;
       playing = true; step = 0; nextT = ac.currentTime + 0.08;
-      clearInterval(timer); timer = setInterval(tick, 25);
+      clearInterval(timer); timer = setInterval(tick, 40);
     }
     function stop() {
       if (!bus) return;
@@ -237,10 +249,10 @@
       play, stop, resolve, jingle,
       world(id) { wanted = STYLES[id] || STYLES.vadi; if (!playing) style = wanted; },
       mode(m) { mode = m; },
-      hit() { if (playing) { boom = true; glitter = 6; } }, // Dev Halka yenildi
+      hit() { if (playing) { boom = true; glitter = 6; flush(); } }, // Dev Halka yenildi
       progress(f) { done = f; },                       // tahtanın boşalan oranı (0..1): katmanlar
-      free(n) { if (playing) pending += n; },          // kurtulan halka sayısı
-      sparkle(n) { if (playing) glitter = Math.max(glitter, Math.min(n, 6)); },
+      free(n) { if (playing) { pending += n; flush(); } }, // kurtulan halka sayısı
+      sparkle(n) { if (playing) { glitter = Math.max(glitter, Math.min(n, 6)); flush(); } },
       volume(v) { level = v; if (bus && playing) bus.gain.setTargetAtTime(level * VOLUME, ac.currentTime, 0.1); },
     };
   }

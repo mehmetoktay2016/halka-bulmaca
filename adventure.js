@@ -3053,13 +3053,13 @@
     }
 
     // ---- çizim döngüsü ----
-    // Kaydırılırken 1x çözünürlük (boyanacak piksel 4 kat az, harita parmağı izler), durunca 2x keskin
+    // Kaydırılırken 0,75x çözünürlük (boyanacak piksel 7 kat az, zayıf telefonda harita parmağı izler), durunca 2x keskin
     let lastTop = 0, moveT = 0;
     function resize() {
       const now = performance.now();
       if (Math.abs(sc.scrollTop - lastTop) > 0.5) moveT = now;
       lastTop = sc.scrollTop;
-      const dpr = Math.min(window.devicePixelRatio || 1, now - moveT < 150 ? 1 : 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, now - moveT < 150 ? 0.75 : 2);
       const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       return dpr;
