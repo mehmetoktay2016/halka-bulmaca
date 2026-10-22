@@ -1992,7 +1992,9 @@
         // Bölüm tahtanın büyük kısmını kaplamalı (eski bölümlerin ortalaması 319x435); değilse büyümeye devam
         const bw = Math.max(...rings.map(r => r.x + r.r)) - Math.min(...rings.map(r => r.x - r.r));
         const bh = Math.max(...rings.map(r => r.y + r.r)) - Math.min(...rings.map(r => r.y - r.r));
-        if (bw < 300 || bh < 400) { gs('alan_kucuk'); GROW_STATS.box = (GROW_STATS.box || []).concat([Math.round(bw) + 'x' + Math.round(bh)]).slice(-30); continue; }
+        // Hedefe ulaşmış bölüm aşağıdaki kontrollerden birine takılırsa son halka geri alınır ve aynı adımda başka yer
+        // denenir; halka eklemeyi sürdürmek zorluğu hedefin üstüne çıkarıyor, deneme boşa gidiyordu
+        if (bw < 300 || bh < 400) { gs('alan_kucuk'); if (rings.length >= (plan.peak ? 12 : 10)) undo(); continue; }
         // Hedef aralıkta: bir kez tam çözülür, ipucu çözebilmeli, kapının parçası işe yaramalı
         if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { undo(); continue; }
         const exact = Logic.solve(L, L.startAngles, 0, 20000);
@@ -2002,7 +2004,7 @@
         if (!connected(L)) { undo(); continue; }
         if (!mattersAll(def, own.filter(m => features(def).includes(m)))) { gs('parca_onemsiz'); intensify(true); continue; }
         // Dopamin anı: en iyi çözümde tek hamlede en az 3 (zirvede 4) parçanın birden uçtuğu bir zincir olmalı
-        if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); continue; }
+        if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); undo(); continue; }
         const s2 = difficultyScore(def);
         if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { undo(); continue; }
         const err = plan.peak ? 0 : Math.abs(s2 - t);
