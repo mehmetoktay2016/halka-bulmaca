@@ -6,6 +6,8 @@
 // - tahta boşaldıkça katman girer: pad + bas, arpej, tıkırtı, ezgi
 // - zincir ve kombo parıltı çalar; kusursuz seri zafer cıngılı
 // - son halkada ritim durur, V akorundan I'e çözülür. Hamle sınırında gerilim yok.
+// Özel anlar (Z17): Dev Halka bölümü ağır davul ve pompalayan basla (yenilince gümbürtü + parıltı),
+// Altın Yağmuru 130 BPM, bütün katmanlar açık, 16'lık arpej ve tıkırtı.
 // Prototip: prototip/muzik.html (A · Bahçe seçildi); dünyaları dinlemek için prototip/dunya_muzik.html.
 (function (root) {
   'use strict';
@@ -48,7 +50,8 @@
     let timer = 0, step = 0, nextT = 0, playing = false, level = 0.4;
     let done = 0, pending = 0, freedN = 0, glitter = 0, cadenceEnd = 0;
     let style = STYLES.vadi, wanted = style; // dünya değişince yeni çeşitleme bir sonraki ölçüde başlar
-    const sp = () => 60 / style[1] / 4;    // 16'lık süresi (sn)
+    let mode = null, boom = false;           // özel an: null, 'boss' (Dev Halka), 'rain' (Altın Yağmuru)
+    const sp = () => 60 / (mode === 'rain' ? 130 : style[1]) / 4; // 16'lık süresi (sn)
 
     function setup() {
       ac = getContext();
@@ -115,7 +118,7 @@
       // steel pan: hafif yukarıdan oturan ton, 2. ve 3. kısmi
       steel(t, m, v) {
         const g = env(t, 0.004, 0.22 * v, 0, 0.8);
-        for (const [k, a] of [[1, 1], [2, 0.4], [3.01, 0.15]]) { const q = ac.createGain(); q.gain.value = a; q.connect(g); const o = osc('sine', hz(m) * k * 1.012, t, t + 1, q); o.frequency.exponentialRampToValueAtTime(hz(m) * k, t + 0.06); }
+        for (const [k, a] of [[1, 1], [2, 0.4], [3.01, 0.15]]) { const q = ac.createGain(); q.gain.value = a; q.connect(g); const o = osc('sine', hz(m) * k * 1.012, t, t + 1, q); o.frequency.setValueAtTime(hz(m) * k * 1.012, t); o.frequency.exponentialRampToValueAtTime(hz(m) * k, t + 0.06); }
         out(g, 0.9, 0.6);
       },
       // telli (arp/gitar): parlak başlayıp kararan süzgeç
@@ -144,6 +147,8 @@
       for (const m of ms) for (const dt of [-9, 0, 9]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
       out(g, 1, 0.6);
     }
+    // davul: perdesi düşen derin vuruş
+    function drum(t, v) { const g = env(t, 0.003, 0.4 * v, 0, 0.32); const o = osc('sine', 125, t, t + 0.4, g); o.frequency.setValueAtTime(125, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.3); out(g, 1, 0.15); }
     function bass(t, m, v, d) {
       const g = env(t, 0.01, 0.28 * v, d * 0.8, 0.15);
       osc('triangle', hz(m), t, t + d + 0.3, g); osc('sine', hz(m), t, t + d + 0.3, g); out(g, 1, 0);
@@ -155,14 +160,20 @@
     }
 
     // ---- akış: 16'lık adımlar önceden zamanlanır ----
-    function layers() { return [true, done >= 0.2, done >= 0.45, done >= 0.65]; }
+    function layers() { return mode === 'rain' ? [true, true, true, true] : [true, mode === 'boss' || done >= 0.2, done >= 0.45, done >= 0.65]; }
     function schedule(s, t) {
       if (s % 16 === 0) style = wanted;
       const [R, , lead, pulse] = style, bar = Math.floor(s / 16), st = s % 16, ch = CHORDS[bar % 4], on = layers(), q = sp();
       if (st === 0) { pad(t, ch.map(n => R + n), 1, q * 16); bass(t, R - 12 + BASS[bar % 4], 1, q * 7); }
       if (st === 8) bass(t, R - 12 + BASS[bar % 4], 0.8, q * 6);
-      if (on[1] && ARP[st] >= 0) INST[pulse](t, R + 12 + ch[ARP[st]], ACCENT.includes(st) ? 1 : 0.55);
-      if (on[2] && st % 2 === 1) noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
+      // Altın Yağmuru'nda arpej 16'lık (susulan adımda bir önceki nota)
+      const a = ARP[st] >= 0 ? ARP[st] : mode === 'rain' ? ARP[st - 1] : -1;
+      if (on[1] && a >= 0) INST[pulse](t, R + 12 + ch[a], ACCENT.includes(st) ? 1 : 0.55);
+      if (on[2] && (st % 2 === 1 || mode === 'rain')) noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
+      // Dev Halka: her vuruşta davul, aradaki 8'liklerde kısa pompalayan bas; Yağmur: ölçü başında ve ortasında davul
+      if (mode === 'boss' && st % 4 === 0) drum(t, st % 8 ? 0.6 : 1);
+      if (mode === 'boss' && st % 4 === 2) bass(t, R - 24 + BASS[bar % 4], 0.6, q);
+      if (mode === 'rain' && st % 8 === 0) drum(t, 0.7);
       if (on[3]) for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
       if (st % 2 === 0) release(t, ch);
     }
@@ -171,6 +182,7 @@
       for (let i = 0; i < pending; i++) { const k = freedN + i; INST[style[4]](t + i * sp() * 0.5, style[0] + 12 + ch[k % 3] + 12 * (Math.floor(k / 3) % 2), 0.9); }
       freedN += pending; pending = 0;
       if (glitter) { sparkle(t + sp(), ch, glitter); glitter = 0; }
+      if (boom) { drum(t, 1.5); bass(t, style[0] - 24, 1.2, sp() * 6); pad(t, ch.map(n => style[0] + 12 + n), 1.6, sp() * 6); boom = false; }
     }
     function tick() {
       while (nextT < ac.currentTime + 0.12) { schedule(step, nextT); nextT += sp(); step++; }
@@ -217,6 +229,8 @@
     return {
       play, stop, resolve, jingle,
       world(id) { wanted = STYLES[id] || STYLES.vadi; if (!playing) style = wanted; },
+      mode(m) { mode = m; },
+      hit() { if (playing) { boom = true; glitter = 6; } }, // Dev Halka yenildi
       progress(f) { done = f; },                       // tahtanın boşalan oranı (0..1): katmanlar
       free(n) { if (playing) pending += n; },          // kurtulan halka sayısı
       sparkle(n) { if (playing) glitter = Math.max(glitter, Math.min(n, 6)); },

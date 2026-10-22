@@ -1212,7 +1212,8 @@
     $('game').classList.toggle('tutorial', tut != null);
     renderMeter(true);
     updateHud();
-    syncMusic(); // yeni bölüm: müzik baştan, yalnız pad ve bas
+    music.mode(rain ? 'rain' : S.L.bosses.length ? 'boss' : null);
+    syncMusic(); // yeni bölüm: müzik baştan, yalnız pad ve bas (Altın Yağmuru'nda kesintisiz sürer)
   }
 
   // Deneme bölümü: el işareti ve açıklama kartıyla rehberli
@@ -1459,7 +1460,7 @@
     // müzik: kurtulanların notaları, boşalan tahtaya göre katmanlar, son halkada çözülüş
     music.free(freed.length);
     music.progress(S.L.rings.filter((_, i) => mask & (1 << i)).length / S.L.rings.length);
-    if (finale) music.resolve();
+    if (finale && !rain) music.resolve(); // Altın Yağmuru tahtalar arasında durmaz, süre bitince çözülür
     if (!S.preview && S.tut == null) {
       setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
       stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
@@ -2349,6 +2350,7 @@
       if (part) { progress.coins += part; stat('coinsTotal', part); rain.total += part; S.coins.forEach(c => { c.taken = false; }); S.coinsTaken = 0; saveProgress(); }
     }
     S.won = true;
+    music.resolve(); music.jingle();
     $('rainTotal').textContent = '+' + rain.total;
     $('rainBoards').textContent = tr('{n} tahta temizlendi', { n: rain.boards });
     $('rainEnd').classList.remove('hidden');
@@ -3619,7 +3621,7 @@
   // Dev Halka parçalandı: gümleme ve zafer çıngılı, kendi renginde büyük parça yağmuru, şok dalgası ve sarsıntı
   function bossBreak(i) {
     const r = S.L.rings[i];
-    Sound.boom(); Sound.victory();
+    Sound.boom(); Sound.victory(); music.hit();
     if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch (e) { /* yok say */ } }
     if (REDUCED) return;
     const color = ringColor(i);

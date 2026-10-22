@@ -22,6 +22,8 @@ p { margin: 0; color: var(--muted); line-height: 1.45; }
 .worlds button[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; position: sticky; bottom: 0; padding-block: 8px; background: var(--bg); }
 .row button { flex: 1; font: 800 14px var(--body); border-radius: 14px; padding: 12px 8px; cursor: pointer; border: 1px solid var(--line); background: #20244a; color: var(--fg); }
+.row button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.row + .row { position: static; padding-top: 0; }
 .row button.main { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
 </style>
 <main>
@@ -29,6 +31,7 @@ p { margin: 0; color: var(--muted); line-height: 1.45; }
   <p>Ezgi ve halka motifi her dünyada aynı; ton, tempo ve çalgılar dünyaya göre değişir. Bir dünya seç, <b>Çal</b>'a bas, sonra <b>Halka kurtar</b> (ya da boşluk tuşu) ile tahtayı boşalt. Çalarken başka dünyaya geçersen yeni çeşitleme bir sonraki ölçüde girer.</p>
   <div class="worlds" id="worlds"></div>
   <div class="row"><button id="play" class="main">Çal</button><button id="free">Halka kurtar</button><button id="chain">Zincir</button></div>
+  <div class="row"><button id="boss" aria-pressed="false">Dev Halka</button><button id="rain" aria-pressed="false">Altın Yağmuru</button><button id="hit">Dev yenildi</button></div>
 </main>
 <script src="../music.js"></script>
 <script>
@@ -36,26 +39,31 @@ p { margin: 0; color: var(--muted); line-height: 1.45; }
 const NAMES = { vadi: 'Başlangıç Vadisi', atolye: 'Atölye', saat: 'Saat Kulesi', zindan: 'Zindan', sehir: 'Şehir', fabrika: 'Fabrika', uzay: 'Uzay', usta: 'Büyük Usta',
   lunapark: 'Lunapark', santral: 'Santral', fener: 'Deniz Feneri', rasathane: 'Rasathane', fisek: 'Havai Fişek', buzul: 'Buzul', degirmen: 'Değirmen', buyu: 'Büyü Kulesi' };
 const INST = { celesta: 'celesta', marimba: 'marimba', kalimba: 'kalimba', pluck: 'telli', musicBox: 'müzik kutusu', flute: 'flüt', organ: 'org', glock: 'zil', steel: 'steel pan' };
-let ac = null, world = 'vadi', playing = false, left = 0;
+let ac = null, world = 'vadi', playing = false, left = 0, mode = null;
 const music = window.RingMusic.Music(() => { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac; });
 const $ = id => document.getElementById(id);
 function render() {
   $('worlds').innerHTML = Object.entries(window.RingMusic.STYLES).map(([id, [, bpm, lead, pulse]]) =>
     `<button data-w="${id}" aria-pressed="${id === world}"><b>${NAMES[id]}</b>${INST[lead]} + ${INST[pulse]} · ${bpm} BPM</button>`).join('');
   $('play').textContent = playing ? 'Durdur' : 'Çal';
+  $('boss').setAttribute('aria-pressed', String(mode === 'boss')); $('rain').setAttribute('aria-pressed', String(mode === 'rain'));
 }
-function start() { music.world(world); music.volume(0.6); music.play(); music.progress(0); playing = true; left = 8; render(); }
+function start() { music.mode(mode); music.world(world); music.volume(0.6); music.play(); music.progress(0); playing = true; left = 8; render(); }
 function free(n) {
   if (!playing) return start();
   n = Math.min(n, left); left -= n;
   music.free(n); music.progress(1 - left / 8);
   if (n >= 3) music.sparkle(n);
+  if (!left && mode === 'rain') { left = 8; music.progress(0); return; } // yağmurda tahta yenilenir, müzik durmaz
   if (!left) { music.resolve(); playing = false; render(); }
 }
 $('worlds').onclick = e => { const b = e.target.closest('button'); if (!b) return; world = b.dataset.w; music.world(world); render(); };
 $('play').onclick = () => { if (playing) { music.stop(); playing = false; render(); } else start(); };
 $('free').onclick = () => free(1);
 $('chain').onclick = () => free(3);
+// özel anlar: seçilince müzik o kipte baştan çalar
+for (const m of ['boss', 'rain']) $(m).onclick = () => { mode = mode === m ? null : m; music.stop(); start(); };
+$('hit').onclick = () => music.hit();
 document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); free(1); } });
 render();
 </script>
