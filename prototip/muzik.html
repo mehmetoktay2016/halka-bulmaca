@@ -1,0 +1,207 @@
+<title>Halka Müzik Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Z15 müzik prototipi: iki çeşit (A Bahçe: majör pentatonik, B Dedektif: Sherlock esintili D minör), oyundaki olaylar düğmelerle */
+:root {
+  --bg: #0b0d1c; --panel: #171a33; --line: #2b3060; --fg: #f1efff; --muted: #c6c4e4;
+  --accent: #8fb4ff; --gold: #ffc94a; --gold-ink: #3d2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(70% 45% at 20% 0%, rgba(120, 140, 255, .18), transparent 70%), var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+p { margin: 0; color: var(--muted); line-height: 1.45; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cards button { text-align: left; font: 700 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px; cursor: pointer; display: grid; gap: 4px; }
+.cards button b { font: 800 17px var(--display); color: var(--fg); }
+.cards button[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row button { flex: 1; font: 800 15px var(--body); border-radius: 14px; padding: 12px 10px; cursor: pointer; border: 1px solid var(--line); background: #20244a; color: var(--fg); }
+.row button.main { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+label { display: grid; gap: 6px; font-weight: 800; font-size: 14px; }
+label span { display: flex; justify-content: space-between; color: var(--muted); font-weight: 700; }
+input[type=range] { width: 100%; accent-color: var(--gold); }
+.rings { display: flex; gap: 6px; flex-wrap: wrap; min-height: 26px; }
+.rings i { width: 22px; height: 22px; border-radius: 50%; border: 4px solid var(--c); opacity: .95; transition: transform .3s, opacity .3s; }
+.rings i.off { opacity: .15; transform: scale(.6); }
+.layers { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; font-weight: 800; }
+.layers span { padding: 4px 9px; border-radius: 999px; background: #20244a; color: var(--muted); }
+.layers span.on { background: var(--accent); color: #0b0d1c; }
+</style>
+<main>
+  <div><div class="eyebrow">Z15 · müzik prototipi</div><h1>Halka müziği</h1></div>
+  <p>İki çeşidi dinle. Oyundaki gibi dene: <b>Halka kurtar</b> düğmesine (ya da boşluk tuşuna) bas, kurtulan halkanın notası akora ve vuruşa oturur. Tahta boşaldıkça katman eklenir; son halkada müzik durur ve çözülür.</p>
+  <div class="cards" id="kinds"></div>
+  <div class="panel">
+    <div class="row"><button id="play" class="main">Çal</button><button id="free">Halka kurtar</button></div>
+    <div class="rings" id="rings"></div>
+    <div class="layers" id="layers"></div>
+    <label>Ses <span><em>varsayılan kısık</em><em id="volV"></em></span><input id="vol" type="range" min="0" max="100" value="45"></label>
+  </div>
+  <p id="note"></p>
+</main>
+<script>
+'use strict';
+// ---- çeşitler: kök (MIDI), tempo, 4 ölçülük akor döngüsü, 8 ölçülük ezgi [adım, nota, uzunluk] (1 ölçü = 16 adım) ----
+const KINDS = {
+  bahce: {
+    name: 'A · Bahçe', sub: 'Eski karar: majör pentatonik, marimba + celesta, 96 BPM', root: 60, bpm: 96,
+    chords: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], bass: [0, -3, 5, 7],
+    // halka motifi: notalar bir çember gibi yükselip başa döner (3-5-6-5)
+    melody: [[[0, 16, 4], [4, 19, 4], [8, 21, 4], [12, 19, 4]], [[0, 16, 6], [6, 12, 2], [8, 14, 8]], [[0, 21, 4], [4, 24, 4], [8, 21, 4], [12, 19, 4]], [[0, 19, 8], [8, 14, 4], [12, 16, 4]],
+      [[0, 16, 4], [4, 19, 4], [8, 21, 4], [12, 24, 4]], [[0, 26, 4], [4, 24, 4], [8, 21, 8]], [[0, 21, 4], [4, 19, 4], [8, 16, 4], [12, 14, 4]], [[0, 12, 12]]],
+    lead: 'celesta', pulse: 'marimba', free: 'celesta',
+    // kalıp: 8'lik arpej, akor notası sırası
+    pattern: [0, -1, 1, -1, 2, -1, 1, -1, 0, -1, 1, -1, 2, -1, 1, -1], accent: [0, 8],
+    cadence: { last: [7, 11, 14], home: [0, 4, 7, 12, 16] },
+  },
+  dedektif: {
+    name: 'B · Dedektif', sub: 'Sherlock esintisi: pizzicato yaylılar 3+3+2, keman ezgisi, D minör, 100 BPM', root: 50, bpm: 100,
+    chords: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], bass: [0, -4, 3, -2],
+    melody: [[[0, 19, 6], [6, 24, 2], [8, 26, 4], [12, 27, 4]], [[0, 26, 8], [8, 24, 4], [12, 22, 4]], [[0, 24, 12], [12, 19, 4]], [[0, 22, 8], [8, 26, 8]],
+      [[0, 27, 6], [6, 26, 2], [8, 24, 4], [12, 22, 4]], [[0, 20, 8], [8, 22, 4], [12, 24, 4]], [[0, 27, 6], [6, 29, 2], [8, 31, 8]], [[0, 26, 8], [8, 24, 8]]],
+    lead: 'violin', pulse: 'pizz', free: 'pizzHi',
+    // 16'lık ostinato, 3+3+2 vurgulu (kök, beşli, üçlü)
+    pattern: [0, 2, 1, 0, 2, 1, 0, 2, 0, 2, 1, 0, 2, 1, 0, 2], accent: [0, 3, 6, 8, 11, 14],
+    cadence: { last: [-2, 2, 5], home: [0, 4, 7, 12, 16] }, // son halkada majör akorla aydınlanır (Picardy)
+  },
+};
+const LAYERS = ['pad + bas', 'ritim kalıbı', 'tıkırtı', 'ezgi'];
+
+let kind = 'bahce', ac = null, master, verb, playing = false, timer = 0, step = 0, nextT = 0, left = 8, pending = 0, freedN = 0, ending = false;
+const RINGS = ['#ff6b6b', '#ffb347', '#ffd34a', '#7ee081', '#5ad1e6', '#8fb4ff', '#c08aff', '#ff8ac8'];
+const $ = id => document.getElementById(id);
+const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function audio() {
+  if (ac) return;
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  master = ac.createGain(); master.gain.value = vol();
+  const comp = ac.createDynamicsCompressor(); master.connect(comp); comp.connect(ac.destination);
+  // yankı: üstel sönen gürültüden darbe yanıtı
+  verb = ac.createConvolver();
+  const len = ac.sampleRate * 2.2, ir = ac.createBuffer(2, len, ac.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  verb.buffer = ir;
+  const wet = ac.createGain(); wet.gain.value = 0.28; verb.connect(wet); wet.connect(master);
+}
+const vol = () => Math.pow($('vol').value / 100, 2) * 0.9;
+function out(node, dry = 1, wet = 1) {
+  const d = ac.createGain(); d.gain.value = dry; node.connect(d); d.connect(master);
+  if (wet) { const w = ac.createGain(); w.gain.value = wet; node.connect(w); w.connect(verb); }
+}
+function env(t, a, peak, dur, rel) {
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a);
+  if (dur != null) { g.gain.setValueAtTime(peak, t + Math.max(a, dur)); g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(a, dur) + rel); }
+  else g.gain.exponentialRampToValueAtTime(0.0001, t + a + rel);
+  return g;
+}
+function osc(type, f, t, end, g, detune = 0) {
+  const o = ac.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune;
+  o.connect(g); o.start(t); o.stop(end); return o;
+}
+// ---- çalgılar (t: başlangıç, m: MIDI, v: güç, d: süre sn) ----
+const INST = {
+  marimba(t, m, v) { const g = env(t, 0.004, 0.32 * v, null, 0.55); osc('sine', hz(m), t, t + 0.7, g); const h = env(t, 0.002, 0.08 * v, null, 0.07); osc('sine', hz(m) * 4, t, t + 0.12, h); out(g, 1, 0.3); out(h, 1, 0); },
+  celesta(t, m, v) { const g = env(t, 0.004, 0.22 * v, null, 1.3); [[1, 1], [2, 0.3], [3, 0.12]].forEach(([k, a]) => { const q = ac.createGain(); q.gain.value = a; q.connect(g); osc('sine', hz(m) * k, t, t + 1.5, q); }); out(g, 0.8, 0.9); },
+  pizz(t, m, v) {
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(500, t + 0.2);
+    const g = env(t, 0.003, 0.3 * v, null, 0.2); f.connect(g); osc('triangle', hz(m), t, t + 0.3, f); osc('sawtooth', hz(m), t, t + 0.3, f, 3); out(g, 1, 0.35);
+  },
+  pizzHi(t, m, v) { INST.pizz(t, m + 12, v); INST.celesta(t, m + 12, v * 0.5); },
+  violin(t, m, v, d) {
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2400; f.Q.value = 1.2;
+    const g = env(t, 0.12, 0.13 * v, d, 0.35); f.connect(g);
+    const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 5.4; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(14, t + 0.35);
+    lfo.connect(lg); lfo.start(t); lfo.stop(t + d + 0.5);
+    for (const dt of [-5, 5]) lg.connect(osc('sawtooth', hz(m), t, t + d + 0.5, f, dt).detune);
+    out(g, 0.9, 0.8);
+  },
+  pad(t, ms, v, d) {
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    const g = env(t, 0.6, 0.05 * v, d - 0.2, 0.8); f.connect(g);
+    for (const m of ms) for (const dt of [-9, 0, 9]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
+    out(g, 1, 0.6);
+  },
+  bass(t, m, v, d) { const g = env(t, 0.01, 0.28 * v, d * 0.8, 0.15); osc('triangle', hz(m), t, t + d + 0.3, g); osc('sine', hz(m), t, t + d + 0.3, g); out(g, 1, 0); },
+  shaker(t, v) {
+    const n = ac.createBufferSource(), b = ac.createBuffer(1, ac.sampleRate * 0.08, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    n.buffer = b; const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500;
+    const g = env(t, 0.002, 0.07 * v, null, 0.05); n.connect(f); f.connect(g); n.start(t); out(g, 1, 0.2);
+  },
+  tom(t, v) { const g = env(t, 0.003, 0.35 * v, null, 0.3); const o = osc('sine', 120, t, t + 0.4, g); o.frequency.exponentialRampToValueAtTime(60, t + 0.3); out(g, 1, 0.2); },
+};
+
+// ---- katmanlar: tahtadaki halka azaldıkça (8 → 0) çoğalır ----
+const layerOn = () => { const done = 1 - left / 8; return [true, done >= 0.2, done >= 0.45, done >= 0.65]; };
+function schedule(s, t) {
+  const K = KINDS[kind], bar = Math.floor(s / 16), st = s % 16, ch = K.chords[bar % 4], on = layerOn(), sp = 60 / K.bpm / 4;
+  if (st === 0) { INST.pad(t, ch.map(n => K.root + n), 1, sp * 16); INST.bass(t, K.root - 12 + K.bass[bar % 4], 1, sp * 7); }
+  if (st === 8) INST.bass(t, K.root - 12 + K.bass[bar % 4] + (kind === 'dedektif' ? 7 : 0), 0.8, sp * 6);
+  const p = K.pattern[st];
+  if (on[1] && p >= 0) INST[K.pulse](t, K.root + 12 + ch[p], K.accent.includes(st) ? 1 : 0.55);
+  if (on[2]) { if (st % 2 === 1 || kind === 'dedektif') INST.shaker(t, st % 4 === 2 ? 1 : 0.6); if (kind === 'dedektif' && (st === 0 || st === 10)) INST.tom(t, 0.8); }
+  if (on[3]) for (const [at, n, len] of K.melody[bar % 8]) if (at === st) INST[K.lead](t, K.root + n, 1, len * sp);
+  // kurtulan halkalar bir sonraki 8'liğe oturur; aynı anda birden çok halka akorun notalarına yükselerek dağılır
+  if (st % 2 === 0 && pending) {
+    for (let i = 0; i < pending; i++) { const k = freedN + i, n = ch[k % 3] + 12 * Math.floor(k / 3) % 24; INST[K.free](t + i * sp * 0.5, K.root + 12 + n, 0.9, sp * 2); }
+    freedN += pending; pending = 0;
+  }
+}
+function tick() {
+  while (nextT < ac.currentTime + 0.12) {
+    const sp = 60 / KINDS[kind].bpm / 4;
+    if (ending && step % 16 === 0) { cadence(nextT); return; }
+    schedule(step, nextT); nextT += sp; step++;
+  }
+}
+// son halka: ritim durur, son akordan ev akoruna çözülür, arpej yükselir
+function cadence(t) {
+  clearInterval(timer); playing = false;
+  const K = KINDS[kind], sp = 60 / K.bpm / 4, lead = K.lead === 'violin' ? 'violin' : 'celesta';
+  INST.pad(t, K.cadence.last.map(n => K.root + n), 1.2, sp * 8);
+  INST.bass(t, K.root - 12 + K.cadence.last[0], 1, sp * 7);
+  const t2 = t + sp * 8;
+  INST.pad(t2, K.cadence.home.slice(0, 3).map(n => K.root + n), 1.4, 4);
+  INST.bass(t2, K.root - 12, 1, 3);
+  K.cadence.home.forEach((n, i) => INST.celesta(t2 + i * 0.11, K.root + 12 + n, 0.9));
+  INST[lead](t2, K.root + 24 + 4, 1, 2.6);
+  setTimeout(() => { $('play').textContent = 'Yeniden çal'; render(); }, (t2 - ac.currentTime + 2) * 1000);
+}
+function start() {
+  audio(); ac.resume();
+  left = 8; pending = 0; freedN = 0; ending = false; step = 0; nextT = ac.currentTime + 0.08;
+  playing = true; clearInterval(timer); timer = setInterval(tick, 25);
+  $('play').textContent = 'Durdur'; render();
+}
+function stop() { playing = false; clearInterval(timer); $('play').textContent = 'Çal'; }
+function free() {
+  if (!playing) return start();
+  if (ending || !left) return;
+  left--; pending++;
+  if (!left) ending = true; // son halka: bu ölçünün sonunda çözülüş
+  render();
+}
+function render() {
+  $('kinds').innerHTML = Object.entries(KINDS).map(([id, k]) => `<button data-k="${id}" aria-pressed="${id === kind}"><b>${k.name}</b>${k.sub}</button>`).join('');
+  $('rings').innerHTML = RINGS.map((c, i) => `<i style="--c:${c}" class="${i < 8 - left ? 'off' : ''}"></i>`).join('');
+  const on = layerOn();
+  $('layers').innerHTML = LAYERS.map((n, i) => `<span class="${on[i] && playing ? 'on' : ''}">${n}</span>`).join('');
+  $('note').textContent = !playing && left === 0 ? 'Bölüm bitti: müzik ev akoruna döndü. "Yeniden çal" ile tekrar dinle.' : `Tahtada ${left} halka. ${left ? 'Kurtardıkça yeni katmanlar girer.' : ''}`;
+  $('volV').textContent = $('vol').value + '%';
+}
+$('kinds').onclick = e => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.k; if (playing) start(); else render(); };
+$('play').onclick = () => (playing ? stop() : start());
+$('free').onclick = free;
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); free(); } });
+$('vol').oninput = () => { if (master) master.gain.setTargetAtTime(vol(), ac.currentTime, 0.05); render(); };
+render();
+</script>
