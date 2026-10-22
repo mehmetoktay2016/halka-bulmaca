@@ -1,8 +1,9 @@
 // Kullanım: node tools/build_bonus.js [süreç sayısı=3]
-// Ara oyunlar (2.5, Z22): her 20 bölümde bir, isteğe bağlı ve çok zor bölüm. Kaynak numarası levels.js BONUS.first + k - 1,
-// k. ara oyun 20k. bölümden sonra (kapı 2k'nın sonunda) açılır.
+// Meydan okumalar (2.5, Z22): her 20 bölümde bir, isteğe bağlı ve çok zor bölüm. Kaynak numarası levels.js BONUS.first + k - 1,
+// k. meydan okuma 20k. bölümden sonra (kapı 2k'nın sonunda) açılır.
 // Zorluk: o kapının en zor bölümünün puanından BONUS.extra fazla; hamle tavanı kapınınkinden BONUS.par fazla;
-// o ana kadar tanıtılmış parçalardan en çok üçü, hepsi çözümde işe yarar (levels.js growFor). Bitmiş ara oyun atlanır,
+// normal bölümlerden çok halka (minRings-maxRings), sıkışık ve iç içe (yeni halka bazen üç halkayı keser);
+// o ana kadar tanıtılmış parçalardan en çok üçü, hepsi çözümde işe yarar (levels.js growFor). Bitmiş meydan okuma atlanır,
 // her biri biter bitmez tools/out/bonus.json'a yazılır; hepsi bitince levels_data.js'e eklenir.
 const fs = require('fs');
 const path = require('path');
@@ -12,11 +13,11 @@ const OUT = path.join(__dirname, 'out'), FILE = path.join(OUT, 'bonus.json');
 const DATA = path.join(__dirname, '..', 'levels_data.js');
 const Levels = require('../levels.js');
 // numaralar levels.js'te (oyun da oradan okur); burada yalnız üretim ayarları
-const BONUS = { ...Levels.BONUS, count: 20, extra: 1.5, par: 3, maxPar: 14, pieces: 3 };
+const BONUS = { ...Levels.BONUS, count: 20, extra: 1.5, par: 3, maxPar: 14, pieces: 3, minRings: 13, maxRings: 16 };
 const readData = () => new Function(fs.readFileSync(DATA, 'utf8') + '; return RING_LEVEL_DATA;')();
 const readDone = () => (fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, 'utf8')) : {});
 
-// k. ara oyunun planı: kapı, hedef zorluk, hamle tavanı, parçalar
+// k. meydan okumanın planı: kapı, hedef zorluk, hamle tavanı, parçalar
 function planFor(k, pre, order) {
   const gate = (BONUS.every / 10) * k, get = s => pre[s] || Levels.getLevel(s);
   let peak = 0;
@@ -27,7 +28,7 @@ function planFor(k, pre, order) {
   const mech = avail.length <= BONUS.pieces ? avail : [...avail.slice(-2), avail[(k * 7) % (avail.length - 2)]];
   const maxPar = Math.min(BONUS.maxPar, Levels.maxParOf(order[gate * 10 - 1]) + BONUS.par);
   return { gate, target: Math.round((peak + BONUS.extra) * 100) / 100, peak: true, top: peak + BONUS.extra + 1.2,
-    near: 0.58, maxPar, mech, own: mech };
+    near: 0.54, minRings: BONUS.minRings, maxRings: BONUS.maxRings, cross3: 0.3, maxPar, mech, own: mech };
 }
 
 if (process.argv[2] === '--worker') {
@@ -36,7 +37,7 @@ if (process.argv[2] === '--worker') {
     if (readDone()[BONUS.first + k - 1]) continue;
     const plan = planFor(k, pre, order), t0 = Date.now();
     const def = Levels.growFor(BONUS.first + k - 1, plan);
-    const line = `ara oyun ${k} (kapı ${plan.gate}, hedef ${plan.target}, ${plan.mech.join('+') || 'parçasız'}): ` +
+    const line = `meydan okuma ${k} (kapı ${plan.gate}, hedef ${plan.target}, ${plan.mech.join('+') || 'parçasız'}): ` +
       (def ? `${def.rings.length} halka, ${def.par} hamle, puan ${Levels.difficultyScore(def).toFixed(2)}` : 'üretilemedi') + `, ${Math.round((Date.now() - t0) / 1000)} sn`;
     if (def) { const all = readDone(); all[BONUS.first + k - 1] = def; fs.writeFileSync(FILE, JSON.stringify(all)); }
     console.log(line);
@@ -54,6 +55,6 @@ for (let w = 0; w < workers; w++) {
     Object.assign(data, done);
     fs.writeFileSync(DATA, '// tools/build_levels.js tarafından üretildi — elle düzenlemeyin\nvar RING_LEVEL_DATA = ' + JSON.stringify(data) + ';\n');
     const missing = ks.filter(k => !done[BONUS.first + k - 1]);
-    console.log(`levels_data.js güncellendi: ${Object.keys(done).length} ara oyun. Eksik: ${missing.join(', ') || 'yok'}`);
+    console.log(`levels_data.js güncellendi: ${Object.keys(done).length} meydan okuma. Eksik: ${missing.join(', ') || 'yok'}`);
   });
 }

@@ -17,7 +17,7 @@
     dailyBulbs: 1,      // ampulü hiç kalmayan oyuncuya günde bir kez
     // Kapı kumbarası: kapıda kazanılan her yıldız için, kapı bitince (sonraki kapının töreninde) verilir
     jarCoinsPerStar: 1,
-    // Ara oyun (her 20 bölümde bir, isteğe bağlı, çok zor): ilk bitirişte
+    // Meydan okuma (her 20 bölümde bir, isteğe bağlı, çok zor): ilk bitirişte
     bonusCoins: 150,
   };
 

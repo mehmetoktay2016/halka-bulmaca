@@ -93,9 +93,9 @@ var RING_LANG_EN = {
   'Yeni rozet': 'New badge',
   '+{n} altın': ['+{n} coin', '+{n} coins'],
   'Kumbara: +{n} altın': ['Piggy jar: +{n} coin', 'Piggy jar: +{n} coins'],
-  'Ara oyun {n}': 'Challenge {n}',
-  'Ara oyun {n} tamamlandı': 'Challenge {n} complete',
-  'Ara oyun ödülü': 'Challenge reward',
+  'Meydan Okuma {n}': 'Challenge {n}',
+  'Meydan Okuma {n} tamamlandı': 'Challenge {n} complete',
+  'Meydan Okuma ödülü': 'Challenge reward',
   'çok zor, isteğe bağlı': 'very hard, optional',
   'Kazanıldı · +{n} altın': ['Earned · +{n} coin', 'Earned · +{n} coins'],
   'Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.':

@@ -2816,7 +2816,7 @@
       setTimeout(() => { S.fogT[gt] = performance.now(); snd.noise(1.6, 0.2, 600, 2400); snd.tone(320, 1.4, 'sine', 0.03, 900); }, reduced() ? 0 : 1300);
     }
 
-    // ---- ara oyun sunakları: her `bonusEvery` durakta yoldan ayrılan patikanın ucunda ----
+    // ---- meydan okuma sunakları: her `bonusEvery` durakta yoldan ayrılan patikanın ucunda ----
     const bonusAt = k => { const nd = NODES[k * D.bonusEvery], side = nd.x > W / 2 ? 1 : -1; return { nd, x: W / 2 - side * 150, y: nd.y - 90 }; };
     function shrines(now, top, bot) {
       if (!D.bonus) return;
@@ -2839,7 +2839,7 @@
         if (!b.open) { g.fillStyle = '#c8c0d0'; rr(x - 5, y - 24, 10, 8, 2); g.fill(); g.strokeStyle = '#c8c0d0'; g.lineWidth = 2; g.beginPath(); g.arc(x, y - 24, 3.4, Math.PI, 0); g.stroke(); }
         if (done) for (let i = 0; i < 3; i++) { g.fillStyle = i < b.stars ? GOLD : 'rgba(255,255,255,.25)'; star(x - 12 + i * 12, y - 30, 4.6); }
         g.font = '900 10px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-        const label = tr('Ara oyun {n}', { n: k }), lw = g.measureText(label).width + 14;
+        const label = tr('Meydan Okuma {n}', { n: k }), lw = g.measureText(label).width + 14;
         g.fillStyle = 'rgba(14,16,30,.85)'; rr(x - lw / 2, y + 16, lw, 16, 8); g.fill(); g.fillStyle = b.open ? '#e8d8ff' : '#a09cb0'; g.fillText(label, x, y + 24.5);
       }
     }

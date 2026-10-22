@@ -350,7 +350,7 @@
   let comboPts = 0, comboStreak = 0;
   // Altın Yağmuru: { gate, end, total, boards, back } (oynanırken), yoksa null
   let rain = null;
-  // Ara oyun (2.5): { k } — 20k. bölümün kapısında, haritadan açılan isteğe bağlı çok zor bölüm
+  // Meydan okuma (2.5): { k } — 20k. bölümün kapısında, haritadan açılan isteğe bağlı çok zor bölüm
   let challenge = null;
   const BONUS = window.RingLevels.BONUS;
   const bonusCount = () => Math.floor(TOTAL / BONUS.every);
@@ -829,12 +829,12 @@
       html += `<button class="stop ${state}" data-n="${n}" style="left:${at.x}px;top:${at.y}px"
         aria-label="${label}${chest ? ', ' + tr('{name} var', { name: tr(chest.name).toLowerCase() }) : ''}${piece ? ', ' + tr('çıkartma parçası var') : ''}"${state === 'locked' ? ' disabled' : ''}></button>`;
     }
-    // Ara oyun sunakları (isteğe bağlı): 20k. bölüm bitince açılır
+    // Meydan okuma sunakları (isteğe bağlı): 20k. bölüm bitince açılır
     for (let k = 1; k <= bonusCount(); k++) {
       if (!bonusReady(k)) continue;
       const at = m.bonus(k), open = !!starsOf(k * BONUS.every), got = progress.bonus[k] || 0;
       html += `<button class="stop" data-k="${k}" style="left:${at.x}px;top:${at.y}px"
-        aria-label="${tr('Ara oyun {n}', { n: k })}, ${tr('çok zor, isteğe bağlı')}, ${open ? (got ? tr('{n} yıldız', { n: got }) : tr('oynanmadı')) : tr('kilitli')}"${open ? '' : ' disabled'}></button>`;
+        aria-label="${tr('Meydan Okuma {n}', { n: k })}, ${tr('çok zor, isteğe bağlı')}, ${open ? (got ? tr('{n} yıldız', { n: got }) : tr('oynanmadı')) : tr('kilitli')}"${open ? '' : ' disabled'}></button>`;
     }
     const pl = m.play(front);
     html += `<button class="stop-play" data-n="${front}" style="left:${pl.x}px;top:${pl.y}px;width:${pl.w}px;height:${pl.h}px">${tr('Oyna')}</button>`;
@@ -1276,7 +1276,7 @@
 
   function updateHud() {
     $('levelLabel').textContent = rain ? tr('Altın Yağmuru')
-      : challenge ? tr('Ara oyun {n}', { n: challenge.k }) + ' · ' + tr('çok zor, isteğe bağlı')
+      : challenge ? tr('Meydan Okuma {n}', { n: challenge.k }) + ' · ' + tr('çok zor, isteğe bağlı')
       : S.tut != null ? tr('Nasıl oynanır')
       : S.preview ? tr('Önizleme') + ' · ' + tr(S.def.title || S.def.name)
       : tr('Seviye {n}', { n: S.levelNo }) + ' · ' + (S.def.name ? tr(S.def.name) : W.GATES[W.gateOf(S.levelNo) - 1].name);
@@ -2218,7 +2218,7 @@
     setTimeout(() => awardBadges(false), 1500);
   }
 
-  // ---- Ara oyun: 20k. bölümün kapısında açılır; tahtada altın ve sandık yok, hamle hakkı en iyi çözüm + 1 ----
+  // ---- Meydan okuma: 20k. bölümün kapısında açılır; tahtada altın ve sandık yok, hamle hakkı en iyi çözüm + 1 ----
   function startChallenge(k) {
     const def = getLevel(bonusSrc(k)), back = k * BONUS.every;
     challenge = { k };
@@ -2234,13 +2234,13 @@
     const coins = first ? ECO.bonusCoins : 0;
     if (coins) { progress.coins += coins; stat('coinsTotal', coins); }
     saveProgress();
-    $('winRewards').innerHTML = coins ? `<span class="chip loot-chip gold">${tr('Ara oyun ödülü')}: <b>${tr('+{n} altın', { n: coins })}</b></span>` : '';
+    $('winRewards').innerHTML = coins ? `<span class="chip loot-chip gold">${tr('Meydan Okuma ödülü')}: <b>${tr('+{n} altın', { n: coins })}</b></span>` : '';
     $('winCoins').textContent = '+' + coins;
     $('winScore').textContent = '+0';
     const card = $('win').querySelector('.card');
     card.classList.remove('tut');
     card.classList.toggle('perfect', stars === 3 && fxOn());
-    $('winLevel').textContent = tr('Ara oyun {n} tamamlandı', { n: challenge.k });
+    $('winLevel').textContent = tr('Meydan Okuma {n} tamamlandı', { n: challenge.k });
     $('winTitle').textContent = stars === 3 ? tr('Mükemmel!') : stars === 2 ? tr('Harika!') : tr('Başardın!');
     $('stars').innerHTML = [1, 2, 3].map(i => `<span class="star-ico${i <= stars ? '' : ' off'}" style="animation-delay:${200 + i * 180}ms"></span>`).join('');
     $('winMoves').textContent = S.moves;

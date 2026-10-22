@@ -1819,7 +1819,7 @@
   // yeni bir halka eklenir (yarı yarıya göbeğe: parçanın yakıtı) ve hızlı çözücüyle puana bakılır. Puanı hedefin
   // üstüne çıkaran ya da bölümü bozan halka geri alınır, başka yerde denenir. Puan hedef aralığa girince bölüm
   // bir kez tam çözülür; parça gerçekten işe yarıyorsa kabul edilir. Bütün düzen değil yalnızca son adım çöpe gider.
-  // Ara oyunlar (2.5): her `every` bölümde bir isteğe bağlı çok zor bölüm; k. ara oyunun kaynağı first + k - 1
+  // Meydan okumalar (2.5): her `every` bölümde bir isteğe bağlı çok zor bölüm; k. meydan okumanın kaynağı first + k - 1
   // (tools/build_bonus.js üretir). Hamle hakkı en iyi çözümden yalnız `slack` fazla.
   const BONUS = { first: 5001, every: 20, slack: 1 };
   // Büyütme üreticisinin yerleştirebildiği parçalar
@@ -1828,7 +1828,8 @@
   const GROW_DIAG = [];
   let gsLast = '';
   const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; gsLast = k; };
-  // plan dışarıdan verilebilir (ara oyunlar: hamle tavanı maxPar, parçalar mech, işe yaraması gereken parçalar own)
+  // plan dışarıdan verilebilir (meydan okumalar: hamle tavanı maxPar, parçalar mech, işe yaraması gereken parçalar own,
+  // halka sayısı minRings-maxRings, üç halkayı kesme olasılığı cross3)
   function growFor(levelNo, plan = NORMAL_PLAN[levelNo]) {
     GROW_DIAG.length = 0; // tanı kaydı: her deneme nasıl bitti (yalnız son bölümünki tutulur)
     const maxPar = plan.maxPar || maxParOfGate(plan.gate), t = plan.target;
@@ -1862,7 +1863,7 @@
       // Kaç halkayı keseceği: tek kesişimli halkalar ağaç gibi dizilir ve birkaç hamlede çözülür (hamle sayısı
       // düşük kalır, zor bölümler hedefe ulaşamaz). Kapının sonuna doğru yeni halka daha sık iki halkayı keser:
       // düzen yine yayılır ama halkalar birbirine kilitlenir, çözüm uzar
-      const want = rnd() < CROSS2 ? 2 : 1;
+      const want = rnd() < (plan.cross3 || 0) ? 3 : rnd() < CROSS2 ? 2 : 1;
       let best = null, bestD = -Infinity, bestHit = false;
       // Kaplanan alan (bölüm en az 300x400 olmalı): eksik kalan yönü büyüten aday öne geçer; yoksa
       // zorluk hedefe ulaştığında alan küçük kalıyor ve bölüm atılıyordu
@@ -1955,7 +1956,7 @@
       };
       let fails = 0, lastSc = 0, lastDef = null, post = []; gsLast = '';
       // Zirvede yayılmış düzenin eksik zorluğu için 12 halkaya kadar (normal bölüm 10)
-      while (rings.length < (plan.peak ? 12 : 10) && fails < 40 && Date.now() < deadline) {
+      while (rings.length < (plan.maxRings || (plan.peak ? 12 : 10)) && fails < 40 && Date.now() < deadline) {
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
         const c = attach(rnd, rings, p);
         if (!c) { fails++; continue; }
@@ -1985,7 +1986,7 @@
         const sc = difficultyScore(def); lastSc = sc; lastDef = def;
         GROW_STATS.maxSc = Math.max(GROW_STATS.maxSc || 0, sc); GROW_STATS.maxPar = Math.max(GROW_STATS.maxPar || 0, def.par);
         if (sc >= upper) { gs('ust_sinir'); undo(); continue; }
-        if (rings.length < 5 || (plan.peak ? sc < t - slack : sc < t - 0.4)) {
+        if (rings.length < (plan.minRings || 5) || (plan.peak ? sc < t - slack : sc < t - 0.4)) {
           // Puan düşük: halka eklemenin yanında bir parça eklenerek de zorlaşır (zorluk parçalardan gelsin)
           // Yayılmış düzen daha kolaydır: halka çoğaldıkça eksik zorluk daha sık parçayla tamamlanır;
           // zirvede hedefin çok altındaysa iki parça birden
