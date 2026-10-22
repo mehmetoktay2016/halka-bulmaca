@@ -1,16 +1,17 @@
-// Müzik (2.5, Z15): oyunun içinde WebAudio ile üretilen etkileşimli müzik (dosya yok, telif yok).
-// Do majör pentatonik, 96 BPM: marimba arpeji, celesta ezgisi ("halka motifi": notalar çember gibi yükselip başa döner),
-// yumuşak pad ve bas. Oyuna bağlı (dopamin katmanı):
+// Müzik (2.5, Z15-Z16): oyunun içinde WebAudio ile üretilen etkileşimli müzik (dosya yok, telif yok).
+// Majör pentatonik: arpej, ezgi ("halka motifi": notalar çember gibi yükselip başa döner), yumuşak pad ve bas.
+// Her dünyanın kendi çeşitlemesi (STYLES): ton, tempo ve üç çalgı (ezgi, arpej, kurtuluş notası); ezgi aynı kalır.
+// Oyuna bağlı (dopamin katmanı):
 // - kurtulan halkanın notası bir sonraki 8'liğe ve o anki akora oturur; birkaç halka birden kurtulursa yükselerek dağılır
-// - tahta boşaldıkça katman girer: pad + bas, marimba, tıkırtı, ezgi
-// - zincir ve kombo celesta parıltısı çalar; kusursuz seri zafer cıngılı
-// - son halkada ritim durur, Sol'den Do'ya çözülür. Hamle sınırında gerilim yok.
-// Prototip: prototip/muzik.html (A · Bahçe).
+// - tahta boşaldıkça katman girer: pad + bas, arpej, tıkırtı, ezgi
+// - zincir ve kombo parıltı çalar; kusursuz seri zafer cıngılı
+// - son halkada ritim durur, V akorundan I'e çözülür. Hamle sınırında gerilim yok.
+// Prototip: prototip/muzik.html (A · Bahçe seçildi); dünyaları dinlemek için prototip/dunya_muzik.html.
 (function (root) {
   'use strict';
 
-  const BPM = 96, ROOT = 60, VOLUME = 0.5; // VOLUME: oyuncunun ayarı %100'ken ana seviye (oyun sesleri öne çıksın)
-  // 4 ölçülük akor döngüsü (Do, La minör, Fa, Sol; kökten yarım ses) ve bas kökleri
+  const VOLUME = 0.5; // oyuncunun ayarı %100'ken ana seviye (oyun sesleri öne çıksın)
+  // 4 ölçülük akor döngüsü (I, vi, IV, V; kökten yarım ses) ve bas kökleri
   const CHORDS = [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], BASS = [0, -3, 5, 7];
   // 8 ölçülük ezgi: [adım (16'lık), nota, uzunluk]
   const MELODY = [
@@ -19,15 +20,35 @@
     [[0, 16, 4], [4, 19, 4], [8, 21, 4], [12, 24, 4]], [[0, 26, 4], [4, 24, 4], [8, 21, 8]],
     [[0, 21, 4], [4, 19, 4], [8, 16, 4], [12, 14, 4]], [[0, 12, 12]],
   ];
-  // marimba: 8'lik arpej (akor notası sırası, -1 sus), vurgulu adımlar
+  // arpej: 8'lik, akor notası sırası (-1 sus), vurgulu adımlar
   const ARP = [0, -1, 1, -1, 2, -1, 1, -1, 0, -1, 1, -1, 2, -1, 1, -1], ACCENT = [0, 8];
-  const SP = 60 / BPM / 4; // 16'lık süresi (sn)
+  // Dünyaların çeşitlemesi: [kök (MIDI), BPM, ezgi, arpej, kurtuluş notası]
+  const STYLES = {
+    vadi: [60, 96, 'celesta', 'marimba', 'celesta'],
+    atolye: [62, 98, 'kalimba', 'pluck', 'kalimba'],
+    saat: [60, 92, 'musicBox', 'pluck', 'musicBox'],
+    zindan: [57, 88, 'flute', 'pluck', 'kalimba'],
+    sehir: [65, 100, 'organ', 'marimba', 'glock'],
+    fabrika: [64, 102, 'steel', 'kalimba', 'steel'],
+    uzay: [62, 90, 'glock', 'celesta', 'glock'],
+    usta: [59, 96, 'organ', 'glock', 'celesta'],
+    lunapark: [58, 104, 'organ', 'marimba', 'glock'],
+    santral: [62, 100, 'steel', 'pluck', 'steel'],
+    fener: [65, 94, 'flute', 'kalimba', 'celesta'],
+    rasathane: [56, 90, 'glock', 'musicBox', 'glock'],
+    fisek: [57, 104, 'steel', 'glock', 'glock'],
+    buzul: [64, 92, 'musicBox', 'celesta', 'musicBox'],
+    degirmen: [55, 100, 'organ', 'pluck', 'marimba'],
+    buyu: [61, 94, 'celesta', 'glock', 'musicBox'],
+  };
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
   function Music(getContext) {
     let ac = null, bus = null, verb = null, noise = null;
     let timer = 0, step = 0, nextT = 0, playing = false, level = 0.4;
     let done = 0, pending = 0, freedN = 0, glitter = 0, cadenceEnd = 0;
+    let style = STYLES.vadi, wanted = style; // dünya değişince yeni çeşitleme bir sonraki ölçüde başlar
+    const sp = () => 60 / style[1] / 4;    // 16'lık süresi (sn)
 
     function setup() {
       ac = getContext();
@@ -62,27 +83,64 @@
       const o = ac.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune;
       o.connect(dest); o.start(t); o.stop(end); return o;
     }
+    // kısmi tonlar: [[frekans çarpanı, güç]...] aynı zarfta (çan, kutu, kalimba)
+    function partials(t, m, list, g, end) {
+      for (const [k, a] of list) { const q = ac.createGain(); q.gain.value = a; q.connect(g); osc('sine', hz(m) * k, t, end, q); }
+    }
     function noiseHit(t, type, hzFrom, hzTo, a, peak, rel, wet) {
       const s = ac.createBufferSource(); s.buffer = noise;
       const f = ac.createBiquadFilter(); f.type = type; f.Q.value = 2;
       f.frequency.setValueAtTime(hzFrom, t); if (hzTo) f.frequency.exponentialRampToValueAtTime(hzTo, t + a + rel);
       const g = env(t, a, peak, 0, rel); s.connect(f); f.connect(g); s.start(t); s.stop(t + a + rel + 0.05); out(g, 1, wet);
     }
+    function lowpass(hzv, q = 1) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = hzv; f.Q.value = q; return f; }
 
-    // ---- çalgılar (t: başlangıç, m: MIDI, v: güç, d: süre sn) ----
-    function marimba(t, m, v) {
-      const g = env(t, 0.004, 0.32 * v, 0, 0.55); osc('sine', hz(m), t, t + 0.7, g);
-      const h = env(t, 0.002, 0.08 * v, 0, 0.07); osc('sine', hz(m) * 4, t, t + 0.12, h);
-      out(g, 1, 0.3); out(h, 1, 0);
-    }
-    function celesta(t, m, v) {
-      const g = env(t, 0.004, 0.22 * v, 0, 1.3);
-      for (const [k, a] of [[1, 1], [2, 0.3], [3, 0.12]]) { const q = ac.createGain(); q.gain.value = a; q.connect(g); osc('sine', hz(m) * k, t, t + 1.5, q); }
-      out(g, 0.8, 0.9);
-    }
+    // ---- çalgılar (t: başlangıç, m: MIDI, v: güç, d: süre sn; vurmalılar d'yi kullanmaz) ----
+    const INST = {
+      marimba(t, m, v) {
+        const g = env(t, 0.004, 0.32 * v, 0, 0.55); osc('sine', hz(m), t, t + 0.7, g);
+        const h = env(t, 0.002, 0.08 * v, 0, 0.07); osc('sine', hz(m) * 4, t, t + 0.12, h);
+        out(g, 1, 0.3); out(h, 1, 0);
+      },
+      celesta(t, m, v) { const g = env(t, 0.004, 0.22 * v, 0, 1.3); partials(t, m, [[1, 1], [2, 0.3], [3, 0.12]], g, t + 1.5); out(g, 0.8, 0.9); },
+      // müzik kutusu: bir oktav yukarıda, tiz uyumsuz kısmi tonla tınlayan dil
+      musicBox(t, m, v) { const g = env(t, 0.002, 0.2 * v, 0, 1.6); partials(t, m + 12, [[1, 1], [4.2, 0.25], [8.4, 0.06]], g, t + 1.8); out(g, 0.8, 0.8); },
+      // zil (glockenspiel): uyumsuz kısmi tonlar, parlak
+      glock(t, m, v) { const g = env(t, 0.002, 0.16 * v, 0, 1.1); partials(t, m + 12, [[1, 1], [2.76, 0.35], [5.4, 0.12]], g, t + 1.3); out(g, 0.8, 0.8); },
+      kalimba(t, m, v) {
+        const g = env(t, 0.003, 0.3 * v, 0, 0.6); partials(t, m, [[1, 1], [3, 0.08]], g, t + 0.8);
+        const c = env(t, 0.001, 0.1 * v, 0, 0.03); osc('sine', hz(m) * 6.1, t, t + 0.06, c);
+        out(g, 1, 0.5); out(c, 1, 0);
+      },
+      // steel pan: hafif yukarıdan oturan ton, 2. ve 3. kısmi
+      steel(t, m, v) {
+        const g = env(t, 0.004, 0.22 * v, 0, 0.8);
+        for (const [k, a] of [[1, 1], [2, 0.4], [3.01, 0.15]]) { const q = ac.createGain(); q.gain.value = a; q.connect(g); const o = osc('sine', hz(m) * k * 1.012, t, t + 1, q); o.frequency.exponentialRampToValueAtTime(hz(m) * k, t + 0.06); }
+        out(g, 0.9, 0.6);
+      },
+      // telli (arp/gitar): parlak başlayıp kararan süzgeç
+      pluck(t, m, v) {
+        const f = lowpass(3000); f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(600, t + 0.4);
+        const g = env(t, 0.003, 0.22 * v, 0, 0.5); f.connect(g);
+        osc('triangle', hz(m), t, t + 0.6, f); osc('sawtooth', hz(m), t, t + 0.6, f, 4); out(g, 1, 0.4);
+      },
+      // flüt: yavaş giriş, gecikmeli titreşim, nefes gürültüsü
+      flute(t, m, v, d = 0.4) {
+        const g = env(t, 0.07, 0.12 * v, d, 0.2);
+        const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(10, t + 0.3);
+        lfo.connect(lg); lfo.start(t); lfo.stop(t + d + 0.3); lg.connect(osc('sine', hz(m), t, t + d + 0.3, g).detune);
+        out(g, 0.9, 0.7); noiseHit(t, 'bandpass', hz(m) * 2, 0, 0.05, 0.015 * v, d * 0.5, 0.3);
+      },
+      // org / akordeon / laterna: kare dalgalar, hafif aralı akort
+      organ(t, m, v, d = 0.4) {
+        const f = lowpass(1800), g = env(t, 0.03, 0.06 * v, d, 0.12); f.connect(g);
+        for (const dt of [-7, 7]) osc('square', hz(m), t, t + d + 0.2, f, dt);
+        osc('sine', hz(m) * 2, t, t + d + 0.2, f);
+        out(g, 0.9, 0.5);
+      },
+    };
     function pad(t, ms, v, d) {
-      const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
-      const g = env(t, 0.6, 0.05 * v, d - 0.2, 0.8); f.connect(g);
+      const f = lowpass(900), g = env(t, 0.6, 0.05 * v, d - 0.2, 0.8); f.connect(g);
       for (const m of ms) for (const dt of [-9, 0, 9]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
       out(g, 1, 0.6);
     }
@@ -90,31 +148,32 @@
       const g = env(t, 0.01, 0.28 * v, d * 0.8, 0.15);
       osc('triangle', hz(m), t, t + d + 0.3, g); osc('sine', hz(m), t, t + d + 0.3, g); out(g, 1, 0);
     }
-    // kombo parıltısı: akorun notalarında hızla yükselen celesta ve yükselen zil süpürmesi
+    // kombo parıltısı: akorun notalarında hızla yükselen kurtuluş çalgısı ve yükselen zil süpürmesi
     function sparkle(t, ch, n) {
-      for (let i = 0; i < n + 2; i++) celesta(t + i * 0.045, ROOT + 24 + ch[i % 3] + 12 * Math.floor(i / 3), 0.5 + 0.08 * i);
+      for (let i = 0; i < n + 2; i++) INST[style[4]](t + i * 0.045, style[0] + 24 + ch[i % 3] + 12 * Math.floor(i / 3), 0.5 + 0.08 * i);
       noiseHit(t, 'bandpass', 2000, 9000, 0.35, 0.05, 0.2, 0.5);
     }
 
     // ---- akış: 16'lık adımlar önceden zamanlanır ----
     function layers() { return [true, done >= 0.2, done >= 0.45, done >= 0.65]; }
     function schedule(s, t) {
-      const bar = Math.floor(s / 16), st = s % 16, ch = CHORDS[bar % 4], on = layers();
-      if (st === 0) { pad(t, ch.map(n => ROOT + n), 1, SP * 16); bass(t, ROOT - 12 + BASS[bar % 4], 1, SP * 7); }
-      if (st === 8) bass(t, ROOT - 12 + BASS[bar % 4], 0.8, SP * 6);
-      if (on[1] && ARP[st] >= 0) marimba(t, ROOT + 12 + ch[ARP[st]], ACCENT.includes(st) ? 1 : 0.55);
+      if (s % 16 === 0) style = wanted;
+      const [R, , lead, pulse] = style, bar = Math.floor(s / 16), st = s % 16, ch = CHORDS[bar % 4], on = layers(), q = sp();
+      if (st === 0) { pad(t, ch.map(n => R + n), 1, q * 16); bass(t, R - 12 + BASS[bar % 4], 1, q * 7); }
+      if (st === 8) bass(t, R - 12 + BASS[bar % 4], 0.8, q * 6);
+      if (on[1] && ARP[st] >= 0) INST[pulse](t, R + 12 + ch[ARP[st]], ACCENT.includes(st) ? 1 : 0.55);
       if (on[2] && st % 2 === 1) noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
-      if (on[3]) for (const [at, n, len] of MELODY[bar % 8]) if (at === st) celesta(t, ROOT + n, 1, len * SP);
+      if (on[3]) for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
       if (st % 2 === 0) release(t, ch);
     }
     // bekleyen kurtuluş notaları ve parıltı bir sonraki 8'liğe oturur
     function release(t, ch) {
-      for (let i = 0; i < pending; i++) { const k = freedN + i; celesta(t + i * SP * 0.5, ROOT + 12 + ch[k % 3] + 12 * (Math.floor(k / 3) % 2), 0.9); }
+      for (let i = 0; i < pending; i++) { const k = freedN + i; INST[style[4]](t + i * sp() * 0.5, style[0] + 12 + ch[k % 3] + 12 * (Math.floor(k / 3) % 2), 0.9); }
       freedN += pending; pending = 0;
-      if (glitter) { sparkle(t + SP, ch, glitter); glitter = 0; }
+      if (glitter) { sparkle(t + sp(), ch, glitter); glitter = 0; }
     }
     function tick() {
-      while (nextT < ac.currentTime + 0.12) { schedule(step, nextT); nextT += SP; step++; }
+      while (nextT < ac.currentTime + 0.12) { schedule(step, nextT); nextT += sp(); step++; }
     }
 
     // Bölüm başında: döngü baştan, yalnız pad ve bas
@@ -133,29 +192,31 @@
       bus.gain.setTargetAtTime(0, ac.currentTime, 0.25);
       playing = false; clearInterval(timer);
     }
-    // Son halka: ritim durur; bir sonraki 8'likte Sol akoru, yarım ölçü sonra Do'ya çözülür, celesta yükselir
+    // Son halka: ritim durur; bir sonraki 8'likte V akoru, yarım ölçü sonra I'e çözülür, kurtuluş çalgısı yükselir
     function resolve() {
       if (!playing) return;
       playing = false; clearInterval(timer);
-      const t = Math.max(ac.currentTime + 0.05, nextT - (step % 2 ? SP : 0)), V = CHORDS[3], t2 = t + SP * 8;
+      const R = style[0], ring = INST[style[4]], V = CHORDS[3];
+      const t = Math.max(ac.currentTime + 0.05, nextT - (step % 2 ? sp() : 0)), t2 = t + sp() * 8;
       release(t, V);
-      pad(t, V.map(n => ROOT + n), 1.2, SP * 8); bass(t, ROOT - 12 + V[0], 1, SP * 7);
-      pad(t2, [0, 4, 7].map(n => ROOT + n), 1.4, 4); bass(t2, ROOT - 12, 1, 3);
-      [0, 4, 7, 12, 16].forEach((n, i) => celesta(t2 + i * 0.11, ROOT + 12 + n, 0.9));
-      celesta(t2 + 0.6, ROOT + 28, 1);
+      pad(t, V.map(n => R + n), 1.2, sp() * 8); bass(t, R - 12 + V[0], 1, sp() * 7);
+      pad(t2, [0, 4, 7].map(n => R + n), 1.4, 4); bass(t2, R - 12, 1, 3);
+      [0, 4, 7, 12, 16].forEach((n, i) => ring(t2 + i * 0.11, R + 12 + n, 0.9));
+      ring(t2 + 0.6, R + 28, 1);
       cadenceEnd = t2 + 1.4;
     }
-    // Kusursuz seri cıngılı: çözülüşten sonra ev akorunda kısa zafer ezgisi
+    // Kusursuz seri cıngılı: çözülüşten sonra I akorunda kısa zafer ezgisi
     function jingle() {
       if (!setup() || bus.gain.value < 0.001) return;
-      const t = Math.max(ac.currentTime + 0.05, cadenceEnd);
-      [0, 4, 7, 4, 7, 12].forEach((n, i) => marimba(t + i * SP * 1.5, ROOT + 12 + n, 1));
-      celesta(t + SP * 9, ROOT + 28, 1); celesta(t + SP * 9, ROOT + 31, 0.8);
-      sparkle(t + SP * 9, [0, 4, 7], 4); bass(t + SP * 9, ROOT - 12, 1, 1.2);
+      const R = style[0], t = Math.max(ac.currentTime + 0.05, cadenceEnd), q = sp();
+      [0, 4, 7, 4, 7, 12].forEach((n, i) => INST[style[3]](t + i * q * 1.5, R + 12 + n, 1));
+      INST[style[4]](t + q * 9, R + 28, 1); INST[style[4]](t + q * 9, R + 31, 0.8);
+      sparkle(t + q * 9, [0, 4, 7], 4); bass(t + q * 9, R - 12, 1, 1.2);
     }
 
     return {
       play, stop, resolve, jingle,
+      world(id) { wanted = STYLES[id] || STYLES.vadi; if (!playing) style = wanted; },
       progress(f) { done = f; },                       // tahtanın boşalan oranı (0..1): katmanlar
       free(n) { if (playing) pending += n; },          // kurtulan halka sayısı
       sparkle(n) { if (playing) glitter = Math.max(glitter, Math.min(n, 6)); },
@@ -163,5 +224,5 @@
     };
   }
 
-  root.RingMusic = { Music };
+  root.RingMusic = { Music, STYLES };
 })(this);

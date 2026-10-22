@@ -383,6 +383,7 @@
   function applyWorld(world) {
     if (themeWorld === world.id) return;
     themeWorld = world.id;
+    music.world(world.id); // dünyanın müzik çeşitlemesi bir sonraki ölçüde girer
     const root = document.documentElement;
     root.style.setProperty('--scene', W.sceneCss(world.theme));
     root.style.setProperty('--accent', world.theme.accent);
