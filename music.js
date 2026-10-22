@@ -49,14 +49,14 @@
   const SR = 24000;
 
   function Music(getContext) {
-    let live = null;                                       // canlı çıkış: { ac, bus, verb, noise }
-    let ac = null, bus = null, verb = null, noise = null;  // çalgıların o an yazdığı yer (canlı çıkış ya da kayıt)
+    let live = null;                                // canlı çıkış: { ac, bus, verb }
+    let ac = null, bus = null, verb = null;         // çalgıların o an yazdığı yer (canlı çıkış ya da kayıt)
     let level = 0.4, done = 0, freedN = 0, cadEnd = 0, playing = false, want = false;
     let wid = 'vadi', style = STYLES.vadi, mode = null;    // mode: null, 'boss' (Dev Halka), 'rain' (Altın Yağmuru)
     let cur = null, src = null, gains = [], t0 = 0;        // çalan kayıt, kaynağı, katman sesleri, başlangıcı
     const cache = new Map();                               // dünya:kip -> kayıt sözü; bellekte en çok iki
     const sp = () => 60 / (mode === 'rain' ? 130 : style[1]) / 4; // 16'lık süresi (sn)
-    const use = o => { ({ ac, bus, verb, noise } = o); };
+    const use = o => { ({ ac, bus, verb } = o); };
 
     // yankı: iki geri beslemeli gecikme (evrişimli yankı telefonda ağır)
     function makeVerb(cx, dest) {
@@ -68,21 +68,17 @@
       }
       return v;
     }
-    function makeNoise(cx) {
-      const n = cx.createBuffer(1, Math.round(cx.sampleRate * 0.6), cx.sampleRate), d = n.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      return n;
-    }
     function setup() {
       const cx = getContext();
       if (!cx) return false;
       if (!live) {
-        // sınırlayıcı (taşma olmasın) ve 150 Hz alçak frekans süzgeci (telefon hoparlörü zorlanmasın)
+        // sınırlayıcı (taşma olmasın); 150 Hz altı ve 5 kHz üstü kesilir: telefon hoparlörü bu aralıklarda zorlanıp cızırdar
         const lim = cx.createDynamicsCompressor();
         lim.threshold.value = -12; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25;
         const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150; hp.Q.value = 0.7;
-        const master = cx.createGain(); master.gain.value = 0; master.connect(hp); hp.connect(lim); lim.connect(cx.destination);
-        live = { ac: cx, bus: master, verb: makeVerb(cx, master), noise: makeNoise(cx) };
+        const lp = cx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5000; lp.Q.value = 0.7;
+        const master = cx.createGain(); master.gain.value = 0; master.connect(hp); hp.connect(lp); lp.connect(lim); lim.connect(cx.destination);
+        live = { ac: cx, bus: master, verb: makeVerb(cx, master) };
       }
       use(live);
       return true;
@@ -108,12 +104,6 @@
     function partials(t, m, list, g, end) {
       for (const [k, a] of list) { const q = ac.createGain(); q.gain.value = a; q.connect(g); osc('sine', hz(m) * k, t, end, q); }
     }
-    function noiseHit(t, type, hzFrom, hzTo, a, peak, rel, wet) {
-      const s = ac.createBufferSource(); s.buffer = noise;
-      const f = ac.createBiquadFilter(); f.type = type; f.Q.value = 2;
-      f.frequency.setValueAtTime(hzFrom, t); if (hzTo) f.frequency.exponentialRampToValueAtTime(hzTo, t + a + rel);
-      const g = env(t, a, peak, 0, rel); s.connect(f); f.connect(g); s.start(t); s.stop(t + a + rel + 0.05); out(g, 1, wet);
-    }
     function lowpass(hzv, q = 1) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = hzv; f.Q.value = q; return f; }
 
     // ---- çalgılar (t: başlangıç, m: MIDI, v: güç, d: süre sn; vurmalılar d'yi kullanmaz) ----
@@ -125,13 +115,12 @@
       },
       celesta(t, m, v) { const g = env(t, 0.004, 0.22 * v, 0, 1.3); partials(t, m, [[1, 1], [2, 0.3]], g, t + 1.5); out(g, 0.8, 0.9); },
       // müzik kutusu: bir oktav yukarıda, tiz uyumsuz kısmi tonla tınlayan dil
-      musicBox(t, m, v) { const g = env(t, 0.002, 0.2 * v, 0, 1.6); partials(t, m + 12, [[1, 1], [4.2, 0.25], [8.4, 0.06]], g, t + 1.8); out(g, 0.8, 0.8); },
+      musicBox(t, m, v) { const g = env(t, 0.002, 0.2 * v, 0, 1.6); partials(t, m + 12, [[1, 1], [4.2, 0.12]], g, t + 1.8); out(g, 0.8, 0.8); },
       // zil (glockenspiel): uyumsuz kısmi tonlar, parlak
-      glock(t, m, v) { const g = env(t, 0.002, 0.16 * v, 0, 1.1); partials(t, m + 12, [[1, 1], [2.76, 0.35], [5.4, 0.12]], g, t + 1.3); out(g, 0.8, 0.8); },
+      glock(t, m, v) { const g = env(t, 0.002, 0.16 * v, 0, 1.1); partials(t, m + 12, [[1, 1], [2.76, 0.3]], g, t + 1.3); out(g, 0.8, 0.8); },
       kalimba(t, m, v) {
         const g = env(t, 0.003, 0.3 * v, 0, 0.6); partials(t, m, [[1, 1], [3, 0.08]], g, t + 0.8);
-        const c = env(t, 0.001, 0.1 * v, 0, 0.03); osc('sine', hz(m) * 6.1, t, t + 0.06, c);
-        out(g, 1, 0.5); out(c, 1, 0);
+        out(g, 1, 0.5);
       },
       // steel pan: hafif yukarıdan oturan ton, 2. ve 3. kısmi
       steel(t, m, v) {
@@ -143,30 +132,32 @@
       pluck(t, m, v) {
         const f = lowpass(3000); f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(600, t + 0.4);
         const g = env(t, 0.003, 0.22 * v, 0, 0.5); f.connect(g);
-        osc('triangle', hz(m), t, t + 0.6, f); osc('sawtooth', hz(m), t, t + 0.6, f, 4); out(g, 1, 0.4);
+        osc('triangle', hz(m), t, t + 0.6, f); osc('triangle', hz(m), t, t + 0.6, f, 5); out(g, 1, 0.4);
       },
       // flüt: yavaş giriş, gecikmeli titreşim, nefes gürültüsü
       flute(t, m, v, d = 0.4) {
         const g = env(t, 0.07, 0.12 * v, d, 0.2);
         const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(10, t + 0.3);
         lfo.connect(lg); lfo.start(t); lfo.stop(t + d + 0.3); lg.connect(osc('sine', hz(m), t, t + d + 0.3, g).detune);
-        out(g, 0.9, 0.7); noiseHit(t, 'bandpass', hz(m) * 2, 0, 0.05, 0.015 * v, d * 0.5, 0.3);
+        out(g, 0.9, 0.7);
       },
       // org / akordeon / laterna: kare dalgalar, hafif aralı akort
       organ(t, m, v, d = 0.4) {
         const f = lowpass(1800), g = env(t, 0.03, 0.06 * v, d, 0.12); f.connect(g);
-        for (const dt of [-7, 7]) osc('square', hz(m), t, t + d + 0.2, f, dt);
+        for (const dt of [-7, 7]) osc('triangle', hz(m), t, t + d + 0.2, f, dt);
         osc('sine', hz(m) * 2, t, t + d + 0.2, f);
         out(g, 0.9, 0.5);
       },
     };
     function pad(t, ms, v, d) {
-      const f = lowpass(900), g = env(t, 0.6, 0.05 * v, d - 0.2, 0.8); f.connect(g);
-      for (const m of ms) for (const dt of [-7, 7]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
+      const f = lowpass(900), g = env(t, 0.6, 0.08 * v, d - 0.2, 0.8); f.connect(g);
+      for (const m of ms) for (const dt of [-7, 7]) osc('triangle', hz(m), t, t + d + 1, f, dt);
       out(g, 1, 0.6);
     }
     // davul: perdesi düşen derin vuruş
     function drum(t, v) { const g = env(t, 0.003, 0.4 * v, 0, 0.32); const o = osc('sine', 125, t, t + 0.4, g); o.frequency.setValueAtTime(125, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.3); out(g, 1, 0.15); }
+    // tahta vuruşu: kısa, tonlu tık (beyaz gürültülü tıkırtı telefonda cızırtı gibi duyuluyordu)
+    function tick(t, v) { const g = env(t, 0.002, 0.06 * v, 0, 0.045); osc('sine', 1100, t, t + 0.07, g); out(g, 1, 0.15); }
     function bass(t, m, v, d) {
       const g = env(t, 0.01, 0.28 * v, d * 0.8, 0.15);
       osc('triangle', hz(m), t, t + d + 0.3, g); osc('sine', hz(m), t, t + d + 0.3, g); out(g, 1, 0);
@@ -174,7 +165,6 @@
     // kombo parıltısı: akorun notalarında hızla yükselen kurtuluş çalgısı ve yükselen zil süpürmesi
     function sparkle(t, ch, n) {
       for (let i = 0; i < n + 2; i++) INST[style[4]](t + i * 0.045, style[0] + 24 + ch[i % 3] + 12 * Math.floor(i / 3), 0.5 + 0.08 * i);
-      noiseHit(t, 'bandpass', 2000, 9000, 0.35, 0.05, 0.2, 0.5);
     }
 
     // ---- kayıt: dünyanın 8 ölçüsü önceden sese dönüştürülür ----
@@ -193,7 +183,7 @@
         const a = ARP[st] >= 0 ? ARP[st] : mode === 'rain' ? ARP[st - 1] : -1; // Altın Yağmuru'nda 16'lık arpej
         if (a >= 0) INST[pulse](t, R + 12 + ch[a], ACCENT.includes(st) ? 1 : 0.55);
       } else if (L === 2) {
-        if (st % 2 === 1 || mode === 'rain') noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
+        if (st % 2 === 1 || mode === 'rain') tick(t, st % 4 === 3 ? 1 : 0.65);
         if (mode === 'boss' && st % 4 === 0) drum(t, st % 8 ? 0.6 : 1);
         if (mode === 'rain' && st % 8 === 0) drum(t, 0.7);
       } else for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
@@ -213,14 +203,17 @@
       INST[style[4]](t + q * 9, R + 28, 1); INST[style[4]](t + q * 9, R + 31, 0.8);
       sparkle(t + q * 9, [0, 4, 7], 4); bass(t + q * 9, R - 12, 1, 1.2);
     }
-    // ch kanallı çevrimdışı kayıt: draw(çıkışlar) çalgıları her kanalın girişine yazar
-    function offline(chs, secs, draw) {
+    // ch kanallı çevrimdışı kayıt. steps: [[an, çiz(çıkışlar)]...]: ilki hemen, diğerleri kayıt o ana gelince kurulur
+    // (suspend). Binlerce ses düğümü tek seferde kurulunca telefonda oyun bir an donuyordu.
+    // Kurulum kaydın dünyası ve kipiyle yapılır (bu arada oyuncu başka dünyaya geçmiş olabilir)
+    function offline(chs, secs, steps) {
       const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const cx = new OAC(chs, Math.ceil(secs * SR), SR), m = cx.createChannelMerger(chs), n = makeNoise(cx);
+      const cx = new OAC(chs, Math.ceil(secs * SR), SR), m = cx.createChannelMerger(chs), st = style, md = mode;
       m.connect(cx.destination);
-      const outs = Array.from({ length: chs }, (_, i) => { const g = cx.createGain(); g.connect(m, 0, i); return { ac: cx, bus: g, verb: makeVerb(cx, g), noise: n }; });
-      draw(outs);
-      use(live);
+      const outs = Array.from({ length: chs }, (_, i) => { const g = cx.createGain(); g.connect(m, 0, i); return { ac: cx, bus: g, verb: makeVerb(cx, g) }; });
+      const run = fn => { const ks = style, km = mode; style = st; mode = md; fn(outs); style = ks; mode = km; use(live); };
+      run(steps[0][1]);
+      for (const [at, fn] of steps.slice(1)) cx.suspend(Math.floor(at * SR / 128) * 128 / SR).then(() => { run(fn); cx.resume(); });
       return cx.startRendering();
     }
     // Döngünün dikişsiz olması için döngü sonundan taşan yankı ve sönümler başa eklenir
@@ -234,9 +227,10 @@
       if (cache.has(key)) return cache.get(key);
       const q = sp(), len = 128 * q;
       const parts = [
-        offline(4, len + 2.5, outs => outs.forEach((o, L) => { use(o); for (let s = 0; s < 128; s++) note(L, s, s * q + 0.01); })),
-        offline(1, q * 8 + 4.5, ([o]) => { use(o); cadence(0.01); }),
-        offline(1, q * 9 + 2.5, ([o]) => { use(o); fanfare(0.01); }),
+        // her ölçü, kayıt bir önceki ölçünün sonuna gelince kurulur
+        offline(4, len + 2.5, Array.from({ length: 8 }, (_, bar) => [bar * 16 * q - 0.05, outs => outs.forEach((o, L) => { use(o); for (let s = bar * 16; s < bar * 16 + 16; s++) note(L, s, s * q + 0.01); })])),
+        offline(1, q * 8 + 4.5, [[0, ([o]) => { use(o); cadence(0.01); }]]),
+        offline(1, q * 9 + 2.5, [[0, ([o]) => { use(o); fanfare(0.01); }]]),
       ];
       const r = Promise.all(parts).then(([b, cad, jin]) => ({ key, q, loop: fold(b, Math.round(len * SR)), cad, jin }));
       cache.set(key, r);
@@ -295,7 +289,7 @@
 
     return {
       play, stop, resolve, jingle,
-      world(id) { wid = STYLES[id] ? id : 'vadi'; style = STYLES[wid]; if (live) render(); }, // kayıt dünyaya girerken hazırlanır
+      world(id) { wid = STYLES[id] ? id : 'vadi'; style = STYLES[wid]; }, // kayıt bölüm başlarken (play) hazırlanır, haritada değil
       mode(m) { mode = m; },
       progress(f) { done = f; if (playing) fade(); },   // tahtanın boşalan oranı (0..1): katmanlar
       // kurtulan halkalar: notaları döngünün bir sonraki 8'liğine ve akoruna oturur, yükselerek dağılır

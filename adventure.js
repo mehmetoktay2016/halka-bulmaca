@@ -3092,10 +3092,14 @@
       if (TILES.size > 6) TILES.delete(TILES.keys().next().value);
       return c;
     }
+    let fullT = 0; // son canlı çizim: dururken animasyonlar saniyede 20 kare (telefon boşta yorulmasın, ilk kaydırma takılmasın)
     function draw(now) {
       FRONT = D.frontier(); OPEN.length = 0;
       const dpr = resize();
       if (!cv.width || !k) return;
+      const idle = now - moveT > 150 && !S.hop && !S.follow && !Object.keys(S.opening).length && !S.fx.length && !S.flyStars.length && !S.fireworks.length;
+      if (idle && now - fullT < 48) return;
+      fullT = now;
       const vh = cv.clientHeight / k;
       if (S.follow) {
         const want = Math.max(0, (charPos(now).y - vh * 0.62) * k);
@@ -3120,7 +3124,7 @@
         hero(now);
         for (const st of banners) nameBanner(st, now);
         // dururken görünen bölgenin ve komşularının dilimleri hazırlanır (karede en çok bir dilim)
-        for (let i = first - 1; i <= last + 1; i++) if (i >= 0 && !TILES.has(i)) { tile(i, dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); break; }
+        if (now - moveT > 500) for (let i = first - 1; i <= last + 1; i++) if (i >= 0 && !TILES.has(i)) { tile(i, dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); break; }
       }
       effects(now, top);
       if (D.jar) hudJar(now, top);
