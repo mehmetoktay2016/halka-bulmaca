@@ -138,6 +138,9 @@
       // Basınç kazanı (boiler: n, 1-3): kesiştiği parçalardan n tanesi tahtadan çıkınca basınç dolar, kazan
       // bir sonraki dalgada kendiliğinden çıkar. Nasıl çıkarsa çıksın bomba gibi patlar: hâlâ değdiği parçalar da uçar.
       boiler: r.boiler || 0,
+      // Dev Halka (boss: n, 1-6): zırhlıdır, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça zırhından
+      // bir plaka kırılır; n plaka kırılınca bir sonraki dalgada parçalanıp kendiliğinden çıkar (patlamaz).
+      boss: r.boss || 0,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -154,6 +157,12 @@
       if (r.ice && (r.type || r.fixed || r.tokens != null || !(r.ice >= 1 && r.ice <= 3))) throw new Error(`Halka ${i}: buz 1-3 kat, sabit ya da jetonlu olmayan halkada olur`);
     }
     const portalRings = {};
+    for (const [i, r] of def.rings.entries()) {
+      if (!r.boss) continue;
+      if (r.type || r.bomb || r.kick || r.ice || r.motor || r.boiler || r.portal != null || r.fixed || r.tokens != null || r.lockedBy != null || !(r.boss >= 1 && r.boss <= 6)) {
+        throw new Error(`Halka ${i}: dev halka 1-6 zırhlı, başka parçayla birleşmeyen halkada olur`);
+      }
+    }
     for (const [i, r] of def.rings.entries()) {
       if (!r.boiler) continue;
       // Kazan rozeti öbür rozetlerle aynı yere düşerdi; bir halka hem kazan hem bomba olmaz (kazan zaten patlar)
@@ -263,7 +272,7 @@
     for (const r of rings) {
       if (!r.kick) continue;
       const t = rings[r.kick.target];
-      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
+      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
       if (!r.kick.turn) throw new Error(`Halka ${r.id}: yayın tekmesi sıfır olamaz`);
       for (const k of group[t.id]) {
         const st = rings[k].step;
@@ -273,10 +282,13 @@
     }
 
     // Buz halkanın ve kazanın komşuları (çerçeve hiç çıkmadığı için sayılmaz)
-    const iceNbrs = rings.map((r, i) => (!r.ice && !r.boiler ? [] : [...new Set(ringLinks[i].map(li => (links[li].a === i ? links[li].b : links[li].a)))]
+    const iceNbrs = rings.map((r, i) => (!r.ice && !r.boiler && !r.boss ? [] : [...new Set(ringLinks[i].map(li => (links[li].a === i ? links[li].b : links[li].a)))]
       .filter(o => rings[o].kind !== 'frame')));
     for (const r of rings) if (r.ice && iceNbrs[r.id].length < r.ice) throw new Error(`Halka ${r.id}: buzu eritecek kadar komşusu yok`);
     for (const r of rings) if (r.boiler && iceNbrs[r.id].length < r.boiler) throw new Error(`Halka ${r.id}: kazanı dolduracak kadar komşusu yok`);
+    for (const r of rings) if (r.boss && iceNbrs[r.id].length < r.boss) throw new Error(`Halka ${r.id}: dev halkanın zırhını kıracak kadar komşusu yok`);
+    // Dev halka eşli olamaz: eşi dönünce zırhlı halka da dönerdi
+    for (const r of rings) if (r.boss && group[r.id].length > 1) throw new Error(`Halka ${r.id}: dev halka eşli olamaz`);
 
     return {
       rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
@@ -292,6 +304,7 @@
       hasBomb: rings.some(r => r.bomb),
       hasIce: rings.some(r => r.ice),
       boilers: rings.filter(r => r.boiler).map(r => r.id),
+      bosses: rings.filter(r => r.boss).map(r => r.id),
       motors: rings.filter(r => r.motor).map(r => r.id),
       // Portal ikizi (yoksa -1)
       twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
@@ -324,13 +337,22 @@
     return Math.max(0, n - gone);
   }
 
+  // Dev halkanın kalan zırh plakası: plaka sayısından tahtadan çıkmış komşular düşülür (dev olmayan halkada 0)
+  function armorLeft(L, i, mask) {
+    const n = L.rings[i].boss;
+    if (!n) return 0;
+    let gone = 0;
+    for (const o of L.iceNbrs[i]) if (mask & (1 << o)) gone++;
+    return Math.max(0, n - gone);
+  }
+
   // Halka i şu an döndürülebilir mi? Sabit değil, buzu erimiş, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
     if (!L.rotatable[i]) return false;
     if (L.rings[i].motor) return false;
-    if (iceLeft(L, i, mask)) return false;
+    if (iceLeft(L, i, mask) || armorLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
     const side = L.rings[i].side;
     if (side >= 0 && side !== (sw == null ? L.startSw : sw)) return false;
@@ -373,7 +395,8 @@
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
   // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
   // Dalgada çıkan portalın ikizi tahtadaysa ışınlanır: portals[w] = [{ from, to }]; ikiz sonraki dalgada uçar.
-  // Dalgadan sonra basıncı dolan kazanlar: fuses[w] = [kazan]; kazan sonraki dalgada çıkıp patlar.
+  // Dalgadan sonra basıncı dolan kazanlar ve zırhı biten dev halkalar: fuses[w] = [halka]; sonraki dalgada çıkarlar
+  // (kazan patlar, dev halka yalnızca parçalanır).
   function cascade(L, angles, mask, left, ph) {
     left = left || L.tokens;
     const waves = [], kicks = [], tokens = [], blasts = [], portals = [], fuses = [];
@@ -421,8 +444,8 @@
         ps.push({ from: i, to: o });
       }
       const fs = [];
-      for (const i of L.boilers) {
-        if (mask & (1 << i) || hit & (1 << i) || pressureLeft(L, i, mask)) continue;
+      for (const i of L.boilers.concat(L.bosses)) {
+        if (mask & (1 << i) || hit & (1 << i) || pressureLeft(L, i, mask) || armorLeft(L, i, mask)) continue;
         hit |= 1 << i;
         fs.push(i);
       }
@@ -649,7 +672,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft, pressureLeft,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

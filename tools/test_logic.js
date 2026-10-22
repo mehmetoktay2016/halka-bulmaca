@@ -418,5 +418,29 @@ test('basınç kazanı: geçersiz tanımlar hata verir', () => {
   assert.throws(() => two({ boiler: 4 }, {}), /kazan 1-3/);
 });
 
+// Dev halka (Z9): Davul şeklinin gövdesi 2 zırhlı dev halka (3 komşusu var); iki komşusu gidince parçalanır
+const BOSS = [{ x: 200, y: 260, r: 84, a: 45, boss: 2 }, { x: 140.6, y: 200.6, r: 26, a: 75 }, { x: 259.4, y: 200.6, r: 26, a: 255 }, { x: 200, y: 348, r: 30, a: 300 }];
+
+test('dev halka: zırhlıyken dönmez, komşuları gittikçe plaka kırılır, zırh bitince parçalanıp çıkar', () => {
+  const L = Logic.buildLevel({ rings: BOSS, couples: [[1, 2, -1]] });
+  assert.strictEqual(Logic.armorLeft(L, 0, 0), 2);
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.strictEqual(Logic.armorLeft(L, 0, 1 << 1), 1);
+  // Bir komşusu gitmiş tahtada ikinci komşu (2) kurtulunca zırh biter: dev halka sonraki dalgada parçalanır, patlamaz
+  let c = null;
+  for (let d = 0; d < 360 && !(c && c.waves[0] && c.waves[0].includes(2) && !c.waves[0].includes(0)); d += 5) c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 2, d * DEG), 1 << 1);
+  assert.ok(c.waves[0].includes(2));
+  const w = c.fuses.findIndex(f => f.includes(0));
+  assert.ok(w >= 0 && c.waves[w + 1].includes(0));
+  assert.ok(!c.blasts.flat().some(b => b.from === 0));
+});
+
+test('dev halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ boss: 2 }, {}), /zırhını kıracak kadar komşusu/);
+  assert.throws(() => two({ boss: 1, ice: 1 }, {}), /dev halka 1-6/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, boss: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /dev halka eşli/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
