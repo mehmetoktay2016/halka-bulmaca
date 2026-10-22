@@ -42,7 +42,8 @@
   }
 
   function create(o) {
-    const cv = o.canvas, g = cv.getContext('2d'), sc = o.scroller, D = o.data;
+    const cv = o.canvas, sc = o.scroller, D = o.data;
+    let g = cv.getContext('2d'); // kapılar çizilirken geçici olarak ışık katmanına döner (gates)
     const J = o.journey || root.RingJourney || { STOPS: {} };
     const tr = o.tr || (s => s);
     const reduced = () => (o.reduced ? o.reduced() : false);
@@ -103,7 +104,8 @@
     let k = 1; // mantıksal birimden piksele
 
     // ---- yardımcı çizimler ----
-    const add = fn => { g.save(); g.globalCompositeOperation = 'lighter'; fn(); g.restore(); };
+    let glows = null; // kapı katmanı çizilirken ışıltılar ertelenir: ışık geçişi onları karartmasın
+    const add = fn => { if (glows) { glows.push(fn); return; } g.save(); g.globalCompositeOperation = 'lighter'; fn(); g.restore(); };
     function glow(x, y, r, color, a = 1) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, color); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = a; g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.globalAlpha = 1; }
     function shadow(x, y, rx, ry, a = 0.45) { g.fillStyle = `rgba(10,4,16,${a})`; g.beginPath(); g.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, TAU); g.fill(); }
     function star(x, y, r) { g.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? r * 0.45 : r, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); }
@@ -2047,31 +2049,57 @@
     // ---- kapı yapıları ----
     // Kale taşları: sıra sıra, boyları farklı kesme taşlar (sıra yüksekliği 12); duvar ve kapı kulesi aynı örgüyü kullanır
     const CASTLE_ROWS = (() => { const R = rng(404), rows = []; for (let r = 0; r < 14; r++) { const row = []; let x = -R() * 24; while (x < W) { const w = 15 + R() * 20; row.push({ x, w, tone: R() * 0.2 - 0.1, crack: R() < 0.05, chip: R() < 0.12 }); x += w + 1.6; } rows.push(row); } return rows; })();
+    // Kapı yapıları ayrı katmana çizilir, üstüne gerçekçilik geçişi uygulanır: soldan ay ışığı, sağa doğru gölge,
+    // dipte nem ve karanlık, ince malzeme pürüzü (yalnız yapının boyalı piksellerine: source-atop)
+    let LAYER = null, GRAIN = null;
+    function lit(y, draw) {
+      const main = g;
+      if (!LAYER) {
+        LAYER = document.createElement('canvas').getContext('2d');
+        const n = document.createElement('canvas'); n.width = n.height = 96; const q = n.getContext('2d');
+        for (let i = 0; i < 1400; i++) { q.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.3)'; q.fillRect(Math.random() * 96, Math.random() * 96, 0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8); }
+        GRAIN = LAYER.createPattern(n, 'repeat');
+      }
+      if (LAYER.canvas.width !== cv.width || LAYER.canvas.height !== cv.height) { LAYER.canvas.width = cv.width; LAYER.canvas.height = cv.height; }
+      const m = main.getTransform();
+      g = LAYER; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.setTransform(m);
+      glows = [];
+      draw();
+      const later = glows; glows = null;
+      g.save(); g.globalCompositeOperation = 'source-atop';
+      const h = g.createLinearGradient(0, 0, W, 0); h.addColorStop(0, 'rgba(255,236,210,.16)'); h.addColorStop(0.45, 'rgba(0,0,0,0)'); h.addColorStop(1, 'rgba(8,6,20,.4)');
+      g.fillStyle = h; g.fillRect(0, y - 360, W, 400);
+      const v = g.createLinearGradient(0, y - 340, 0, y + 6); v.addColorStop(0, 'rgba(255,240,220,.1)'); v.addColorStop(0.55, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(6,4,14,.5)');
+      g.fillStyle = v; g.fillRect(0, y - 360, W, 400);
+      g.globalAlpha = 0.16; g.fillStyle = GRAIN; g.fillRect(0, y - 360, W, 400);
+      g.restore();
+      g = main;
+      g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(LAYER.canvas, 0, 0); g.restore();
+      for (const fn of later) add(fn);
+    }
     function gates(now, top, bot) {
       for (let gt = 2; gt <= L.gates; gt++) {
         const y = GATE_Y[gt];
         if (y < top - 120 || y - 260 > bot) continue;
         const w = worldOfGate(gt), open = openAmount(gt, now);
-        if (w.id === 'fisek') castle(gt, y, open, now);
-        else if (THEMED_GATES[gt]) themedGate(gt, y, open, now);
-        else archGate(gt, y, open, w, now);
+        lit(y, () => { if (w.id === 'fisek') castle(gt, y, open, now); else if (THEMED_GATES[gt]) themedGate(gt, y, open, now); else archGate(gt, y, open, w, now); });
       }
       // Yolun başı: kapı 1'in kemeri
       const y1 = GATE_Y[1];
-      if (y1 - 260 < bot && y1 > top - 120) { if (THEMED_GATES[1]) themedGate(1, y1, 1, now); else archGate(1, y1, 1, worldOfGate(1), now); }
+      if (y1 - 260 < bot && y1 > top - 120) lit(y1, () => { if (THEMED_GATES[1]) themedGate(1, y1, 1, now); else archGate(1, y1, 1, worldOfGate(1), now); });
     }
     // Havai Fişek kalesi (kapı 31-33). Ay ışığı soldan: sol yüzler açık, sağlar koyu, dipte nem ve yosun.
     // Kesme taşlı sur, taş konsollar üstünde mazgallı siper, ortada kapı kulesi, iki yanda yuvarlak burç.
     const STONE = '#6e4a6a', MORTAR = '#24142a';
-    // Taş örgüsü: derz zemini, her taş kendi tonunda, üst kenar ışık, alt kenar gölge; arada çatlak ve kırık köşe
-    function masonry(x0, y0, x1, y1) {
+    // Taş örgüsü (kale ve taş kapılar): derz zemini, her taş kendi tonunda, üst kenar ışık, alt kenar gölge; arada çatlak ve kırık köşe
+    function masonry(x0, y0, x1, y1, stone = STONE) {
       g.save(); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip();
       g.fillStyle = MORTAR; g.fillRect(x0, y0, x1 - x0, y1 - y0);
       for (let r = 0; y0 + r * 12 < y1; r++) {
         const sy = y0 + r * 12;
         for (const st of CASTLE_ROWS[r % CASTLE_ROWS.length]) {
           if (st.x + st.w < x0 || st.x > x1) continue;
-          g.fillStyle = shade(STONE, st.tone - r * 0.008); g.fillRect(st.x, sy + 0.8, st.w, 10.4);
+          g.fillStyle = shade(stone, st.tone - r * 0.008); g.fillRect(st.x, sy + 0.8, st.w, 10.4);
           g.fillStyle = 'rgba(255,240,255,.1)'; g.fillRect(st.x, sy + 0.8, st.w, 1.6); g.fillRect(st.x, sy + 0.8, 1.4, 10.4);
           g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(st.x, sy + 9.6, st.w, 1.6); g.fillRect(st.x + st.w - 1.4, sy + 0.8, 1.4, 10.4);
           if (st.chip) { g.fillStyle = MORTAR; g.beginPath(); g.moveTo(st.x + st.w, sy + 0.8); g.lineTo(st.x + st.w - 4, sy + 0.8); g.lineTo(st.x + st.w, sy + 4.5); g.fill(); }
@@ -2310,9 +2338,9 @@
         for (const sx of [-1, 1]) {
           const px = cx + sx * 76;
           if (kind === 'flowerArch') { g.fillStyle = '#21543a'; rr(px - 16, y - 120, 32, 124, 14); g.fill(); g.fillStyle = '#2d6a46'; rr(px - 12, y - 116, 14, 116, 8); g.fill(); }
-          else if (kind === 'gardenGate') { g.fillStyle = '#7a3a2a'; g.fillRect(px - 16, y - 130, 32, 134); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; for (let k = 0; k < 13; k++) { g.beginPath(); g.moveTo(px - 16, y - 126 + k * 10); g.lineTo(px + 16, y - 126 + k * 10); g.stroke(); } g.fillStyle = '#9a4a34'; g.fillRect(px - 20, y - 138, 40, 10); g.fillStyle = '#ffd27a'; g.beginPath(); g.arc(px, y - 146, 6, 0, TAU); g.fill(); add(() => glow(px, y - 146, 30, 'rgba(255,210,120,.6)')); }
+          else if (kind === 'gardenGate') { masonry(px - 16, y - 130, px + 16, y + 4, '#8a4432'); g.fillStyle = '#9a4a34'; g.fillRect(px - 20, y - 138, 40, 10); g.fillStyle = '#ffd27a'; g.beginPath(); g.arc(px, y - 146, 6, 0, TAU); g.fill(); add(() => glow(px, y - 146, 30, 'rgba(255,210,120,.6)')); }
           else if (kind === 'chainGate') { g.fillStyle = '#6b4a2a'; g.fillRect(px - 10, y - 124, 20, 128); g.fillStyle = '#8a643a'; g.fillRect(px - 10, y - 124, 6, 128); g.fillStyle = '#5a3a24'; g.beginPath(); g.moveTo(px - 12, y - 124); g.lineTo(px, y - 136); g.lineTo(px + 12, y - 124); g.fill(); }
-          else { g.fillStyle = '#7d8590'; g.fillRect(px - 18, y - 70, 36, 74); g.strokeStyle = 'rgba(0,0,0,.25)'; for (let k = 0; k < 7; k++) { g.beginPath(); g.moveTo(px - 18, y - 64 + k * 10); g.lineTo(px + 18, y - 64 + k * 10); g.stroke(); } }
+          else masonry(px - 18, y - 70, px + 18, y + 4, '#7d8590');
         }
       }
       if (kind === 'flowerArch') {
@@ -2364,7 +2392,7 @@
         g.fillStyle = '#2a1a10'; g.beginPath(); g.arc(cx, y - 70, 70, 0, TAU); g.fill();
       } else if (kind === 'pendulumGate') {
         // kule kapısı: taş cephe, tepede kadran, önünde sallanan sarkaç
-        g.fillStyle = '#2a2e48'; g.fillRect(cx - 110, y - 220, 220, 224);
+        masonry(cx - 110, y - 220, cx + 110, y + 4, '#3a3f5e');
         g.fillStyle = '#3a3f60'; g.beginPath(); g.moveTo(cx - 124, y - 220); g.lineTo(cx, y - 290); g.lineTo(cx + 124, y - 220); g.closePath(); g.fill();
         clock(cx, y - 168, 36, now);
         const a = reduced() ? 0 : Math.sin(now / 800) * 0.35;
@@ -2379,8 +2407,7 @@
       } else if (kind === 'cellGate' || kind === 'cryptGate') {
         // zindan duvarı: kaba taş blokları, iki yanda parmaklıklı hücre pencereleri ve meşaleler;
         // mahzende üstte ejderha başlı kemer, gözleri kor gibi yanar
-        g.fillStyle = '#3a3640'; g.fillRect(cx - 170, y - 170, 340, 174);
-        g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 2; for (let k = 0; k < 7; k++) { g.beginPath(); g.moveTo(cx - 170, y - 166 + k * 24); g.lineTo(cx + 170, y - 166 + k * 24); g.stroke(); for (let x = cx - 170 + (k % 2) * 24; x < cx + 170; x += 48) { g.beginPath(); g.moveTo(x, y - 166 + k * 24); g.lineTo(x, y - 142 + k * 24); g.stroke(); } }
+        masonry(cx - 170, y - 170, cx + 170, y + 4, '#55505c');
         for (const sx of [-1, 1]) {
           const wx = cx + sx * 116; g.fillStyle = '#0e0c12'; g.fillRect(wx - 18, y - 130, 36, 40); g.strokeStyle = '#7a7480'; g.lineWidth = 2.4; for (let x = wx - 12; x <= wx + 12; x += 8) { g.beginPath(); g.moveTo(x, y - 130); g.lineTo(x, y - 90); g.stroke(); }
           torch(cx + sx * 70, y - 120, now);
@@ -2399,7 +2426,7 @@
       } else if (kind === 'townTower') {
         // meydanın saat kulesi: kule gövdesi, tepede kadran ve çan, iki yanda evler
         DECOR_ART.house({ x: cx - 140, y, s: 1.4, c: '#5a4a6e', ph: 0.15 }); DECOR_ART.house({ x: cx + 140, y, s: 1.4, c: '#6e4a5a', ph: 0.25 });
-        g.fillStyle = '#6e5a7a'; g.fillRect(cx - 70, y - 240, 140, 244); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(cx + 30, y - 240, 40, 244);
+        masonry(cx - 70, y - 240, cx + 70, y + 4, '#7a6686'); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(cx + 30, y - 240, 40, 244);
         g.fillStyle = '#5a3040'; g.beginPath(); g.moveTo(cx - 82, y - 240); g.lineTo(cx, y - 310); g.lineTo(cx + 82, y - 240); g.closePath(); g.fill();
         clock(cx, y - 190, 32, now);
       } else if (kind === 'mastersHall') {
@@ -2463,7 +2490,7 @@
         add(() => { for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) { const a = -0.3 - i * 0.18 + (reduced() ? 0 : Math.sin(now / 500 + i) * 0.05), len = 150 - i * 14; g.strokeStyle = `rgba(255,${140 + i * 15},70,${0.75 - i * 0.08})`; g.lineWidth = 9 - i; g.beginPath(); g.moveTo(cx + sx * 70, y - 120); g.quadraticCurveTo(cx + sx * (70 + len * 0.6), y - 120 + Math.sin(a) * len, cx + sx * (70 + len * Math.cos(a)), y - 120 + Math.sin(a) * len * 0.9); g.stroke(); } });
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
-        g.fillStyle = '#3a3f54'; g.fillRect(cx - 170, y - 140, 340, 144);
+        masonry(cx - 170, y - 140, cx + 170, y + 4, '#7a4436');
         for (let k = 0; k < 6; k++) { const x = cx - 170 + k * 57; g.fillStyle = '#4a5068'; g.beginPath(); g.moveTo(x, y - 140); g.lineTo(x + 57, y - 140); g.lineTo(x + 57, y - 178); g.closePath(); g.fill(); g.fillStyle = 'rgba(160,220,255,.4)'; g.beginPath(); g.moveTo(x + 50, y - 142); g.lineTo(x + 54, y - 142); g.lineTo(x + 54, y - 170); g.closePath(); g.fill(); }
         for (const sx of [-1, 1]) { const bx = cx + sx * 130; g.fillStyle = '#7a3a2a'; g.fillRect(bx - 9, y - 240, 18, 70); g.fillStyle = '#e8e0d0'; g.fillRect(bx - 9, y - 228, 18, 4); smoke(bx, y - 246, now, 2); }
         for (let x = cx - 150; x < cx + 150; x += 20) { if (Math.abs(x + 10 - cx) < 60) continue; g.fillStyle = (x / 20) % 2 ? '#e0b02a' : '#1c2026'; g.fillRect(x, y - 30, 20, 8); }
