@@ -1818,8 +1818,11 @@
   // üstüne çıkaran ya da bölümü bozan halka geri alınır, başka yerde denenir. Puan hedef aralığa girince bölüm
   // bir kez tam çözülür; parça gerçekten işe yarıyorsa kabul edilir. Bütün düzen değil yalnızca son adım çöpe gider.
   const GROW_STATS = {};
-  const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; };
+  const GROW_DIAG = [];
+  let gsLast = '';
+  const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; gsLast = k; };
   function growFor(levelNo) {
+    GROW_DIAG.length = 0; // tanı kaydı: her deneme nasıl bitti (yalnız son bölümünki tutulur)
     const plan = NORMAL_PLAN[levelNo];
     const maxPar = maxParOfGate(plan.gate), t = plan.target;
     // Süre GROW_MS ortam değişkeniyle uzatılabilir (eksik kalan bölümleri yeniden denerken)
@@ -1838,23 +1841,37 @@
       return true;
     };
     const near = plan.near;
+    // Kapı içindeki konum (0 baş, 1 zirve); iki halkayı kesme olasılığı onunla artar
+    const hard = (NEAR_EASY - near) / (NEAR_EASY - NEAR_HARD);
+    const CROSS2 = (typeof process !== 'undefined' && process.env && process.env.GROW_CROSS2 != null) ? Number(process.env.GROW_CROSS2) : 0.35 + 0.45 * hard;
     // Yeni halka kümenin dışa bakan tarafına konur (birkaç aday arasından kümenin ortasına en uzak olanı) ve
     // yalnızca bağlandığı halkayı keser, arada bir halkayı daha: düzen eski bölümler gibi seyrek kalır, tahtaya yayılır
     const attach = (rnd, rings, p) => {
-      const P = rings[p], r = 38 + Math.round(rnd() * 20), sum = P.r + r;
+      // Yarıçap eski bölümlerin aralığında (1-270: ortalama 60, %10-%90 arası 44-69); küçük halkalar alanı dolduramıyordu
+      const P = rings[p], r = 46 + Math.round(rnd() * 22), sum = P.r + r;
       const d = Math.max(Math.abs(P.r - r) + 24, Math.min(sum * (near + (rnd() - 0.5) * 0.04), sum - 26));
       // Aday yerlerden tahtanın en boş bölgesine düşen seçilir (mevcut halkalara en uzak): düzen dikeyde ve
       // yatayda bütün tahtaya yayılır
-      const maxCross = rnd() < 0.3 ? 2 : 1;
-      let best = null, bestD = -1;
-      for (let k = 0; k < 12; k++) {
+      // Kaç halkayı keseceği: tek kesişimli halkalar ağaç gibi dizilir ve birkaç hamlede çözülür (hamle sayısı
+      // düşük kalır, zor bölümler hedefe ulaşamaz). Kapının sonuna doğru yeni halka daha sık iki halkayı keser:
+      // düzen yine yayılır ama halkalar birbirine kilitlenir, çözüm uzar
+      const want = rnd() < CROSS2 ? 2 : 1;
+      let best = null, bestD = -Infinity, bestHit = false;
+      // Kaplanan alan (bölüm en az 300x400 olmalı): eksik kalan yönü büyüten aday öne geçer; yoksa
+      // zorluk hedefe ulaştığında alan küçük kalıyor ve bölüm atılıyordu
+      const x0 = Math.min(...rings.map(R => R.x - R.r)), x1 = Math.max(...rings.map(R => R.x + R.r));
+      const y0 = Math.min(...rings.map(R => R.y - R.r)), y1 = Math.max(...rings.map(R => R.y + R.r));
+      const needW = x1 - x0 < 300, needH = y1 - y0 < 400;
+      for (let k = 0; k < 16; k++) {
         const a = rnd() * Math.PI * 2;
         const c = { x: Math.round((P.x + Math.cos(a) * d) * 10) / 10, y: Math.round((P.y + Math.sin(a) * d) * 10) / 10, r, a: Math.round(rnd() * 360) };
         if (!fits(c, rings)) continue;
         const cross = rings.filter(R => { const e = Math.hypot(c.x - R.x, c.y - R.y); return e < c.r + R.r && e > Math.abs(c.r - R.r); }).length;
-        if (cross > maxCross) continue;
-        const dc = Math.min(...rings.map(R => Math.hypot(c.x - R.x, c.y - R.y) - R.r)) + Math.min(c.x - c.r, W - c.x - c.r, c.y - c.r, H - c.y - c.r) * 0.15;
-        if (dc > bestD) { best = c; bestD = dc; }
+        if (cross > want) continue;
+        const hit = cross === want;
+        const ext = (needW ? Math.max(0, x0 - c.x + c.r) + Math.max(0, c.x + c.r - x1) : 0) + (needH ? Math.max(0, y0 - c.y + c.r) + Math.max(0, c.y + c.r - y1) : 0);
+        const dc = Math.min(...rings.map(R => Math.hypot(c.x - R.x, c.y - R.y) - R.r)) + (needW || needH ? ext : Math.min(c.x - c.r, W - c.x - c.r, c.y - c.r, H - c.y - c.r) * 0.15);
+        if (hit && !bestHit || hit === bestHit && dc > bestD) { best = c; bestD = dc; bestHit = hit; }
       }
       return best;
     };
@@ -1927,7 +1944,7 @@
         b.def.par = q.moves;
         if (difficultyScore(b.def) >= upper) back();
       };
-      let fails = 0;
+      let fails = 0, lastSc = 0, lastDef = null, post = []; gsLast = '';
       // Zirvede yayılmış düzenin eksik zorluğu için 12 halkaya kadar (normal bölüm 10)
       while (rings.length < (plan.peak ? 12 : 10) && fails < 40 && Date.now() < deadline) {
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
@@ -1956,7 +1973,7 @@
         const quick = Logic.solveFast(L, L.startAngles, 0, 6000);
         if (!quick || quick.moves > maxPar) { gs('cozumsuz_veya_uzun'); undo(); continue; }
         def.par = quick.moves;
-        const sc = difficultyScore(def);
+        const sc = difficultyScore(def); lastSc = sc; lastDef = def;
         GROW_STATS.maxSc = Math.max(GROW_STATS.maxSc || 0, sc); GROW_STATS.maxPar = Math.max(GROW_STATS.maxPar || 0, def.par);
         if (sc >= upper) { gs('ust_sinir'); undo(); continue; }
         if (rings.length < 5 || (plan.peak ? sc < t - slack : sc < t - 0.4)) {
@@ -1967,10 +1984,11 @@
           if (plan.peak && rings.length >= 6 && sc < t - 1.5) intensify();
           gs('puan_dusuk'); continue;
         }
+        post.push(rings.length);
         // Bölüm tahtanın büyük kısmını kaplamalı (eski bölümlerin ortalaması 319x435); değilse büyümeye devam
         const bw = Math.max(...rings.map(r => r.x + r.r)) - Math.min(...rings.map(r => r.x - r.r));
         const bh = Math.max(...rings.map(r => r.y + r.r)) - Math.min(...rings.map(r => r.y - r.r));
-        if (bw < 300 || bh < 400) { gs('alan_kucuk'); continue; }
+        if (bw < 300 || bh < 400) { gs('alan_kucuk'); GROW_STATS.box = (GROW_STATS.box || []).concat([Math.round(bw) + 'x' + Math.round(bh)]).slice(-30); continue; }
         // Hedef aralıkta: bir kez tam çözülür, ipucu çözebilmeli, kapının parçası işe yaramalı
         if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { undo(); continue; }
         const exact = Logic.solve(L, L.startAngles, 0, 20000);
@@ -1985,8 +2003,9 @@
         if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { undo(); continue; }
         const err = plan.peak ? 0 : Math.abs(s2 - t);
         if (err < bestErr) { best = def; bestErr = err; }
-        break;
+        gsLast = 'KABUL'; break;
       }
+      GROW_DIAG.push({ post: post.join(','), n: rings.length, fails, last: gsLast, sc: Math.round(lastSc * 100) / 100, t, par: lastDef && lastDef.par, near: lastDef && Math.round(closeness(lastDef) * 100) / 100, ps: lastDef && Math.round((parScore(lastDef) - lastDef.par - 0.15 * lastDef.rings.length) * 100) / 100 });
     }
     return best;
   }
@@ -2177,7 +2196,7 @@
 
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
-    difficultyScore, parScore, closeness, GROW_STATS, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
+    difficultyScore, parScore, closeness, GROW_STATS, GROW_DIAG, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars, mattersAll, bigMoment, WORLD_MECH,
     NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
