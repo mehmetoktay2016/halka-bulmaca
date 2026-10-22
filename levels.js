@@ -1833,17 +1833,30 @@
       for (const B of rings) {
         const d = Math.hypot(A.x - B.x, A.y - B.y), crosses = d < A.r + B.r && d > Math.abs(A.r - B.r);
         if (crosses && (d > A.r + B.r - 24 || d < Math.abs(A.r - B.r) + 20)) return false;
-        if (!crosses && d < A.r + B.r + 8) return false;
+        if (!crosses && d < A.r + B.r + 16) return false; // değmeyen halkalar arasında nefes payı
       }
       return true;
     };
     const near = plan.near;
+    // Yeni halka kümenin dışa bakan tarafına konur (birkaç aday arasından kümenin ortasına en uzak olanı) ve
+    // yalnızca bağlandığı halkayı keser, arada bir halkayı daha: düzen eski bölümler gibi seyrek kalır, tahtaya yayılır
     const attach = (rnd, rings, p) => {
-      const P = rings[p], r = 36 + Math.round(rnd() * 22), sum = P.r + r;
+      const P = rings[p], r = 38 + Math.round(rnd() * 20), sum = P.r + r;
       const d = Math.max(Math.abs(P.r - r) + 24, Math.min(sum * (near + (rnd() - 0.5) * 0.04), sum - 26));
-      const a = rnd() * Math.PI * 2;
-      const c = { x: Math.round((P.x + Math.cos(a) * d) * 10) / 10, y: Math.round((P.y + Math.sin(a) * d) * 10) / 10, r, a: Math.round(rnd() * 360) };
-      return fits(c, rings) ? c : null;
+      // Aday yerlerden tahtanın en boş bölgesine düşen seçilir (mevcut halkalara en uzak): düzen dikeyde ve
+      // yatayda bütün tahtaya yayılır
+      const maxCross = rnd() < 0.3 ? 2 : 1;
+      let best = null, bestD = -1;
+      for (let k = 0; k < 12; k++) {
+        const a = rnd() * Math.PI * 2;
+        const c = { x: Math.round((P.x + Math.cos(a) * d) * 10) / 10, y: Math.round((P.y + Math.sin(a) * d) * 10) / 10, r, a: Math.round(rnd() * 360) };
+        if (!fits(c, rings)) continue;
+        const cross = rings.filter(R => { const e = Math.hypot(c.x - R.x, c.y - R.y); return e < c.r + R.r && e > Math.abs(c.r - R.r); }).length;
+        if (cross > maxCross) continue;
+        const dc = Math.min(...rings.map(R => Math.hypot(c.x - R.x, c.y - R.y) - R.r)) + Math.min(c.x - c.r, W - c.x - c.r, c.y - c.r, H - c.y - c.r) * 0.15;
+        if (dc > bestD) { best = c; bestD = dc; }
+      }
+      return best;
     };
     const own = WORLD_MECH[plan.gate];
     let best = null, bestErr = Infinity;
@@ -1915,7 +1928,7 @@
         if (difficultyScore(b.def) >= upper) back();
       };
       let fails = 0;
-      while (rings.length < 12 && fails < 40 && Date.now() < deadline) {
+      while (rings.length < 10 && fails < 40 && Date.now() < deadline) {
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
         const c = attach(rnd, rings, p);
         if (!c) { fails++; continue; }
@@ -1947,9 +1960,16 @@
         if (sc >= upper) { gs('ust_sinir'); undo(); continue; }
         if (rings.length < 5 || (plan.peak ? sc < t - slack : sc < t - 0.4)) {
           // Puan düşük: halka eklemenin yanında bir parça eklenerek de zorlaşır (zorluk parçalardan gelsin)
-          if (rings.length >= 4 && rnd() < 0.6) intensify();
+          // Yayılmış düzen daha kolaydır: halka çoğaldıkça eksik zorluk daha sık parçayla tamamlanır;
+          // zirvede hedefin çok altındaysa iki parça birden
+          if (rings.length >= 4 && rnd() < (rings.length >= 6 ? 0.9 : 0.6)) intensify();
+          if (plan.peak && rings.length >= 6 && sc < t - 1.5) intensify();
           gs('puan_dusuk'); continue;
         }
+        // Bölüm tahtanın büyük kısmını kaplamalı (eski bölümlerin ortalaması 319x435); değilse büyümeye devam
+        const bw = Math.max(...rings.map(r => r.x + r.r)) - Math.min(...rings.map(r => r.x - r.r));
+        const bh = Math.max(...rings.map(r => r.y + r.r)) - Math.min(...rings.map(r => r.y - r.r));
+        if (bw < 300 || bh < 400) { gs('alan_kucuk'); continue; }
         // Hedef aralıkta: bir kez tam çözülür, ipucu çözebilmeli, kapının parçası işe yaramalı
         if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { undo(); continue; }
         const exact = Logic.solve(L, L.startAngles, 0, 20000);
@@ -2157,7 +2177,7 @@
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
     difficultyScore, parScore, closeness, GROW_STATS, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
-    connected, noRingFreeAtStart, difficulty, barVsRing, placeBars,
+    connected, noRingFreeAtStart, difficulty, barVsRing, placeBars, mattersAll, bigMoment, WORLD_MECH,
     NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
