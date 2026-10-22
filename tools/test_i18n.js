@@ -37,7 +37,7 @@ function dataSources() {
   const STK = require('../stickers.js'), Lv = require('../levels.js');
   for (const w of W.WORLDS) { add(w.name, 'worlds.js'); add(w.intro, 'worlds.js'); add(w.title, 'worlds.js (unvan)'); }
   for (const g of W.GATES) add(g.name, 'worlds.js');
-  for (const n of require('../adventure.js').STATION_NAMES) add(n, 'adventure.js');
+  for (const stops of Object.values(require('../journey.js').STOPS)) for (const st of stops) add(st[0], 'journey.js (durak)');
   for (let k = 0; k <= W.GATES.length; k++) add(W.titleFor(k), 'worlds.js (unvan)');
   for (const b of B.BADGES) { add(b.name, 'achievements.js'); add(b.desc, 'achievements.js'); add(b.group, 'achievements.js'); }
   for (const c of Object.values(R.SHOP)) { add(c.title, 'rewards.js'); add(c.tab, 'rewards.js'); for (const it of c.items) { add(it.name, 'rewards.js'); add(it.desc, 'rewards.js'); } }

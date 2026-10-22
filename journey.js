@@ -21,7 +21,8 @@
         'yıldızların haritasını çıkarır.' },
       { from: 301, to: 400, name: 'Üçüncü Perde: Anka\'nın Ateşi', text: 'Yıldız haritası son bir düğümü gösterir: ' +
         'Büyü Kulesi\'nde uyuyan Anka Kuşu. Halka fişeklerle göğü aydınlatır, buzulu aşar, değirmenleri döndürür ' +
-        've Anka\'yı özgür bırakır. Anka\'nın ateşi bütün dünyalara ışık taşır.' },
+        've Anka\'yı özgür bırakır. Anka\'nın ateşi bütün dünyalara ışık taşır ve haritada o güne dek görünmeyen ' +
+        'yeni yolları aydınlatır. Yolculuk sürüyor.' },
     ],
   };
 
