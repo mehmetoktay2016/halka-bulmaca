@@ -12,7 +12,7 @@
 (function (root) {
   'use strict';
 
-  const VOLUME = 0.5; // oyuncunun ayarı %100'ken ana seviye (oyun sesleri öne çıksın)
+  const VOLUME = 0.4; // oyuncunun ayarı %100'ken ana seviye (oyun sesleri öne çıksın)
   // 4 ölçülük akor döngüsü (I, vi, IV, V; kökten yarım ses) ve bas kökleri
   const CHORDS = [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [7, 11, 14]], BASS = [0, -3, 5, 7];
   // 8 ölçülük ezgi: [adım (16'lık), nota, uzunluk]
@@ -57,10 +57,13 @@
       ac = getContext();
       if (!ac) return false;
       if (bus) return true;
-      bus = ac.createGain(); bus.gain.value = 0; bus.connect(ac.destination);
+      // sınırlayıcı: üst üste binen notalar ve oyun sesleriyle taşıp cızırdamasın
+      const lim = ac.createDynamicsCompressor();
+      lim.threshold.value = -12; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25;
+      bus = ac.createGain(); bus.gain.value = 0; bus.connect(lim); lim.connect(ac.destination);
       // yankı: üstel sönen gürültüden darbe yanıtı
       verb = ac.createConvolver();
-      const len = ac.sampleRate * 2, ir = ac.createBuffer(2, len, ac.sampleRate);
+      const len = ac.sampleRate * 1.2, ir = ac.createBuffer(2, len, ac.sampleRate);
       for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
       verb.buffer = ir;
       const wet = ac.createGain(); wet.gain.value = 0.28; verb.connect(wet); wet.connect(bus);
@@ -144,7 +147,7 @@
     };
     function pad(t, ms, v, d) {
       const f = lowpass(900), g = env(t, 0.6, 0.05 * v, d - 0.2, 0.8); f.connect(g);
-      for (const m of ms) for (const dt of [-9, 0, 9]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
+      for (const m of ms) for (const dt of [-7, 7]) osc('sawtooth', hz(m), t, t + d + 1, f, dt);
       out(g, 1, 0.6);
     }
     // davul: perdesi düşen derin vuruş

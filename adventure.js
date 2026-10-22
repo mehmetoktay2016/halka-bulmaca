@@ -2060,9 +2060,10 @@
         for (let i = 0; i < 1400; i++) { q.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.3)'; q.fillRect(Math.random() * 96, Math.random() * 96, 0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8); }
         GRAIN = LAYER.createPattern(n, 'repeat');
       }
-      if (LAYER.canvas.width !== cv.width || LAYER.canvas.height !== cv.height) { LAYER.canvas.width = cv.width; LAYER.canvas.height = cv.height; }
-      const m = main.getTransform();
-      g = LAYER; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.setTransform(m);
+      // katman yalnız kapının bölgesi kadar (y-370 .. y+40): her karede bütün ekranı kopyalamak telefonda haritayı yavaşlatıyordu
+      const s = main.getTransform().a, top = y - 370, lw = Math.ceil(W * s), lh = Math.ceil(410 * s);
+      if (LAYER.canvas.width !== lw || LAYER.canvas.height !== lh) { LAYER.canvas.width = lw; LAYER.canvas.height = lh; }
+      g = LAYER; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, lw, lh); g.setTransform(s, 0, 0, s, 0, -top * s);
       glows = [];
       draw();
       const later = glows; glows = null;
@@ -2074,7 +2075,7 @@
       g.globalAlpha = 0.16; g.fillStyle = GRAIN; g.fillRect(0, y - 360, W, 400);
       g.restore();
       g = main;
-      g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(LAYER.canvas, 0, 0); g.restore();
+      g.drawImage(LAYER.canvas, 0, top, W, 410);
       for (const fn of later) add(fn);
     }
     function gates(now, top, bot) {
@@ -3053,7 +3054,7 @@
 
     // ---- çizim döngüsü ----
     function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); // 3x ekranlarda 2x yeter, kaydırma akıcı kalır
       const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       return dpr;
