@@ -1624,7 +1624,9 @@
   const NEW25_GATE = { bomb: 31, boiler: 33, ice: 34, motor: 36, portal: 39 };
   function mechanicsFor(gate, rnd) {
     if (gate >= 31) {
-      const own = WORLD_MECH[gate].slice();
+      // Kapı 33: kazan her bölümde, bomba yarı yarıya. İkisi hep birlikteyken patlamalar zinciri bölümü 1-5 hamlede
+      // bitiriyor, zorluk hedefe çıkmıyordu (yayılmış düzende 4 bölüm üretilemedi)
+      const own = gate === 33 && rnd() < 0.5 ? ['boiler'] : WORLD_MECH[gate].slice();
       if (rnd() < 0.5) {
         const pool = ['reverse', 'click', 'key', 'fast', 'kick', 'token', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < gate)]
           .filter(m => !own.includes(m));
@@ -1910,7 +1912,9 @@
       if (mech.includes('portal')) { const A = rings[1], B = rings[2]; if (Math.hypot(A.x - B.x, A.y - B.y) < A.r + B.r) continue; }
       // Zorlaştırma: boş bir halkaya dünyanın parçası (ya da eski bir parça) eklenir; bölüm bozulur, hedefi aşar ya da
       // baştan serbest halka kalırsa geri alınır
-      const intensify = (ownOnly = false) => {
+      // lowPar: çözüm kısa kalmışsa yeni patlayıcı (bomba, kazan) eklenmez; patlamalar hamleyi daha da kısaltır ve
+      // puan hiç hedefe çıkmaz (kapı 33'te bomba ve kazan birlikteyken bölümler 1-3 hamlede bitiyordu)
+      const intensify = (ownOnly = false, lowPar = false) => {
         const nbOf = i => rings.reduce((n, B, j) => n + (j !== i && Math.hypot(rings[i].x - B.x, rings[i].y - B.y) < rings[i].r + B.r ? 1 : 0), 0);
         const inCouple = i => couples.some(c => c[0] === i || c[1] === i);
         const free = rings.map((r, i) => i).filter(i => !hasPiece(rings[i]) && !rings[i].fixed && !inCouple(i));
@@ -1921,8 +1925,8 @@
         const choices = [];
         for (const m of mech) {
           if (m === 'ice' && nbOf(i) >= 2) choices.push(() => { R.ice = 1; undoFns.push(() => delete R.ice); });
-          if (m === 'boiler' && nbOf(i) >= 2) choices.push(() => { R.boiler = 1; undoFns.push(() => delete R.boiler); });
-          if (m === 'bomb') choices.push(() => { R.bomb = true; undoFns.push(() => delete R.bomb); });
+          if (m === 'boiler' && nbOf(i) >= 2 && !lowPar) choices.push(() => { R.boiler = 1; undoFns.push(() => delete R.boiler); });
+          if (m === 'bomb' && !lowPar) choices.push(() => { R.bomb = true; undoFns.push(() => delete R.bomb); });
           if (m === 'motor') choices.push(() => { R.motor = [90, -90, 60, -60][Math.floor(rnd() * 4)]; undoFns.push(() => delete R.motor); });
           if (m === 'portal' && free.length >= 2) {
             const j = free.find(k => k !== i && Math.hypot(rings[k].x - R.x, rings[k].y - R.y) >= rings[k].r + R.r);
@@ -1980,8 +1984,8 @@
           // Puan düşük: halka eklemenin yanında bir parça eklenerek de zorlaşır (zorluk parçalardan gelsin)
           // Yayılmış düzen daha kolaydır: halka çoğaldıkça eksik zorluk daha sık parçayla tamamlanır;
           // zirvede hedefin çok altındaysa iki parça birden
-          if (rings.length >= 4 && rnd() < (rings.length >= 6 ? 0.9 : 0.6)) intensify();
-          if (plan.peak && rings.length >= 6 && sc < t - 1.5) intensify();
+          if (rings.length >= 4 && rnd() < (rings.length >= 6 ? 0.9 : 0.6)) intensify(false, def.par <= maxPar - 4);
+          if (plan.peak && rings.length >= 6 && sc < t - 1.5) intensify(false, def.par <= maxPar - 4);
           gs('puan_dusuk'); continue;
         }
         post.push(rings.length);
