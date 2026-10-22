@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, afterMove, rotate, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -46,6 +46,8 @@
   const KICK_MS = 420;   // tekmeyle dönen halkanın dönüşü (sonda hafif geri yaylanır)
   const BLAST_WAIT = 150; // bomba uçmaya başladıktan sonra patlaması
   const BLAST_HOLD = 140; // patlamayla vurulan halkalar beyaz parlar, sonra uçar
+  const FUSE_WAIT = 160;  // kazanın basıncı dolduktan sonra düdüğün ötmesi
+  const FUSE_MS = 560;    // düdük öterken kazan akkor parlayıp sarsılır, sonra çıkıp patlar
   const TOKEN_FLY_MS = 620; // jetonun taşıyan halkadan jetonlu halkaya uçuşu
   // Şalter renkleri (halka paletinden ayrı): 0 mavi, 1 turuncu. Şalterli halka kendi rengini değil bunu alır.
   const SIDE_COLORS = ['#3d9bff', '#ff8a1f'];
@@ -213,6 +215,11 @@
       gear: () => {
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
         noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
+      },
+      // Kazan düdüğü: yükselen tiz ses, altında kaynama gurultusu
+      whistle: () => {
+        tone(700, 0.55, 'sine', 0.08, 2200);
+        noise(0.5, 0.35, 300, 500);
       },
       // Portal: yükselen hışırtı ("fşşt") ve üstünde parıldayan üçlü
       swoosh: () => {
@@ -1200,7 +1207,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
-      flash: {}, bombs: 0, vortex: [], iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, vortex: [], boilFuse: {}, steam: [], iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1329,7 +1336,7 @@
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
     // Hamlenin kurtardıkları uçar, sonra motor halkalar birer adım döner (dönüşleri tekmeler arasında gelir)
-    const { mask, waves, kicks, tokens, blasts, portals, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
+    const { mask, waves, kicks, tokens, blasts, portals, fuses, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
@@ -1337,10 +1344,20 @@
     const at = [];
     waves.reduce((t, _, w) => {
       at[w] = t;
-      return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0);
+      return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0) +
+        (fuses[w].length ? FUSE_WAIT + FUSE_MS : 0);
     }, 0);
     // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
     const blastFrom = {};
+    // Kazan: basıncı dolunca düdük öter, kazan akkor parlar; sonraki dalgada çıkıp bomba gibi patlar
+    let boiled = -1;
+    fuses.forEach((fs, w) => {
+      for (const i of fs) {
+        boiled = i;
+        const L0 = S.L;
+        setTimeout(() => { if (S.L === L0) { S.boilFuse[i] = performance.now(); Sound.whistle(); } }, at[w] + FUSE_WAIT);
+      }
+    });
     // Portal: kurtulan halkanın ikizi sonraki dalgada yerinde dönerek girdaba çekilir
     const teleOf = {};
     portals.forEach((ps, w) => {
@@ -1430,9 +1447,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = melted >= 0 ? 'ice' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1922,6 +1939,7 @@
     ice: { text: 'Buz kırıldı!', colors: ['#ffffff', '#9be7ff'] },
     time: { text: 'Tam zamanında!', colors: ['#fff4e6', '#ffb35c'] },
     tele: { text: 'Işınlandı!', colors: ['#ffffff', '#c9a7ff'] },
+    boil: { text: 'Kazan patladı!', colors: ['#fff3b0', '#ff5a28'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -1960,10 +1978,10 @@
     if (!quiet) {
       const tier = n >= 4 || bangs >= 2 ? 3 : n === 3 ? 2 : 1;
       const pr = PRAISE[tier];
-      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : word && !bangs ? tr(WORD[word].text) : praiseWord(pr.words);
+      const text = bangs >= 2 ? tr('Zincirleme!') : bangs && n >= 5 ? tr('Büyük patlama!') : word ? tr(WORD[word].text) : praiseWord(pr.words);
       const sub = bangs >= 2 ? tr('{b} patlama · Zincir ×{n}', { b: bangs, n }) : tr('Zincir ×{n}', { n });
       floaters.push({ text, sub, x, y: p.y, t0: performance.now(),
-        size: pr.size, colors: bangs ? ['#fff3b0', '#ff7a45'] : word ? WORD[word].colors : pr.colors, life: 1500 });
+        size: pr.size, colors: word && !(bangs >= 2 || (bangs && n >= 5)) ? WORD[word].colors : bangs ? ['#fff3b0', '#ff7a45'] : pr.colors, life: 1500 });
       Sound.praise(tier);
     }
     if (S.preview) return;
@@ -3116,7 +3134,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.ice || r.motor || r.portal >= 0 ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.ice || r.motor || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3242,6 +3260,60 @@
       }
     }
     S.L.rings.forEach((r, i) => { if (r.bomb && springLive(i)) drawBombBadge(i, now); });
+  }
+
+  // ---- Basınç kazanı çizimi (2.5) ----
+  // Isı: basıncın dolan payı (0-1), uçuşu henüz başlamamış komşular sayılmaz; düdük öttüyse 1
+  function heatOf(i, now) {
+    if (S.boilFuse[i]) return 1;
+    let seen = 0;
+    S.L.rings.forEach((_, k) => { if (!present(k) && !(S.fly[k] && now < S.fly[k].t0)) seen |= 1 << k; });
+    return 1 - pressureLeft(S.L, i, seen) / S.L.rings[i].boiler;
+  }
+  // Halkanın rengi ısıyla kora döner
+  function heatColor(base, h) {
+    if (!/^#[0-9a-f]{6}$/i.test(base)) return h > 0.5 ? '#ff5a28' : base;
+    const a = parseInt(base.slice(1), 16), b = [255, 90, 40];
+    const c = [a >> 16, (a >> 8) & 255, a & 255].map((v, k) => Math.round(v + (b[k] - v) * Math.min(1, h * 0.85)));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  // Rozet: basınç göstergesi (yeşilden kırmızıya kadran, ibre, ortada kalan sayı; dolunca "!"); ısındıkça buhar tüter
+  function drawBoilers(now) {
+    if (!S.L.boilers.length) return;
+    for (const i of S.L.boilers) {
+      // Uçuşu planlanmış ama başlamamış kazan (düdük öterken) rozetini korur
+      const f = S.fly[i];
+      if ((f ? now >= f.t0 : !present(i)) || (S.turn && S.L.table.carried.includes(i))) continue;
+      const r = S.L.rings[i], h = heatOf(i, now), fuse = !!S.boilFuse[i];
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      const jit = REDUCED ? 0 : (fuse ? 2.2 : h * 0.9) * Math.sin(now / 23);
+      if (!REDUCED && h > 0 && Math.random() < 0.04 + h * 0.25) S.steam.push({ x: x + (Math.random() - 0.5) * 8, y: y - 14, t0: now, dx: (Math.random() - 0.5) * 0.4, s: 3 + Math.random() * 3 });
+      ctx.save();
+      ctx.translate(x + jit, y);
+      ctx.fillStyle = 'rgba(20,8,8,.92)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#f4ece6'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#7a4a3a'; ctx.lineWidth = 2; ctx.stroke();
+      const A0 = Math.PI * 0.75, SPAN = Math.PI * 1.5;
+      [['#4caf6a', 0, 0.45], ['#ffc94a', 0.45, 0.75], ['#ff5a3d', 0.75, 1]].forEach(([c, a, b]) => {
+        ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 10.5, A0 + SPAN * a, A0 + SPAN * b); ctx.stroke();
+      });
+      const na = A0 + SPAN * Math.min(1, h + (fuse && !REDUCED ? 0.04 * Math.sin(now / 40) : 0));
+      ctx.strokeStyle = '#2a0e0a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(na) * 9, Math.sin(na) * 9); ctx.stroke();
+      ctx.fillStyle = '#2a0e0a'; ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff1ec'; ctx.font = '800 9px "Nunito", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(fuse ? '!' : String(Math.round((1 - h) * r.boiler)), 0, 0.5);
+      ctx.restore();
+    }
+    S.steam = S.steam.filter(p => now - p.t0 < 1100);
+    for (const p of S.steam) {
+      const t = (now - p.t0) / 1100;
+      ctx.save();
+      ctx.globalAlpha = 0.45 * (1 - t);
+      ctx.fillStyle = '#fff1ec';
+      ctx.beginPath(); ctx.arc(p.x + p.dx * t * 60 + Math.sin(t * 6) * 3, p.y - t * 46, p.s * (1 + t * 1.6), 0, TAU); ctx.fill();
+      ctx.restore();
+    }
   }
 
   // ---- İkiz portal çizimi (2.5) ----
@@ -3525,6 +3597,11 @@
       grow = 1 + 0.15 * t;
       spin = (f.spin || 0) * e;
     }
+    // Kazan ısındıkça titrer, düdük öterken sarsılır
+    if (ring.boiler && (!f || now < f.t0) && !REDUCED) {
+      const h = heatOf(i, now);
+      if (h) { const a = S.boilFuse[i] ? 3 : h * 1.6; cx += Math.sin(now / 21) * a; cy += Math.cos(now / 27) * a * 0.6; }
+    }
     const sh = S.shake[i];
     if (sh != null) {
       const t = (now - sh) / 350;
@@ -3585,7 +3662,8 @@
     ctx.save();
     ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
-    const color = ringColor(i);
+    const heat = ring.boiler && (!S.fly[i] || now < S.fly[i].t0) ? heatOf(i, now) : 0;
+    const color = heat ? heatColor(ringColor(i), heat) : ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
     const active = mover >= 0 && S.L.group[mover].includes(i);
     if (active) {
@@ -3596,7 +3674,13 @@
     if (ring.motor) drawMotorTeeth(i, ang, cx, cy);
     strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
-    strokeRing(ring, ang, color, STROKE, cx, cy);
+    // Kazan: ısındıkça kalınlaşır ve kor gibi parlar, düdükte akkor
+    if (heat) {
+      ctx.shadowColor = S.boilFuse[i] ? '#fff3b0' : '#ff5a28';
+      ctx.shadowBlur = 8 + heat * 22 + (S.boilFuse[i] && !REDUCED ? 10 * Math.abs(Math.sin(now / 60)) : 0);
+    }
+    strokeRing(ring, ang, color, STROKE * (1 + 0.3 * heat), cx, cy);
+    ctx.shadowBlur = 0;
     strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
     const icy = ring.ice ? iceShown(i, now) : 0;
     if (icy) drawIceShell(i, ang, cx, cy, icy, now);
@@ -4164,6 +4248,7 @@
         drawIceBadges(now);
         drawMotors(now);
         drawPortals(now);
+        drawBoilers(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);

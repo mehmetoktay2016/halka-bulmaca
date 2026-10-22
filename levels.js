@@ -1040,7 +1040,9 @@
       // motor zamanlamayı dayatır: boşluğunun ne zaman geleceğini saymak gerekir
       1.0 * n(r => r.motor) +
       // portal hamleyi kısaltır; düşündüren, hangi ikizin kolay olduğunu görmek (çift başına)
-      0.4 * n(r => r.portal != null);
+      0.4 * n(r => r.portal != null) +
+      // kazan: patlamayı en çok halka yanındayken tetiklemek için sırayı düşünmek gerekir
+      1.0 * n(r => r.boiler);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1172,6 +1174,10 @@
     // Portalsız 2 hamle, portalla 1 (prototipin "İlk portal"ı).
     1014: { title: 'İkiz portal', world: 'buyu', tip: 'Aynı işareti taşıyan iki halka ikizdir. Biri kurtulunca öbürü ışınlanıp onunla gider',
       rings: [{ x: 200, y: 215, r: 70, a: 195, portal: 1 }, { x: 140, y: 320, r: 64, a: 300 }, { x: 260, y: 320, r: 64, a: 330, portal: 1 }] },
+    // Basınç kazanı tanıtımı (1015, 2.5): zincirin ortasındaki halka 1 basınçlı kazan. Bir komşusu kurtulunca
+    // basınç dolar, kazan patlayıp öbür komşusunu da uçurur. Kazansız 4 hamle, kazanla 2 (prototipin "İlk kazan"ı).
+    1015: { title: 'Basınç kazanı', world: 'fisek', tip: 'Kazanın göstergesindeki sayı kadar komşusu kurtulunca basınç dolar; kazan patlar, değdiği halkalar da uçar',
+      rings: [{ x: 95, y: 175, r: 58, a: 45 }, { x: 165, y: 235, r: 60, a: 75 }, { x: 250, y: 225, r: 58, a: 300, boiler: 1 }, { x: 305, y: 300, r: 60, a: 0 }, { x: 270, y: 390, r: 62, a: 45 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
@@ -1179,7 +1185,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1187,7 +1193,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1207,6 +1213,7 @@
     if (def.rings.some(r => r.ice)) f.push('ice');
     if (def.rings.some(r => r.motor)) f.push('motor');
     if (def.rings.some(r => r.portal != null)) f.push('portal');
+    if (def.rings.some(r => r.boiler)) f.push('boiler');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -1229,7 +1236,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 34: 1012, 36: 1013, 39: 1014 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 33: 1015, 34: 1012, 36: 1013, 39: 1014 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
@@ -1569,6 +1576,7 @@
     if (f === 'ice') out.rings.forEach(r => delete r.ice);
     if (f === 'motor') out.rings.forEach(r => delete r.motor);
     if (f === 'portal') out.rings.forEach(r => delete r.portal);
+    if (f === 'boiler') out.rings.forEach(r => delete r.boiler);
     return out;
   }
   function mattersAll(def, feats) {
