@@ -236,15 +236,46 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       [1750, 2630].forEach(f => { const q = AC.createOscillator(), qg = AC.createGain(); q.frequency.value = f; qg.gain.setValueAtTime(0.05, t); qg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5); q.connect(qg).connect(AC.destination); q.start(t); q.stop(t + 0.52); });
     } catch (e) { /* ses yoksa sessiz */ }
   }
+  // Ağırlaşma (riser): yükselen hışırtı, tizleşen ses ve hızlanan davul vuruşları; "bir şey olacak!" hissi
   function rumble() {
     try {
       AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-      const t = AC.currentTime;
-      const o = AC.createOscillator(), g = AC.createGain();
-      o.type = 'sawtooth'; o.frequency.setValueAtTime(55, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.7);
-      const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
-      o.connect(f).connect(g).connect(AC.destination); o.start(t); o.stop(t + 0.78);
+      const t = AC.currentTime, len = 0.72;
+      const buf = AC.createBuffer(1, Math.floor(AC.sampleRate * len), AC.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const n = AC.createBufferSource(); n.buffer = buf;
+      const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+      bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(4200, t + len);
+      const ng = AC.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.32, t + len);
+      n.connect(bp).connect(ng).connect(AC.destination); n.start(t);
+      const o = AC.createOscillator(), og = AC.createGain(), lp = AC.createBiquadFilter();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(98, t); o.frequency.exponentialRampToValueAtTime(392, t + len);
+      lp.type = 'lowpass'; lp.frequency.setValueAtTime(400, t); lp.frequency.exponentialRampToValueAtTime(2400, t + len);
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.12, t + len);
+      o.connect(lp).connect(og).connect(AC.destination); o.start(t); o.stop(t + len + 0.02);
+      [0, 0.26, 0.44, 0.56, 0.64, 0.69].forEach((at, k) => {
+        const kk = AC.createOscillator(), kg = AC.createGain();
+        kk.frequency.setValueAtTime(110, t + at); kk.frequency.exponentialRampToValueAtTime(45, t + at + 0.12);
+        kg.gain.setValueAtTime(0.25 + k * 0.05, t + at); kg.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.14);
+        kk.connect(kg).connect(AC.destination); kk.start(t + at); kk.stop(t + at + 0.16);
+      });
+    } catch (e) { /* ses yoksa sessiz */ }
+  }
+  // Zafer: derin gümlemenin hemen ardından hızlı yükselen parlak çıngıl, tam akor ve dökülen parıltı notaları
+  function victory() {
+    try {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      const t = AC.currentTime + 0.08;
+      const note = (f, at, dur, vol, type) => {
+        const o = AC.createOscillator(), g = AC.createGain();
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol, t + at + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+        o.connect(g).connect(AC.destination); o.start(t + at); o.stop(t + at + dur + 0.02);
+      };
+      [523.3, 659.3, 784, 1046.5].forEach((f, k) => note(f, k * 0.07, 0.25, 0.12, 'triangle'));
+      [523.3, 659.3, 784, 1046.5, 1318.5].forEach(f => note(f, 0.32, 0.9, 0.06, 'triangle'));
+      note(130.8, 0.32, 0.9, 0.12, 'sine');
+      [2637, 2349, 2093, 1760, 1568, 1319].forEach((f, k) => note(f, 0.45 + k * 0.06, 0.4, 0.035, 'sine'));
     } catch (e) { /* ses yoksa sessiz */ }
   }
   // Zırh: halkanın boşluğa uzak tarafında kalan plaka sayısı kadar perçinli çelik plaka; dev halka kalın çizilir
@@ -819,7 +850,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       // Dev Halka: zırh plakası kırıldı; parçalanan dev halka büyük parça yağmuru, sarsıntı
       L.bosses.forEach(i => {
         if (S.mask & (1 << i)) {
-          if (c.waves[k].includes(i)) { metalShards(i, true, S.def.rings[i].color); S.shake = { t0: now, ms: 650, amp: 12 }; boom(true); bossDown++; }
+          if (c.waves[k].includes(i)) { metalShards(i, true, S.def.rings[i].color); S.shake = { t0: now, ms: 650, amp: 12 }; boom(true); victory(); bossDown++; }
           return;
         }
         if (Logic.armorLeft(L, i, S.mask) < armorBefore[i]) { S.plateHit[i] = now; metalShards(i, false); clank(); }
