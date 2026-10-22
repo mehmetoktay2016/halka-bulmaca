@@ -149,6 +149,8 @@
 
     <!-- Oyun -->
     <section id="game" class="screen" hidden>
+      <!-- Gerilim sahnesi: parça azaldıkça kenarlar kararır (--tension) -->
+      <div class="vignette" aria-hidden="true"></div>
       <header class="hud">
         <button id="menuBtn" class="round" aria-label="Seviye haritası" data-t-aria="Seviye haritası">
           <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>
@@ -165,7 +167,7 @@
       </div>
 
       <div class="meter-row">
-        <span></span>
+        <div id="combo" class="combo" aria-label="Kombo" data-t-aria="Kombo"><span class="combo-bar"><i></i></span><b id="comboMul"></b></div>
         <div id="starMeter" class="meter" aria-label="Kazanılacak yıldız" data-t-aria="Kazanılacak yıldız"></div>
         <div id="coinPill" class="coin-pill" aria-label="Altın" data-t-aria="Altın"><span class="coin-ico"></span><span id="coinNum">0</span></div>
       </div>

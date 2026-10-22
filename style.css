@@ -732,7 +732,23 @@ svg { display: block; }
 #stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
 #board { touch-action: none; display: block; position: relative; }
 /* Tahtanın dokusu (dünyaya göre ahşap, taş, metal...): kenarlara doğru zemine karışır */
-.board-wrap { position: relative; }
+.board-wrap { position: relative; transform: scale(var(--zoom, 1)); transition: transform .6s cubic-bezier(.2, .8, .3, 1); }
+/* Gerilim sahnesi (2.5): kenarlardan kararan ekran; --tension 0-1 */
+.vignette {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse 75% 65% at 50% 50%, rgba(0, 0, 0, 0) 45%, rgba(4, 2, 10, .85) 100%);
+  opacity: calc(var(--tension, 0) * .75);
+  transition: opacity .9s ease;
+}
+/* Kombo metresi (2.5): art arda zincirlerle dolan çubuk, yanında seri çarpanı */
+.combo { justify-self: start; display: flex; align-items: center; gap: 6px; padding-left: 4px; }
+.combo-bar { position: relative; width: 58px; height: 10px; border-radius: 6px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.combo-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 6px; background: linear-gradient(90deg, #ff9f1c, #ffd54a); transition: width .5s cubic-bezier(.2, 1.3, .4, 1); }
+.combo b { font-family: var(--font-display); font-size: 15px; color: var(--gold); min-width: 22px; }
+.combo.bump .combo-bar { animation: bump .35s ease; }
+.combo.full .combo-bar { animation: combo-full .7s ease; }
+@keyframes combo-full { 30% { box-shadow: 0 0 0 4px rgba(255, 213, 74, .6), 0 0 18px #ffd54a; transform: scale(1.15); } }
+.tutorial .combo { visibility: hidden; }
 #boardBg {
   position: absolute;
   inset: 0;
@@ -745,11 +761,11 @@ svg { display: block; }
 /* Son halka patlayınca tahta kısa bir an sarsılır */
 .board-wrap.quake { animation: quake .45s cubic-bezier(.3, .7, .4, 1); }
 @keyframes quake {
-  15% { transform: translate(-5px, 3px); }
-  30% { transform: translate(5px, -3px); }
-  45% { transform: translate(-3px, -2px); }
-  60% { transform: translate(3px, 2px); }
-  80% { transform: translate(-1px, 1px); }
+  15% { transform: translate(-5px, 3px) scale(var(--zoom, 1)); }
+  30% { transform: translate(5px, -3px) scale(var(--zoom, 1)); }
+  45% { transform: translate(-3px, -2px) scale(var(--zoom, 1)); }
+  60% { transform: translate(3px, 2px) scale(var(--zoom, 1)); }
+  80% { transform: translate(-1px, 1px) scale(var(--zoom, 1)); }
 }
 
 .tip {

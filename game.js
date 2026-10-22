@@ -39,6 +39,12 @@
   const FIXED_COLOR = W.PIECE_COLORS.fixed;
   const STROKE = 13;
   const FLY_MS = 520;
+  // 2.5 gerilim ve ödül anları (Z8, Z18): bütün bölümlerde
+  const HITSTOP_MS = 260;  // son halkadan önce sahne bir an donar
+  const SLOW_K = 2.4;      // son halka ağır çekimde bu kat yavaş uçar
+  const COMBO_FULL = 6;    // kombo metresinin dolması için gereken puan
+  const COMBO_COINS = 3;   // metre dolunca gelen altın patlaması
+  const flyMs = f => (f.slow ? FLY_MS * SLOW_K : FLY_MS);
   const WAVE_MS = 170;
   const COIN_MS = 650;
   const KEY_MS = 560;   // anahtarın kilide uçuşu
@@ -216,6 +222,8 @@
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
         noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
       },
+      // Kalp atışı: iki alçak, yumuşak vuruş (gerilim sahnesi)
+      heart: () => { tone(62, 0.16, 'sine', 0.22, 42); tone(56, 0.14, 'sine', 0.16, 40, 0.24); },
       // Kazan düdüğü: yükselen tiz ses, altında kaynama gurultusu
       whistle: () => {
         tone(700, 0.55, 'sine', 0.08, 2200);
@@ -306,6 +314,9 @@
   let particles = [];
   let confetti = [];
   let shocks = [];     // son halkanın şok dalgası { x, y, t0 } (uygulama koordinatı)
+  let flashT = 0;       // son halkadaki beyaz parlamanın başlangıcı
+  // Kombo metresi: art arda zincir yapan hamleler doldurur, dolunca altın patlaması (oturum boyunca sürer)
+  let comboPts = 0, comboStreak = 0;
   let floaters = [];   // yükselen yazılar, ör. "Harika!" { text, x, y, t0, big?, size?, sub?, colors?, life? } (uygulama koordinatı)
   let lightWaves = []; // 3 yıldız ışık dalgası { x, y, t0 } (uygulama koordinatı)
 
@@ -1347,6 +1358,12 @@
       return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD : 0) +
         (fuses[w].length ? FUSE_WAIT + FUSE_MS : 0);
     }, 0);
+    // Son halka: sahne bir an donar (hit-stop), sonra parlama ve ağır çekimde uçuş
+    if (finale && waves.length && !REDUCED) {
+      at[waves.length - 1] += HITSTOP_MS;
+      // donma anında kamera bir tık daha yaklaşır; son halka uçunca gerilim sıfırlanır ve kamera geri sıçrar
+      setTimeout(() => { if (S.won) $('game').style.setProperty('--zoom', '1.06'); }, Math.max(0, at[waves.length - 1] - HITSTOP_MS));
+    }
     // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
     const blastFrom = {};
     // Kazan: basıncı dolunca düdük öter, kazan akkor parlar; sonraki dalgada çıkıp bomba gibi patlar
@@ -1429,7 +1446,7 @@
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
-        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null };
+        S.fly[i] = { t0: now + at[w], dx, dy, spin: blastFrom[i] != null ? (Math.random() < 0.5 ? -2.5 : 2.5) : 0, tele: teleOf[i] != null, slow: last && !REDUCED };
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
@@ -1444,6 +1461,7 @@
       }
     });
     const freed = waves.flat();
+    if (!S.preview && S.tut == null) setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
@@ -1473,7 +1491,7 @@
       S.won = true;
       // Ödül açılıyorsa bölüm sonu ekranı onun ardından gelir
       const lootEnd = loot && loot.t0 != null ? loot.t0 + (loot.type === 'chest' ? CHEST_SHAKE_MS + 750 : TOKEN_MS + 500) - now : 0;
-      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS + (fxOn() ? 350 : 0), lootEnd));
+      setTimeout(showWin, Math.max(at[waves.length - 1] + WAVE_MS + FLY_MS * SLOW_K + (fxOn() ? 350 : 0), lootEnd));
     }
     updateHud();
   }
@@ -1895,6 +1913,7 @@
   // Son halka: gümleme, şok dalgası, beyaz parlama ve tahtada kısa bir sarsıntı
   function finaleBlast(wave) {
     Sound.boom();
+    if (fxOn()) flashT = performance.now();
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (e) { /* yok say */ } }
     if (!fxOn()) return;
     const c = waveCenter(wave);
@@ -1934,6 +1953,76 @@
         life: 1, size: 2.5 + Math.random() * (melt ? 4 : 2.5), color: 'rgba(235,250,255,.95)', shape: 'shard', rot: Math.random() * TAU });
     }
   }
+  // ---- Kombo metresi (2.5) ----
+  // Zincir (2+ halka) yapan hamle metreyi (halka-1) × seri kadar doldurur; seri art arda zincirde 3'e kadar büyür,
+  // zincirsiz hamlede sıfırlanır (metre boşalmaz). Metre dolunca altın patlaması: altınlar metreden kasaya uçar.
+  function addCombo(n) {
+    if (n >= 2) {
+      comboStreak = Math.min(3, comboStreak + 1);
+      comboPts += (n - 1) * comboStreak;
+    } else comboStreak = 0;
+    let bursts = 0;
+    while (comboPts >= COMBO_FULL) { comboPts -= COMBO_FULL; bursts++; }
+    renderCombo(n >= 2);
+    if (bursts) comboBurst(bursts);
+  }
+  function renderCombo(bump) {
+    const el = $('combo');
+    el.querySelector('i').style.width = `${Math.round(comboPts / COMBO_FULL * 100)}%`;
+    $('comboMul').textContent = comboStreak >= 2 ? '×' + comboStreak : '';
+    if (bump) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+  }
+  function comboBurst(times) {
+    const el = $('combo'), r = el.getBoundingClientRect(), ar = $('app').getBoundingClientRect();
+    const x = r.left - ar.left + r.width / 2, y = r.top - ar.top + r.height / 2, n = COMBO_COINS * times;
+    el.classList.remove('full'); void el.offsetWidth; el.classList.add('full');
+    for (let k = 0; k < n; k++) coinFly.push({ x: x + (k - n / 2) * 8, y, t0: performance.now() + k * 110 });
+    for (let k = 0; k < 18; k++) {
+      const a = Math.random() * TAU, sp = 2 + Math.random() * 4;
+      confetti.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2, w: 2.5, color: k % 2 ? '#ffd54a' : '#fff3b0', life: 1, fade: 0.03, g: 0.1, rot: 0, vr: 0 });
+    }
+    floaters.push({ text: tr('Altın patlaması!'), sub: tr('+{n} altın', { n }), x: $('app').clientWidth / 2, y: y + 70, t0: performance.now(),
+      size: 34, colors: ['#fff3b0', '#ffc94a'], life: 1500 });
+    Sound.praise(3);
+    for (let k = 0; k < n; k++) setTimeout(() => Sound.coin(), COIN_MS + k * 110);
+    setTimeout(() => {
+      progress.coins += n;
+      saveProgress();
+      updateHud();
+      const pill = $('coinPill');
+      pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+    }, COIN_MS + n * 110);
+  }
+
+  // ---- Gerilim sahnesi (2.5, bütün bölümlerde) ----
+  // Tahtada kalan parça azaldıkça kenarlar kararır, kamera hafifçe yaklaşır; son iki parçada kalanlar titrer ve
+  // kalp atışı duyulur. Uçuşu başlamamış parçalar tahtada sayılır. Bölüm bitince kamera geri sıçrar.
+  function tensionOf(now) {
+    if (!S.L || S.failed || S.tut != null) return 0;
+    let total = 0, left = 0;
+    for (let i = 0; i < S.L.rings.length; i++) {
+      if (!(S.L.full & (1 << i))) continue;
+      total++;
+      if (present(i) || (S.fly[i] && now < S.fly[i].t0)) left++;
+    }
+    if (total < 3 || left === 0) return 0;
+    const gone = 1 - left / total;
+    return Math.min(1, Math.max(left <= 1 ? 1 : left === 2 ? 0.65 : 0, (gone - 0.4) / 0.6 * 0.55));
+  }
+  function stepTension(now) {
+    const T = tensionOf(now);
+    if (Math.abs(T - (S.tension || 0)) > 0.01) {
+      S.tension = T;
+      const g = $('game');
+      g.style.setProperty('--tension', T.toFixed(3));
+      g.style.setProperty('--zoom', REDUCED ? 1 : (1 + 0.035 * T).toFixed(4));
+      if (T >= 0.65) S.heart = { next: now + 350, n: 0 }; else S.heart = null;
+    }
+    // Kalp atışı: son parçalarda, oyuncu beklerken en çok altı kez
+    const h = S.heart;
+    if (h && now >= h.next && h.n < 6 && !S.won && !S.kicks.length && !S.auto) { Sound.heart(); h.n++; h.next = now + 1050; }
+  }
+
   // Parça övgüleri: buz eridi ("Buz kırıldı!"), motor döndükten sonra kurtuldu ("Tam zamanında!")
   const WORD = {
     ice: { text: 'Buz kırıldı!', colors: ['#ffffff', '#9be7ff'] },
@@ -3584,12 +3673,13 @@
     const f = S.fly[i];
     if (f && f.tele) {
       // Işınlanan ikiz yerinde dönerek küçülür
-      const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1), e = t * t;
+      const t = Math.min(Math.max((now - f.t0) / flyMs(f), 0), 1), e = t * t;
       alpha = 1 - e;
       grow = Math.max(0.02, 1 - e);
       spin = 5 * e;
     } else if (f) {
-      const t = Math.min(Math.max((now - f.t0) / FLY_MS, 0), 1);
+      // Son halka ağır çekimde: daha yavaş, biraz daha büyüyerek ve dönerek gider
+      const t = Math.min(Math.max((now - f.t0) / flyMs(f), 0), 1);
       const e = t * t;
       cx += f.dx * (f.spin ? 520 : 420) * e;
       cy += f.dy * (f.spin ? 520 : 420) * e;
@@ -3597,6 +3687,8 @@
       grow = 1 + 0.15 * t;
       spin = (f.spin || 0) * e;
     }
+    // Gerilim: son parçalar hafifçe titrer
+    if (!f && S.tension >= 0.65 && !REDUCED) { cx += Math.sin(now / 45 + i * 1.7) * 0.9 * S.tension; cy += Math.cos(now / 53 + i) * 0.6 * S.tension; }
     // Kazan ısındıkça titrer, düdük öterken sarsılır
     if (ring.boiler && (!f || now < f.t0) && !REDUCED) {
       const h = heatOf(i, now);
@@ -4189,6 +4281,11 @@
         drawCoin(fctx, x, y, r, now / 120);
       }
     }
+    // Son halkanın beyaz parlaması
+    if (flashT && now - flashT < 320) {
+      fctx.fillStyle = `rgba(255,252,235,${0.55 * (1 - (now - flashT) / 320)})`;
+      fctx.fillRect(0, 0, fx.width, fx.height);
+    }
     drawShocks(now);
     drawLightWaves(now);
     drawConfetti();
@@ -4238,7 +4335,8 @@
         checkHelp(now);
         drawTable(now);
         drawCouples();
-        const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + FLY_MS));
+        stepTension(now);
+        const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + flyMs(S.fly[i])));
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
@@ -4408,7 +4506,7 @@
   if (params.has('gallery')) showGallery();
 
   if (params.has('debug')) {
-    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, badgeCtx, awardBadges, showScreen,
+    window.__halka = { S, scale: () => scale, progress, ORDER, renderMap, loadLevel, lootOf, ambience, settle, addCombo, badgeCtx, awardBadges, showScreen,
       fxCounts: () => ({ shocks: shocks.length, floaters: floaters.length, lightWaves: lightWaves.length }) };
   }
   requestAnimationFrame(frame);
