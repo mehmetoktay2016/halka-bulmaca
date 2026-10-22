@@ -145,10 +145,10 @@
       S('Kule İstasyonu', 'istasyon', 'vagon'), S('Buharlı Peron', 'peron', 'vagon'), F('vagon')],
     // ---- Zindan ----
     11: [S('Hücre Kapısı', 'hucre', 'ziplama'), S('Meşale Duvarı', 'mesale', 'fener'), S('Zincir Asansörü', 'zincir', 'teleferik'),
-      S('Yarasa Mağarası', 'magara', 'kus'), F('kus'), S('Mantar Mahzeni', 'mahzenmantar', 'ziplama'), S('Gizli Geçit', 'gizli', 'isinlanma'),
+      S('Yarasa Mağarası', 'magara', 'kus'), F('kus'), S('Mantar Mahzeni', 'mantar', 'ziplama'), S('Gizli Geçit', 'gizli', 'isinlanma'),
       S('Maden Rayı', 'madenrayi', 'vagon'), S('Ejderha Yuvası', 'ejderhayuvasi', 'fener'), F('kus')],
-    12: [S('Mahzen Fıçıları', 'fici', 'tekerlek'), S('Anahtar Halkası', 'anahtar', 'ziplama'), S('Örümcek Köprüsü', 'agkopru', 'teleferik'),
-      S('Kuyu Dibi', 'kuyudibi', 'sarkac'), F('teleferik'), S('Su Kanalı', 'kanal', 'tekne'), S('Paslı Kafes', 'kafes', 'ziplama'),
+    12: [S('Mahzen Fıçıları', 'fici', 'tekerlek'), S('Anahtar Halkası', 'anahtar', 'ziplama'), S('Örümcek Köprüsü', 'ag', 'teleferik'),
+      S('Kuyu Dibi', 'kuyu', 'sarkac'), F('teleferik'), S('Su Kanalı', 'dere', 'tekne'), S('Paslı Kafes', 'kafes', 'ziplama'),
       S('Hazine Odası', 'hazine', 'vagon'), S('Altın Kapı', 'altinkapi', 'fener'), F('ziplama')],
     // ---- Şehir ----
     13: [S('Fırın Köşesi', 'firin', 'tekerlek'), S('Çiçekçi', 'cicekci', 'ucurtma'), S('Tramvay Durağı', 'tramvay', 'vagon'),
