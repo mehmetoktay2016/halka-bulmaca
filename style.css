@@ -756,6 +756,10 @@ svg { display: block; }
 #game.rain #movesNum { color: var(--gold); }
 .rain-total { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0; font-family: var(--font-display); font-size: 44px; color: var(--coin); }
 .rain-total .coin-ico { font-size: 36px; }
+/* Gizem halka (2.5) haritada; kusursuz seri çipi */
+.loot-ico.token.mystery .orb { fill: #8a63e0; stroke: #3d2580; stroke-width: 1.4; }
+.loot-ico.token.mystery text { fill: #fff; font: 900 12px Nunito, sans-serif; text-anchor: middle; }
+.chip.streak-chip { background: rgba(255, 213, 74, .14); color: #ffe7a0; }
 /* Dev Halka can çubuğu (2.5): plaka sayısı kadar kırmızı dilim, zırh bitince yanıp söner */
 .boss-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
 .boss-bar span { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffd6d6; }

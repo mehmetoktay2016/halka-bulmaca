@@ -432,10 +432,22 @@
         : type === 'gold' ? { name: tr('Altın halka'), coins: 0, bulbs: 0 }
         : { name: tr('Ampul halkası'), coins: 0, bulbs: 1 };
       loot = { type, ...what, ring, x, y };
+    } else if (mysteryAt(n)) {
+      // Gizem halka (2.5): ödül halkası olmayan bölümlerin yaklaşık sekizde birinde, sabit yerde
+      const spot = R.spotFor('bulb', spots(p));
+      if (spot) { const [ring, x, y] = spot; loot = { type: 'mystery', name: tr('Gizem halka'), coins: 0, bulbs: 0, ring, x, y }; }
     }
     return (lootCache[n] = loot);
   }
+  // Gizem halkanın bölümleri: her oyuncuda aynı (numaradan karışık bir sayı), kapı finalleri ve ilk bölümler hariç
+  const mysteryAt = n => {
+    if (n <= 3 || W.posInGate(n) === W.GATE_SIZE) return false;
+    let x = Math.imul(n ^ 0x5bd1e995, 2654435761);
+    x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12;
+    return ((x >>> 0) % 8) === 5;
+  };
   const LOOT_TIPS = {
+    mystery: { flag: 'mysteryTip', text: tr('Gizem halkayı kurtar: içinden rastgele bir ödül çıkar') },
     chest: { flag: 'lootTip', text: tr('Sandık, içinde durduğu halka kurtulunca açılır') },
     gold: { flag: 'goldTip', text: tr('Altın halkayı kurtar: bu bölümün altınları 2 kat sayılır') },
     bulb: { flag: 'bulbTip', text: tr('Ampul halkasını kurtar: +1 ampul') },
@@ -794,7 +806,9 @@
     return { width, height, cx, arches, nodes, pts, index, teaser };
   }
 
-  const lootSvg = l => (l.type === 'gold'
+  const lootSvg = l => (l.type === 'mystery'
+    ? `<svg class="loot-ico token mystery" viewBox="0 0 20 20" aria-hidden="true"><circle class="orb" cx="10" cy="10" r="8.5"/><text x="10" y="14.2">?</text></svg>`
+    : l.type === 'gold'
     ? `<svg class="loot-ico token gold" viewBox="0 0 20 20" aria-hidden="true"><circle class="coin" cx="10" cy="10" r="8.5"/><text x="10" y="13.6">×2</text></svg>`
     : l.type === 'bulb'
       ? `<svg class="loot-ico token bulb" viewBox="0 0 20 20" aria-hidden="true"><circle class="glass" cx="10" cy="8" r="6.5"/><rect class="base" x="7" y="13.5" width="6" height="5" rx="1.2"/></svg>`
@@ -1542,6 +1556,7 @@
       const t0 = now + at[Math.max(w, 0)];
       if (loot.type === 'chest') openChest(t0);
       else if (loot.type === 'gold') openGold(t0);
+      else if (loot.type === 'mystery') openMystery(t0);
       else openBulbRing(t0);
     }
     if (waves.length && navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* yok say */ } }
@@ -1699,6 +1714,33 @@
     }, Math.max(0, t0 - performance.now()));
   }
 
+  // Gizem halka: kurtulunca rastgele ödül; çoğunlukla 5-10 altın, bazen ampul, nadiren 20 altın. Bölüm başına bir kez.
+  function openMystery(t0) {
+    const c = S.loot;
+    c.t0 = t0;
+    const roll = Math.random();
+    if (roll < 0.25) c.bulbs = 1;
+    else c.coins = roll < 0.9 ? 5 + Math.floor(Math.random() * 6) : 20;
+    progress.loot[idOf(S.levelNo)] = 'mystery';
+    progress.coins += c.coins;
+    progress.hints += c.bulbs;
+    stat('coinsTotal', c.coins);
+    S.lootInAir = c.coins;
+    bulbsInAir += c.bulbs;
+    saveProgress();
+    setTimeout(() => {
+      if (S.loot !== c) return;
+      Sound.chestOpen(c.coins >= 20 ? 'epic' : 'rare');
+      lootBurst(c, '#c9a7ff', 46);
+      const p = boardToApp(c.x, c.y), w = $('app').clientWidth;
+      floaters.push({ text: tr('Gizem halka') + '!', sub: c.bulbs ? tr('+{n} ampul', { n: c.bulbs }) : tr('+{n} altın', { n: c.coins }),
+        x: Math.max(110, Math.min(w - 110, p.x)), y: p.y, t0: performance.now(), size: 34, colors: ['#ffffff', '#c9a7ff'], life: 1500 });
+      if (c.coins) lootCoins(c, p);
+      if (c.bulbs) setTimeout(() => flyBulbs(c.bulbs, p.x, p.y, true), 300);
+      awardBadges(false);
+    }, Math.max(0, t0 - performance.now()));
+  }
+
   // Ampul halkası: +1 ampul hemen kayda yazılır, ampul ipucu düğmesine uçar
   function openBulbRing(t0) {
     const c = S.loot;
@@ -1813,6 +1855,20 @@
     ctx.fillText('×' + R.LOOT.goldMult, x, y + 1);
     ctx.restore();
   }
+  // Gizem halka: mor küre, ortasında sallanan soru işareti
+  function drawMysteryToken(x, y, s, now) {
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    const g = ctx.createRadialGradient(-4, -4, 1, 0, 0, 13);
+    g.addColorStop(0, '#e9dcff'); g.addColorStop(1, '#7a52d6');
+    ctx.fillStyle = g; ctx.strokeStyle = '#3d2580'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.rotate(REDUCED ? 0 : Math.sin(now / 300) * 0.15);
+    ctx.fillStyle = '#fff'; ctx.font = '900 16px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', 0, 1);
+    ctx.restore();
+  }
+
   function drawBulbToken(x, y, s) {
     ctx.save();
     ctx.translate(x, y);
@@ -1853,7 +1909,7 @@
       if (k >= 1) { c.done = true; return; }
     }
     drawLootBase(c, now);
-    const color = c.type === 'gold' ? '#ffc94a' : '#fff3b0';
+    const color = c.type === 'gold' ? '#ffc94a' : c.type === 'mystery' ? '#c9a7ff' : '#fff3b0';
     const pulse = 0.5 + 0.5 * Math.sin(now / 380 + c.phase);
     const bob = REDUCED || c.t0 != null ? 0 : Math.sin(now / 500 + c.phase) * 1.5;
     const x = c.x, y = c.y + bob - 10 * k;
@@ -1866,7 +1922,9 @@
     ctx.fillStyle = grd;
     ctx.beginPath(); ctx.arc(x, y, glow, 0, TAU); ctx.fill();
     const s = 1 + 0.45 * Math.sin(Math.min(k, 0.5) * Math.PI);
-    if (c.type === 'gold') drawGoldToken(x, y, s, now); else drawBulbToken(x, y, s);
+    if (c.type === 'gold') drawGoldToken(x, y, s, now);
+    else if (c.type === 'mystery') drawMysteryToken(x, y, s, now);
+    else drawBulbToken(x, y, s);
     ctx.restore();
   }
 
@@ -2172,8 +2230,15 @@
     const firstClear = !progress.stars[key];
     if (stars > (progress.stars[key] || 0)) lastWon = S.levelNo;
     progress.stars[key] = Math.max(progress.stars[key] || 0, stars);
-    const earned = S.coins.filter(c => c.taken).length * S.coinMult;
+    let earned = S.coins.filter(c => c.taken).length * S.coinMult;
     if (S.coinMult > 1) progress.loot[key] = 'gold';
+    // Kusursuz seri (2.5): üst üste en iyi hamleyle ve ipucusuz biten bölümlerde altın 3. bölümden ×2, 6.dan ×3;
+    // seri bozulunca yalnız sıfırlanır
+    const flawless = !S.extra && !S.usedHint && S.moves <= par;
+    progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
+    const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
+    const streakBonus = earned * (streakMult - 1);
+    earned += streakBonus;
     progress.coins += earned;
     stat('coinsTotal', earned);
     if (!S.usedHint) progress.clean[key] = true;
@@ -2212,6 +2277,7 @@
       (S.coinMult > 1 ? `<span class="chip loot-chip gold">${tr('Altın halka')}: <b>${tr('altınlar ×{n}', { n: S.coinMult })}</b></span>` : '') +
       (opened && opened.type === 'bulb' ? `<span class="chip bulb">${tr('Ampul halkası')}: <b>${tr('+{n} ampul', { n: opened.bulbs })}</b></span>` : '') +
       (goldGate ? `<span class="chip bulb">${tr('Altın kapı')}: <b>${tr('+{n} ampul', { n: GOLD_GATE_BULBS })}</b></span>` : '') +
+      (progress.streakPerfect >= 2 ? `<span class="chip streak-chip">${tr('Kusursuz seri {n}', { n: progress.streakPerfect })}${streakMult > 1 ? `: <b>${tr('altınlar ×{n}', { n: streakMult })}${streakBonus ? ' (+' + streakBonus + ')' : ''}</b>` : ''}</span>` : '') +
       (piece ? stickerWinHtml(piece, setDone) : '');
     if (piece) setTimeout(() => Sound.piece(setDone), 900);
     if (goldGate) {
