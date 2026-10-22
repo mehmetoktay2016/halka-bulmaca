@@ -1459,7 +1459,7 @@
   // normal bölümler, 5. sırada ara şekil, sonda final. Normal bölümler 90'dan başlayan kaynak
   // numaralarıyla kendi kapılarının dünyasına göre üretilir (NORMAL_PLAN: kapı ve hedef zorluk).
   const OLD_GATES = 6;
-  const LAST_GATE = 30; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane)
+  const LAST_GATE = 40; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane); 2.5: kapı 31-40
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
@@ -1471,7 +1471,9 @@
   // kapı 20 gibi önceki zirvenin 2,5 altından başlar ve aynı zirveye (15,7) çıkar (kapı içi testere dişi korunur).
   const GATE_PEAK = { 7: 12.6, 8: 12.75, 9: 12.9, 10: 13.05, 11: 13.2, 12: 13.5, 13: 13.75, 14: 14.0,
     15: 14.25, 16: 14.5, 17: 14.8, 18: 15.1, 19: 15.4, 20: 15.7,
-    21: 15.7, 22: 15.7, 23: 15.7, 24: 15.7, 25: 15.7, 26: 15.7, 27: 15.7, 28: 15.7, 29: 15.7, 30: 15.7 };
+    21: 15.7, 22: 15.7, 23: 15.7, 24: 15.7, 25: 15.7, 26: 15.7, 27: 15.7, 28: 15.7, 29: 15.7, 30: 15.7,
+    // 2.5 (kullanıcı kararı): zorluk hamleden değil yeni parçalardan gelir (puanda parçaların ağırlığı var), düzey aynı
+    31: 15.7, 32: 15.7, 33: 15.7, 34: 15.7, 35: 15.7, 36: 15.7, 37: 15.7, 38: 15.7, 39: 15.7, 40: 15.7 };
   const PLATEAU = 21; // bu kapıdan sonra zirveler artmaz (check_levels de buna göre denetler)
   const OLD_PEAK = 12.5; // 6. kapının zirvesi
   const GATE_DROP = 2.5; // yeni kapının ilk normal bölümü önceki zirvenin bu kadar altından başlar
@@ -1611,10 +1613,25 @@
     13: ['frame'], 14: ['frame'], 15: ['fast'], 16: ['fast'],
     // 2.4: Lunapark yay ve jeton, Santral şalter, Deniz Feneri nabız, Rasathane döner tabla
     21: ['kick'], 22: ['token'], 23: ['kick', 'token'], 24: ['switch'], 25: ['switch'], 26: ['pulse'], 27: ['pulse'], 28: ['pulse'],
-    29: ['table'], 30: ['table'] };
+    29: ['table'], 30: ['table'],
+    // 2.5: Havai Fişek bomba (33'te kazan), Buzul buz, Değirmen motor, Büyü Kulesi ikiz portal
+    31: ['bomb'], 32: ['bomb'], 33: ['bomb', 'boiler'], 34: ['ice'], 35: ['ice'], 36: ['motor'], 37: ['motor'], 38: ['motor'],
+    39: ['portal'], 40: ['portal'] };
   // Kapı 21-30'da dünyanın kendi parçasına yarı yarıya daha önce tanıtılmış bir parça eşlik eder
   const NEW_MECH_GATE = { kick: 21, token: 22, switch: 24, pulse: 26, table: 29 };
+  // 2.5: kapı 31-40'ta yeni parçaya yarı yarıya eski ya da daha önce tanıtılmış yeni bir parça eşlik eder.
+  // Şalter, nabız ve tabla katılmaz: yeni parçaların çoğuyla aynı halkada birleşemezler, arama boşa gider.
+  const NEW25_GATE = { bomb: 31, boiler: 33, ice: 34, motor: 36, portal: 39 };
   function mechanicsFor(gate, rnd) {
+    if (gate >= 31) {
+      const own = WORLD_MECH[gate].slice();
+      if (rnd() < 0.5) {
+        const pool = ['reverse', 'click', 'key', 'fast', 'kick', 'token', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < gate)]
+          .filter(m => !own.includes(m));
+        own.push(pool[Math.floor(rnd() * pool.length)]);
+      }
+      return own;
+    }
     if (gate >= 21) {
       const own = WORLD_MECH[gate].slice();
       if (rnd() < 0.5) {
@@ -1643,14 +1660,15 @@
   function generateFor(levelNo, first = 0, count = NORMAL_PLAN[levelNo] && NORMAL_PLAN[levelNo].peak ? 3000 : 2000, band = 0.03) {
     const plan = NORMAL_PLAN[levelNo];
     if (!plan) return null;
+    if (plan.gate >= 31) return growFor(levelNo);
     const maxPar = maxParOfGate(plan.gate);
     const near = plan.near;
     let best = null, bestErr = Infinity;
     // 2.4 (kapı 21+): süre sınırı (normal 3, zirve 6 dk) dolunca o ana kadarki en iyi bölüm alınır;
     // hedefe uzaklık eşiği 0,3 (parçalar arama uzayını büyüttü, 2000 adayın hepsi saatler sürüyordu)
     // Hiç aday bulunamasa da en çok 10 dakika aranır (bir zirve bölümü gece 8 saat takılı kaldı)
-    const late = plan.gate >= 21, deadline = Date.now() + (plan.peak ? 360000 : 180000), hardStop = Date.now() + 600000;
-    for (let attempt = first; attempt < first + count && bestErr > (plan.peak ? 0 : late ? 0.3 : 0.15); attempt++) {
+    const late = plan.gate >= 21, newer = plan.gate >= 31, deadline = Date.now() + (plan.peak ? 360000 : 180000), hardStop = Date.now() + 600000;
+    for (let attempt = first; attempt < first + count && bestErr > (plan.peak ? 0 : newer ? 0.4 : late ? 0.3 : 0.15); attempt++) {
       if (late && best && Date.now() > deadline) break;
       if (late && Date.now() > hardStop) break;
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 77);
@@ -1672,6 +1690,9 @@
       const idx = pos.map((_, i) => i).sort(() => rnd() - 0.5);
       const take = () => idx.shift();
       const rings = pos.map(c => ({ x: Math.round(c.x * 10) / 10, y: Math.round(c.y * 10) / 10, r: Math.round(c.r), a: Math.round(rnd() * 360) }));
+      // 2.5 parçaları önce yerleşir (eşli, sabit ya da başka parçalı olamazlar): buz, kazan ve bomba çok komşulu
+      // göbek halkalara; çevredeki kolay halkalar onların yakıtıdır (kurtuldukça buz çatlar, basınç dolar)
+      if (plan.gate >= 31 && !placeNewPieces(rings, mech, idx, rnd)) continue;
       const couples = [];
       const pair = ratio => { if (idx.length >= 2) couples.push([take(), take(), ratio]); };
       if (mech.includes('reverse')) { pair(-1); if (t > 10 && rnd() < 0.5) pair(-1); }
@@ -1784,11 +1805,214 @@
       const sc = difficultyScore(def);
       // Zirve: bu kapının hedefi ile sonraki kapının hedefi arasında (zirveler kesin artar)
       // Kapı 21+ zorluk sabit (kapı 20 düzeyi): zirve 0,4 aşağıya kadar kabul (check_levels ±0,5 izin verir)
-      if (plan.peak && (sc < t - (late ? 0.4 : 0) || sc >= plan.top)) continue;
+      if (plan.peak && (sc < t - (newer ? 0.45 : late ? 0.4 : 0) || sc >= plan.top)) continue;
       const err = plan.peak ? 0 : Math.abs(sc - t);
       if (err < bestErr) { best = def; bestErr = err; }
     }
     return best;
+  }
+
+  // ---- 2.5: merkezden dışa büyüterek üretim (kapı 31-40, kullanıcı önerisi) ----
+  // Ortaya kapının parçasını taşıyan göbek halka ve iki komşusu konur. Sonra her adımda mevcut halkalara değen
+  // yeni bir halka eklenir (yarı yarıya göbeğe: parçanın yakıtı) ve hızlı çözücüyle puana bakılır. Puanı hedefin
+  // üstüne çıkaran ya da bölümü bozan halka geri alınır, başka yerde denenir. Puan hedef aralığa girince bölüm
+  // bir kez tam çözülür; parça gerçekten işe yarıyorsa kabul edilir. Bütün düzen değil yalnızca son adım çöpe gider.
+  const GROW_STATS = {};
+  const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; };
+  function growFor(levelNo) {
+    const plan = NORMAL_PLAN[levelNo];
+    const maxPar = maxParOfGate(plan.gate), t = plan.target;
+    const deadline = Date.now() + (plan.peak ? 300000 : 150000);
+    const W = BOARD.w, H = BOARD.h;
+    const fits = (A, rings) => {
+      if (A.x - A.r < 16 || A.x + A.r > W - 16 || A.y - A.r < 16 || A.y + A.r > H - 16) return false;
+      for (const B of rings) {
+        const d = Math.hypot(A.x - B.x, A.y - B.y), crosses = d < A.r + B.r && d > Math.abs(A.r - B.r);
+        if (crosses && (d > A.r + B.r - 24 || d < Math.abs(A.r - B.r) + 20)) return false;
+        if (!crosses && d < A.r + B.r + 8) return false;
+      }
+      return true;
+    };
+    const near = plan.near;
+    const attach = (rnd, rings, p) => {
+      const P = rings[p], r = 36 + Math.round(rnd() * 22), sum = P.r + r;
+      const d = Math.max(Math.abs(P.r - r) + 24, Math.min(sum * (near + (rnd() - 0.5) * 0.04), sum - 26));
+      const a = rnd() * Math.PI * 2;
+      const c = { x: Math.round((P.x + Math.cos(a) * d) * 10) / 10, y: Math.round((P.y + Math.sin(a) * d) * 10) / 10, r, a: Math.round(rnd() * 360) };
+      return fits(c, rings) ? c : null;
+    };
+    const own = WORLD_MECH[plan.gate];
+    let best = null, bestErr = Infinity;
+    // Normal bölüm hedefin ±0,4'ünde kabul edilir (0,25'e inince aramayı bırakır); zirve [hedef-0,45, sonraki kapı)
+    const upper = plan.peak ? plan.top : t + 0.4;
+    for (let attempt = 0; Date.now() < deadline && bestErr > (plan.peak ? 0 : 0.25); attempt++) {
+      const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 313);
+      const mech = mechanicsFor(plan.gate, rnd).filter(m => ['bomb', 'boiler', 'ice', 'motor', 'portal', 'click', 'reverse'].includes(m));
+      const hub = { x: W / 2 + (rnd() - 0.5) * 40, y: H / 2 + (rnd() - 0.5) * 60, r: 58 + Math.round(rnd() * 10), a: Math.round(rnd() * 360) };
+      const rings = [hub];
+      for (let k = 0; k < 40 && rings.length < 3; k++) { const c = attach(rnd, rings, 0); if (c) rings.push(c); }
+      if (rings.length < 3) continue;
+      // Göbeğin parçası; motor ve portal komşulara
+      // Her halkada en çok bir parça: önce ikizler (göbeğin iki komşusu), göbeğe buz ya da kazan, kalanlar boş halkalara
+      const hasPiece = r => r.ice || r.boiler || r.bomb || r.motor || r.portal || r.step;
+      const pick = () => rings.find(r => !hasPiece(r));
+      if (mech.includes('portal')) { rings[1].portal = 1; rings[2].portal = 1; }
+      if (mech.includes('ice')) hub.ice = 1;
+      else if (mech.includes('boiler')) hub.boiler = 1;
+      if (mech.includes('bomb')) { const r = pick(); if (!r) continue; r.bomb = true; }
+      if (mech.includes('motor')) { const r = pick(); if (!r) continue; r.motor = [90, -90, 60, -60, 120][Math.floor(rnd() * 5)]; }
+      if (mech.includes('click')) { const r = pick(); if (r) r.step = [45, 60, 90][Math.floor(rnd() * 3)]; }
+      const couples = [];
+      const build = () => {
+        const def = { rings: rings.map(r => ({ ...r })), couples: couples.map(c => c.slice()) };
+        try { return { def, L: Logic.buildLevel(def) }; } catch (e) { return null; }
+      };
+      // İkizler değmemeli: başta değiyorlarsa bu çekirdek olmaz
+      if (mech.includes('portal')) { const A = rings[1], B = rings[2]; if (Math.hypot(A.x - B.x, A.y - B.y) < A.r + B.r) continue; }
+      // Zorlaştırma: boş bir halkaya dünyanın parçası (ya da eski bir parça) eklenir; bölüm bozulur, hedefi aşar ya da
+      // baştan serbest halka kalırsa geri alınır
+      const intensify = (ownOnly = false) => {
+        const nbOf = i => rings.reduce((n, B, j) => n + (j !== i && Math.hypot(rings[i].x - B.x, rings[i].y - B.y) < rings[i].r + B.r ? 1 : 0), 0);
+        const inCouple = i => couples.some(c => c[0] === i || c[1] === i);
+        const free = rings.map((r, i) => i).filter(i => !hasPiece(rings[i]) && !rings[i].fixed && !inCouple(i));
+        if (!free.length) return;
+        // Kendi parçası güçlendirilecekse en çok komşulu boş halka seçilir (buz ve kazan ancak orada fark yaratır)
+        if (ownOnly) free.sort((a, b) => nbOf(b) - nbOf(a));
+        const i = ownOnly ? free[0] : free[Math.floor(rnd() * free.length)], R = rings[i], undoFns = [];
+        const choices = [];
+        for (const m of mech) {
+          if (m === 'ice' && nbOf(i) >= 2) choices.push(() => { R.ice = 1; undoFns.push(() => delete R.ice); });
+          if (m === 'boiler' && nbOf(i) >= 2) choices.push(() => { R.boiler = 1; undoFns.push(() => delete R.boiler); });
+          if (m === 'bomb') choices.push(() => { R.bomb = true; undoFns.push(() => delete R.bomb); });
+          if (m === 'motor') choices.push(() => { R.motor = [90, -90, 60, -60][Math.floor(rnd() * 4)]; undoFns.push(() => delete R.motor); });
+          if (m === 'portal' && free.length >= 2) {
+            const j = free.find(k => k !== i && Math.hypot(rings[k].x - R.x, rings[k].y - R.y) >= rings[k].r + R.r);
+            if (j != null) choices.push(() => { const n = 1 + Math.max(0, ...rings.map(r => r.portal || 0)); R.portal = n; rings[j].portal = n; undoFns.push(() => { delete R.portal; delete rings[j].portal; }); });
+          }
+        }
+        if (hub.ice === 1 && rings.filter((r, k) => k > 0 && Math.hypot(r.x - hub.x, r.y - hub.y) < r.r + hub.r).length >= 3) choices.push(() => { hub.ice = 2; undoFns.push(() => { hub.ice = 1; }); });
+        if (!ownOnly || !choices.length) {
+          choices.push(() => { R.step = [45, 60, 90][Math.floor(rnd() * 3)]; undoFns.push(() => delete R.step); });
+          choices.push(() => { R.fixed = true; undoFns.push(() => delete R.fixed); });
+          if (free.length >= 2) choices.push(() => { const j = free.find(k => k !== i); couples.push([i, j, -1]); undoFns.push(() => couples.pop()); });
+        }
+        choices[Math.floor(rnd() * choices.length)]();
+        const back = () => { for (const f of undoFns.reverse()) f(); };
+        const b = build();
+        if (!b || !noRingFreeAtStart(b.L)) { back(); return; }
+        const q = Logic.solveFast(b.L, b.L.startAngles, 0, 6000);
+        if (!q || q.moves > maxPar) { back(); return; }
+        b.def.par = q.moves;
+        if (difficultyScore(b.def) >= upper) back();
+      };
+      let fails = 0;
+      while (rings.length < 12 && fails < 40 && Date.now() < deadline) {
+        const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
+        const c = attach(rnd, rings, p);
+        if (!c) { fails++; continue; }
+        rings.push(c);
+        // Yeni halka bir eşle gelebilir (ters dişli): aynı adımda iki halka
+        let paired = false;
+        if (mech.includes('reverse') && !couples.length && rnd() < 0.5) {
+          const q = rings.findIndex((r, i) => i > 0 && i < rings.length - 1 && !r.ice && !r.boiler && !r.motor && !r.portal && !r.bomb && !r.step);
+          if (q > 0) { couples.push([q, rings.length - 1, -1]); paired = true; }
+        }
+        // Göbeğin komşuları arttıkça parçası güçlenebilir (buz 2 kat, kazan basıncı)
+        const hubNb = rings.filter((r, i) => i > 0 && Math.hypot(r.x - hub.x, r.y - hub.y) < r.r + hub.r).length;
+        const old = { ice: hub.ice, boiler: hub.boiler };
+        if (hub.ice && hub.ice < 2 && hubNb >= 3 && rnd() < 0.4) hub.ice = 2;
+        if (hub.boiler && hub.boiler < 3 && hub.boiler < hubNb - 1 && rnd() < 0.5) hub.boiler++;
+        const undo = () => { rings.pop(); if (paired) couples.pop(); hub.ice = old.ice; hub.boiler = old.boiler; fails++; };
+        const b = build();
+        if (!b) { gs('kural_hatasi'); undo(); continue; }
+        let { def, L } = b;
+        // Yeni halkanın açısı: baştan serbest halka kalmayacak biçimde birkaç kez denenir
+        let ok = noRingFreeAtStart(L);
+        for (let re = 0; re < 12 && !ok; re++) { rings[rings.length - 1].a = Math.round(rnd() * 360); const b2 = build(); if (!b2) break; ({ def, L } = b2); ok = noRingFreeAtStart(L); }
+        if (!ok) { gs('bastan_serbest'); undo(); continue; }
+        const quick = Logic.solveFast(L, L.startAngles, 0, 6000);
+        if (!quick || quick.moves > maxPar) { gs('cozumsuz_veya_uzun'); undo(); continue; }
+        def.par = quick.moves;
+        const sc = difficultyScore(def);
+        GROW_STATS.maxSc = Math.max(GROW_STATS.maxSc || 0, sc); GROW_STATS.maxPar = Math.max(GROW_STATS.maxPar || 0, def.par);
+        if (sc >= upper) { gs('ust_sinir'); undo(); continue; }
+        if (rings.length < 5 || (plan.peak ? sc < t - 0.45 : sc < t - 0.4)) {
+          // Puan düşük: halka eklemenin yanında bir parça eklenerek de zorlaşır (zorluk parçalardan gelsin)
+          if (rings.length >= 4 && rnd() < 0.6) intensify();
+          gs('puan_dusuk'); continue;
+        }
+        // Hedef aralıkta: bir kez tam çözülür, ipucu çözebilmeli, kapının parçası işe yaramalı
+        if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { undo(); continue; }
+        const exact = Logic.solve(L, L.startAngles, 0, 20000);
+        def.par = exact ? exact.moves : quick.moves;
+        if (def.par < 3) continue;
+        if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) { undo(); continue; }
+        if (!connected(L)) { undo(); continue; }
+        if (!mattersAll(def, own.filter(m => features(def).includes(m)))) { gs('parca_onemsiz'); intensify(true); continue; }
+        // Dopamin anı: en iyi çözümde tek hamlede en az 3 (zirvede 4) parçanın birden uçtuğu bir zincir olmalı
+        if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); continue; }
+        const s2 = difficultyScore(def);
+        if (s2 >= upper || s2 < t - (plan.peak ? 0.45 : 0.4)) { undo(); continue; }
+        const err = plan.peak ? 0 : Math.abs(s2 - t);
+        if (err < bestErr) { best = def; bestErr = err; }
+        break;
+      }
+    }
+    return best;
+  }
+
+  // Çözüm boyunca tek hamlede uçan en çok parça (çözüm yolu ipucu aramasıyla izlenir)
+  function bigMoment(def, L) {
+    let st = { angles: L.startAngles, mask: 0 }, most = 0;
+    const pop = m => { let n = 0; while (m) { n += m & 1; m >>>= 1; } return n; };
+    for (let k = 0; k < 12 && st.mask !== L.full; k++) {
+      const q = Logic.solveFast(L, st.angles, st.mask, 8000, 0.8);
+      if (!q || !q.first || q.first.ring < 0) break;
+      const c = Logic.afterMove(L, Logic.rotate(L, st.angles, q.first.ring, q.first.delta), st.mask);
+      most = Math.max(most, pop(c.mask & ~st.mask));
+      st = c;
+    }
+    return most;
+  }
+
+  // 2.5 parçalarını yerleştirir; yerleşemezse false (aday elenir). idx: henüz parçasız halkalar (alınanlar çıkar)
+  function placeNewPieces(rings, mech, idx, rnd) {
+    const crossing = (i, j) => { const A = rings[i], B = rings[j], d = Math.hypot(A.x - B.x, A.y - B.y); return i !== j && d < A.r + B.r && d > Math.abs(A.r - B.r); };
+    const nb = i => rings.reduce((n, _, j) => n + (crossing(i, j) ? 1 : 0), 0);
+    const takeBest = (minNb) => {
+      const cand = idx.filter(i => nb(i) >= minNb).sort((a, b) => nb(b) - nb(a) || rnd() - 0.5);
+      if (!cand.length) return -1;
+      const i = cand[0];
+      idx.splice(idx.indexOf(i), 1);
+      return i;
+    };
+    if (mech.includes('ice')) {
+      const i = takeBest(3);
+      if (i < 0) return false;
+      rings[i].ice = Math.min(nb(i) - 1, rnd() < 0.5 ? 2 : 1);
+    }
+    if (mech.includes('boiler')) {
+      const i = takeBest(3);
+      if (i < 0) return false;
+      rings[i].boiler = Math.max(1, Math.min(3, nb(i) - 1 - (rnd() < 0.5 ? 1 : 0)));
+    }
+    if (mech.includes('bomb')) {
+      const i = takeBest(2);
+      if (i < 0) return false;
+      rings[i].bomb = true;
+    }
+    if (mech.includes('motor')) {
+      if (!idx.length) return false;
+      rings[idx.shift()].motor = [90, -90, 60, -60, 120][Math.floor(rnd() * 5)];
+    }
+    if (mech.includes('portal')) {
+      // İkizler birbirine değmez: biri kolay kurtulabilecek bir yerde, öbürü zor bir yerde olabilsin
+      let pair = null;
+      for (const a of idx) { for (const b of idx) if (a < b && !crossing(a, b)) { pair = [a, b]; break; } if (pair) break; }
+      if (!pair) return false;
+      for (const i of pair) { idx.splice(idx.indexOf(i), 1); rings[i].portal = 1; }
+    }
+    return true;
   }
 
   // Bir parçanın kaldırılmış hali (bölümde o parça gerçekten işe yarıyor mu sınamak için)
@@ -1812,10 +2036,26 @@
       if (Logic.cascade(P, P.startAngles, 0).mask) continue; // parçasız hali baştan çözülüyorsa parça şart
       // Hızlı ve titiz arama yeter: parçasız hali aynı hamlede çözülüyorsa parça işe yaramıyor demektir
       const s = Logic.solveFast(P, P.startAngles, 0, 20000, 0.8);
+      // Buz çoğu zaman hamle sayısını değil sırayı değiştirir: buzsuz hâlin çözümü bir yerde donmuş halkayı
+      // çeviriyorsa buz o yolu kapatmıştır, işe yarıyor sayılır
+      if (s && s.moves <= def.par && f === 'ice' && iceBlocksPlain(def, P)) continue;
       if (s && s.moves <= def.par) return false;
     }
     return true;
   }
+  // Buzsuz hâlin çözüm yolu izlenir; buzlu bölümde o anda donmuş olacak bir halka çevriliyorsa true
+  function iceBlocksPlain(def, P) {
+    const L = Logic.buildLevel(def);
+    let st = { angles: P.startAngles, mask: 0 };
+    for (let k = 0; k < 12 && st.mask !== P.full; k++) {
+      const q = Logic.solveFast(P, st.angles, st.mask, 8000, 0.8);
+      if (!q || !q.first || q.first.ring < 0) return false;
+      if (Logic.iceLeft(L, q.first.ring, st.mask)) return true;
+      st = Logic.afterMove(P, Logic.rotate(P, st.angles, q.first.ring, q.first.delta), st.mask);
+    }
+    return false;
+  }
+
   // Tablanın her konumunda taşınan halkalar tahtada kalmalı ve kesişimler seçilebilir olmalı. Dönmüş konumlar
   // geçici olduğundan eşik başlangıç düzeninden yumuşak: kesişim en az 14 derin, kesişmeyenler değmesin.
   function tableFits(def) {
@@ -1907,7 +2147,7 @@
 
   const api = {
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
-    difficultyScore, parScore, closeness, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
+    difficultyScore, parScore, closeness, GROW_STATS, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars,
     NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
