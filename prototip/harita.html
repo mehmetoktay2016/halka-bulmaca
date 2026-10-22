@@ -773,9 +773,14 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     else if (land) { const k = Math.sin(land * Math.PI) * land; sx = 1 + 0.25 * k; sy = 1 - 0.22 * k; }
     else if (!REDUCED) { const b = Math.sin(now / 420) * 0.025; sx = 1 - b; sy = 1 + b; }
     const R = HERO.r, spin = hs && hs.phase === 'air' && !REDUCED ? hs.t * TAU : 0;
-    g.save(); g.translate(p.x, p.y + R * (1 - sy)); g.scale(sx, sy);
+    const act = idleAct(m, now), dir = next.x >= p.x ? 1 : -1;
+    const tilt = hs && hs.phase === 'air' && !REDUCED ? Math.sin(Math.PI * hs.t) * 0.2 * (NODES[S.hop.to].x >= NODES[S.hop.from].x ? 1 : -1) : 0;
+    g.save(); g.translate(p.x, p.y + R * (1 - sy)); g.scale(sx, sy); g.rotate(tilt);
     // kenar ışığı
     add(() => glow(0, 0, 44, w ? 'rgba(160,235,255,.35)' : 'rgba(255,210,140,.38)'));
+    // gezgin sırt çantası (arkada, yandan görünür) ve bacaklar gövdenin arkasında
+    backpack(act);
+    legs(m, hs, land, act, now);
     // ortadaki cam yüzey
     const glass = g.createRadialGradient(-5, -6, 2, 0, 0, R);
     glass.addColorStop(0, 'rgba(255,252,240,.98)'); glass.addColorStop(1, 'rgba(255,232,200,.92)');
@@ -783,21 +788,110 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
     // gövde: dönerken boşluk da döner (oyunun halkası gibi)
     const gapA = 0.55 + spin, gap = 0.62;
     g.lineCap = 'round';
-    g.strokeStyle = '#2a1030'; g.lineWidth = HERO.band + 4; g.beginPath(); g.arc(0, 0, R, gapA + gap / 2, gapA + TAU - gap / 2); g.stroke();
+    g.strokeStyle = INK; g.lineWidth = HERO.band + 4; g.beginPath(); g.arc(0, 0, R, gapA + gap / 2, gapA + TAU - gap / 2); g.stroke();
     const body = g.createLinearGradient(-R, -R, R, R);
     body.addColorStop(0, '#ffe27a'); body.addColorStop(0.55, '#ffb43c'); body.addColorStop(1, '#ff7a3a');
     g.strokeStyle = body; g.lineWidth = HERO.band; g.beginPath(); g.arc(0, 0, R, gapA + gap / 2, gapA + TAU - gap / 2); g.stroke();
     g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2.6; g.beginPath(); g.arc(-1, -1.5, R + 1, Math.PI * 1.05, Math.PI * 1.55); g.stroke();
     g.strokeStyle = 'rgba(160,50,20,.35)'; g.lineWidth = 2; g.beginPath(); g.arc(1, 1.5, R - 1, Math.PI * 0.1, Math.PI * 0.55); g.stroke();
-    face(m, next, p, now);
+    // perçem: başın üstünde kıvrık tutam (karakterin imzası)
+    if (!w) curl(now, hs);
+    face(m, next, p, now, act);
+    arms(m, hs, act, now, dir);
     outfit(w, now, hs);
     g.restore();
     // havadayken dünyanın renginde kıvılcımlar
     if (hs && hs.phase === 'air' && !REDUCED && Math.random() < 0.7) S.fx.push({ k: 'spark', x: p.x + (Math.random() - 0.5) * 20, y: p.y + 10, vx: (Math.random() - 0.5) * 0.9, vy: 0.5 + Math.random() * 0.6, life: 1, c: WORLDS[w].glow });
   }
-  function face(m, next, p, now) {
+  // Boşta kendi kendine bir şeyler yapar: ileri bakar, el sallar, haritasına göz atar, sabırsızca ayak vurur
+  function idleAct(m, now) {
+    if (m !== 'idle' || REDUCED) return 'look';
+    if (S.forceAct) return S.forceAct; // test için
+    const c = (now / 1000) % 11;
+    return c < 4 ? 'look' : c < 5.6 ? 'wave' : c < 8.4 ? 'map' : c < 9.6 ? 'tap' : 'look';
+  }
+  const INK = '#2a1030';
+  // Kol ve bacak: koyu çerçeveli yumuşak çizgi
+  function limb(x0, y0, cx, cy, x1, y1, col, wd) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = INK; g.lineWidth = wd + 3; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1); g.stroke();
+    g.strokeStyle = col; g.lineWidth = wd; g.stroke();
+  }
+  function legs(m, hs, land, act, now) {
+    const R = HERO.r, t = now / 1000;
+    for (const s of [-1, 1]) {
+      let fx = s * 7, fy = R + 10, kx = s * 7.5, ky = R + 4;
+      if (hs && hs.phase === 'crouch') { fx = s * 11; fy = R + 6; kx = s * 14; ky = R + 1; }
+      else if (hs) { fx = s * 5; fy = R + 6; kx = s * 13; ky = R + 4; }
+      else if (land > 0.1) { fx = s * 13; fy = R + 8; kx = s * 12; ky = R + 3; }
+      else if (m === 'happy' || m === 'star') { const k = Math.max(0, Math.sin(t * 18 + (s > 0 ? 0 : Math.PI))); fy -= k * 5; fx += s * k * 3; }
+      else if (act === 'tap' && s > 0) fy -= Math.max(0, Math.sin(t * 22)) * 4;
+      limb(s * 6, R - 4, kx, ky, fx, fy, '#ffb43c', 3.6);
+      // ayakkabı: mor spor ayakkabı, beyaz taban, turuncu bağcık
+      g.save(); g.translate(fx + s * 2, fy + 1.5); g.rotate(s * 0.08);
+      g.fillStyle = INK; g.beginPath(); g.ellipse(0, 0, 6.6, 4.2, 0, 0, TAU); g.fill();
+      g.fillStyle = '#7b4bd6'; g.beginPath(); g.ellipse(0, -0.6, 5.2, 3, 0, 0, TAU); g.fill();
+      g.fillStyle = '#fff5ea'; g.fillRect(-5.4, 1.4, 10.8, 1.6);
+      g.fillStyle = '#ff9f1c'; g.fillRect(-1.6, -2.6, 3.2, 1.2);
+      g.restore();
+    }
+  }
+  function arms(m, hs, act, now, dir) {
+    const R = HERO.r, t = now / 1000, sw = REDUCED ? 0 : Math.sin(now / 420) * 1.5;
+    for (const s of [-1, 1]) {
+      let hx = s * (R + 5), hy = 16 + sw, cx = s * (R + 7), cy = 10;
+      if (hs && hs.phase === 'crouch') { hx = s * (R + 11); hy = 14; cx = s * (R + 9); cy = 4; }
+      else if (hs) { hx = s * (R + 13); hy = -14; cx = s * (R + 12); cy = 0; }
+      else if (m === 'happy' || m === 'star') { hx = s * (R + 9); hy = -19 + Math.sin(t * 16) * 3; cx = s * (R + 11); cy = -4; }
+      else if (m === 'wow') { hx = s * 10; hy = 6; cx = s * (R + 8); cy = 12; }
+      else if (act === 'wave' && s === dir) { hx = s * (R + 10) + Math.sin(t * 14) * 5; hy = -16; cx = s * (R + 10); cy = 0; }
+      else if (act === 'map') { hx = s * 9; hy = 15; cx = s * (R + 6); cy = 16; }
+      else if (act === 'tap' && s !== dir) { hx = s * 8; hy = 13; cx = s * (R + 7); cy = 14; } // el belde
+      limb(s * (R + 2), 4, cx, cy, hx, hy, '#ffb43c', 3.2);
+      // eldiven gibi yuvarlak el
+      g.fillStyle = INK; g.beginPath(); g.arc(hx, hy, 4.4, 0, TAU); g.fill();
+      g.fillStyle = '#fff5ea'; g.beginPath(); g.arc(hx, hy, 3, 0, TAU); g.fill();
+    }
+    if (act === 'map' && !hs) {
+      // açılmış küçük harita: noktalı yol ve hazine işareti
+      g.save(); g.translate(0, 15);
+      g.fillStyle = INK; g.fillRect(-12, -6.5, 24, 13);
+      g.fillStyle = '#fbe7b8'; g.fillRect(-11, -5.5, 22, 11);
+      g.fillStyle = '#e8c98a'; g.fillRect(-11, -5.5, 2, 11); g.fillRect(9, -5.5, 2, 11);
+      g.fillStyle = '#c0392b'; for (let k = 0; k < 4; k++) g.fillRect(-7 + k * 4, 1.5 - k * 1.4, 2, 1.2);
+      g.strokeStyle = '#c0392b'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(6, -4); g.lineTo(9, -1); g.moveTo(9, -4); g.lineTo(6, -1); g.stroke();
+      g.restore();
+    }
+  }
+  function backpack(act) {
+    const R = HERO.r;
+    g.save(); g.translate(-R - 2, 2); g.rotate(-0.15);
+    g.fillStyle = INK; g.beginPath(); g.roundRect ? g.roundRect(-9, -12, 15, 24, 5) : g.rect(-9, -12, 15, 24); g.fill();
+    g.fillStyle = '#2dd4bf'; g.beginPath(); g.roundRect ? g.roundRect(-7.6, -10.6, 12.2, 21.2, 4) : g.rect(-7.6, -10.6, 12.2, 21.2); g.fill();
+    g.fillStyle = '#1aa39a'; g.fillRect(-7.6, -10.6, 12.2, 7);
+    g.fillStyle = '#ffd34a'; g.fillRect(-2.6, -4.6, 2.4, 3);
+    if (act !== 'map') {
+      // çantadan taşan rulo harita
+      g.fillStyle = INK; g.beginPath(); g.ellipse(-3, -14, 3.2, 6.5, -0.3, 0, TAU); g.fill();
+      g.fillStyle = '#fbe7b8'; g.beginPath(); g.ellipse(-3, -14, 2, 5.4, -0.3, 0, TAU); g.fill();
+      g.fillStyle = '#c0392b'; g.fillRect(-4.6, -14.6, 3.2, 1.4);
+    }
+    g.restore();
+  }
+  function curl(now, hs) {
+    const R = HERO.r, b = REDUCED ? 0 : Math.sin(now / 260) * 0.12 + (hs && hs.phase === 'air' ? 0.35 : 0);
+    g.save(); g.translate(-5, -R - 3); g.rotate(-0.25 + b);
+    for (const [col, wd] of [[INK, 6], ['#ffb43c', 3.2]]) {
+      g.strokeStyle = col; g.lineWidth = wd; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(0, 3); g.quadraticCurveTo(-1, -7, -7, -9); g.quadraticCurveTo(-11, -9, -10, -5.5); g.quadraticCurveTo(-9, -3, -6.5, -4.6); g.stroke();
+    }
+    g.restore();
+  }
+  function face(m, next, p, now, act) {
     const blink = m === 'idle' && (now / 1000) % 3.4 < 0.12 ? 0.12 : 1;
-    const look = Math.atan2(next.y - p.y, next.x - p.x), lx = m === 'idle' ? Math.cos(look) * 1.8 : 0, ly = m === 'idle' ? Math.sin(look) * 1.4 : 0;
+    const look = Math.atan2(next.y - p.y, next.x - p.x);
+    let lx = m === 'idle' ? Math.cos(look) * 1.8 : 0, ly = m === 'idle' ? Math.sin(look) * 1.4 : 0;
+    if (act === 'map') { lx = 0; ly = 1.6; } else if (act === 'wave') { lx = 0; ly = 0; }
     const ink = '#2a1030';
     // yanaklar
     g.fillStyle = 'rgba(255,110,140,.45)'; g.beginPath(); g.ellipse(-9.5, 4.5, 3.6, 2.2, 0, 0, TAU); g.ellipse(9.5, 4.5, 3.6, 2.2, 0, 0, TAU); g.fill();
@@ -816,6 +910,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
       }
       g.restore();
       // kaşlar
+      if (m === 'idle') { const up = s > 0 && act !== 'map' ? -1.6 : 0; g.strokeStyle = ink; g.lineWidth = 1.8; g.lineCap = 'round'; g.beginPath(); g.moveTo(s * 3, -9.6 + up); g.quadraticCurveTo(s * 5.6, -11 + up * 1.3, s * 8.2, -9.8 + up); g.stroke(); }
       if (m === 'ready') { g.strokeStyle = ink; g.lineWidth = 1.8; g.lineCap = 'round'; g.beginPath(); g.moveTo(s * 2.6, -9.6); g.lineTo(s * 8.2, -10.8); g.stroke(); }
       if (m === 'wow' || m === 'air') { g.strokeStyle = ink; g.lineWidth = 1.6; g.lineCap = 'round'; g.beginPath(); g.arc(s * 5.6, -9, 3, Math.PI * 1.2, Math.PI * 1.8); g.stroke(); }
     }
