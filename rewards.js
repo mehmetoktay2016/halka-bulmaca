@@ -15,6 +15,8 @@
     gateBulbs: 1,       // her yeni kapı açılınca (2. kapıdan başlayarak)
     goldGateBulbs: 3,   // bir kapının 10 bölümü de 3 yıldız olunca
     dailyBulbs: 1,      // ampulü hiç kalmayan oyuncuya günde bir kez
+    // Kapı kumbarası: kapıda kazanılan her yıldız için, kapı bitince (sonraki kapının töreninde) verilir
+    jarCoinsPerStar: 1,
   };
 
   // Halka ödülleri: halka kurtulunca içindeki ödül açılır. Her bölümün ödülü bir kez alınır (kayıt: loot).

@@ -399,6 +399,7 @@
   // oyuncunun şu an içinde bulunduğu kapı için (henüz kutlanmadıysa) yapılır.
   function settleRewards() {
     const fg = W.gateOf(frontier());
+    for (let g = 1; g < fg - 1; g++) progress.rewards['jar:' + g] = progress.rewards['jar:' + g] || 'eski';
     for (let g = 2; g < fg; g++) {
       if (progress.rewards['gate:' + g]) continue;
       progress.rewards['gate:' + g] = true;
@@ -789,6 +790,7 @@
         },
         reward: n => { const l = lootWaiting(n); if (l) return ['mystery', 'gold', 'bulb'].includes(l.type) ? l.type : 'chest'; return pieceWaiting(n) ? 'piece' : null; },
         gateOpen: g => isUnlocked(W.gateStart(g)) && (g === 1 || !!progress.rewards['gate:' + g]),
+        jar: () => ({ stars: gateStars(W.gateOf(frontier())), max: W.GATE_SIZE * 3 }),
       },
     });
     return ADV;
@@ -908,6 +910,10 @@
     mapBusy = true;
     const veil = $('ceremony');
     veil.hidden = false;
+    // Biten kapının kumbarası: kapıdaki yıldızlar kadar altın, kapı başına bir kez
+    const done1 = p.gate ? p.gate - 1 : 0, jar = done1 && !progress.rewards['jar:' + done1] ? gateStars(done1) * ECO.jarCoinsPerStar : 0;
+    if (done1) progress.rewards['jar:' + done1] = true;
+    if (jar) adv().burstJar(gateStars(done1), W.GATE_SIZE * 3);
     let shown = false;
     const showCard = () => {
       if (shown) return;
@@ -917,6 +923,10 @@
         progress.rewards['gate:' + p.gate] = true;
         progress.hints += ECO.gateBulbs;
         rewards.push(`<span class="chip bulb">${tr('+{n} ampul', { n: ECO.gateBulbs })}</span>`);
+        if (jar) {
+          progress.coins += jar; stat('coinsTotal', jar);
+          rewards.push(`<span class="chip loot-chip gold">${tr('Kumbara: +{n} altın', { n: jar })}</span>`);
+        }
       }
       if (p.newTitle) {
         progress.title = p.newTitle;

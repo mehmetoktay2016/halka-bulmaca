@@ -2730,6 +2730,8 @@
       for (const p of S.fx) {
         p.x += p.vx; p.y += p.vy; p.life -= p.k === 'conf' ? 0.008 : 0.03;
         if (p.k === 'conf') { p.vy += 0.12; p.vx *= 0.99; p.r += p.vr; g.save(); g.globalAlpha = Math.min(1, p.life * 2); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-4, -2, 8, 4); g.restore(); }
+        else if (p.k === 'coin') { p.vy += 0.2; g.save(); g.globalAlpha = Math.min(1, p.life * 2); g.translate(p.x, p.y); g.scale(Math.abs(Math.cos(now / 90 + p.r)), 1); g.fillStyle = '#d98f12'; g.beginPath(); g.arc(0, 0, 6, 0, TAU); g.fill(); g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(0, 0, 4.6, 0, TAU); g.fill(); g.restore(); }
+        else if (p.k === 'shard') { p.vy += 0.15; g.save(); g.globalAlpha = Math.max(0, p.life); g.translate(p.x, p.y); g.rotate(p.r += 0.2); g.fillStyle = 'rgba(210,240,255,.85)'; g.beginPath(); g.moveTo(0, -4); g.lineTo(3, 3); g.lineTo(-3, 2); g.closePath(); g.fill(); g.restore(); }
         else if (p.k === 'puff') { p.vx *= 0.94; p.vy *= 0.94; p.r += 0.25; g.fillStyle = `rgba(${p.c},${0.45 * p.life})`; g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill(); }
         else add(() => { g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; star(p.x, p.y, 3.4); g.globalAlpha = 1; });
       }
@@ -2811,6 +2813,40 @@
       setTimeout(() => { S.fogT[gt] = performance.now(); snd.noise(1.6, 0.2, 600, 2400); snd.tone(320, 1.4, 'sine', 0.03, 900); }, reduced() ? 0 : 1300);
     }
 
+    // ---- kapı kumbarası ----
+    function jarAt(x, y, stars, max, now, scale = 1, alpha = 1) {
+      const f = Math.min(1, stars / max), r = 22;
+      g.save(); g.translate(x, y); g.scale(scale, scale); g.globalAlpha = alpha;
+      g.fillStyle = 'rgba(14,16,30,.7)'; g.beginPath(); g.arc(0, 0, r + 6, 0, TAU); g.fill();
+      g.save(); g.beginPath(); g.arc(0, 0, r, 0, TAU); g.clip();
+      g.fillStyle = 'rgba(160,200,255,.12)'; g.fillRect(-r, -r, 2 * r, 2 * r);
+      const lvl = r - f * 2 * r, wv = reduced() ? 0 : 2;
+      g.fillStyle = '#f5b52e'; g.beginPath(); g.moveTo(-r, r); for (let i = 0; i <= 10; i++) g.lineTo(-r + i * r / 5, lvl + Math.sin(now / 300 + i) * wv); g.lineTo(r, r); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,240,170,.8)'; for (let i = 0; i < Math.round(f * 6); i++) star(-12 + (i % 3) * 12, r - 6 - Math.floor(i / 3) * 10, 3.4);
+      g.restore();
+      g.strokeStyle = 'rgba(220,240,255,.85)'; g.lineWidth = 2.4; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 2; g.beginPath(); g.arc(-6, -7, 10, 3.6, 4.6); g.stroke();
+      // dolmaya yaklaşınca çatlar
+      if (f > 0.7) { g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(8, -18); g.lineTo(4, -9); g.lineTo(10, -3); if (f > 0.85) { g.moveTo(-16, 8); g.lineTo(-9, 4); g.lineTo(-11, -4); } g.stroke(); }
+      if (f > 0.85 && !reduced()) add(() => glow(0, 0, 40, `rgba(255,210,100,${0.25 + 0.15 * Math.sin(now / 200)})`));
+      g.fillStyle = GOLD; g.font = '900 11px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${stars}/${max}`, 0, r + 14);
+      g.restore();
+    }
+    function hudJar(now, top) {
+      const x = 34, y = top + 44, b = S.jarBurst;
+      if (b && now - b.t0 < 900) { const u = (now - b.t0) / 900; jarAt(x, y, b.stars, b.max, now, 1 + u * 0.6, 1 - u); return; }
+      const j = D.jar();
+      jarAt(x, y, j.stars, j.max, now);
+    }
+    function burstJar(stars, max) {
+      const now = performance.now(), x = 34, y = sc.scrollTop / k + 44;
+      S.jarBurst = { t0: now, stars, max };
+      snd.noise(0.3, 0.25, 4000, 1500); [1319, 1568, 2093, 2637].forEach((f, i) => snd.tone(f, 0.12, 'triangle', 0.06, null, 0.15 + i * 0.07));
+      if (reduced()) return;
+      for (let i = 0; i < 14; i++) { const a = Math.random() * TAU, sp = 2 + Math.random() * 3; S.fx.push({ k: 'shard', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 3 }); }
+      for (let i = 0; i < Math.min(30, stars); i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, sp = 3 + Math.random() * 4; S.fx.push({ k: 'coin', x, y, vx: Math.cos(a) * sp + 1.5, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 6 }); }
+    }
+
     // ---- çizim döngüsü ----
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -2839,6 +2875,7 @@
       hero(now);
       for (const st of banners) nameBanner(st, now);
       effects(now, top);
+      if (D.jar) hudJar(now, top);
       g.setTransform(1, 0, 0, 1, 0, 0);
       const vg = g.createRadialGradient(cv.width / 2, cv.height / 2, cv.height * 0.35, cv.width / 2, cv.height / 2, cv.height * 0.8);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(5,2,10,.4)'); g.fillStyle = vg; g.fillRect(0, 0, cv.width, cv.height);
@@ -2859,7 +2896,7 @@
     sc.addEventListener('touchstart', stopFollow, { passive: true });
 
     return {
-      draw, measure, travel, celebrate, openGate,
+      draw, measure, travel, celebrate, openGate, burstJar,
       place(n) { if (!S.hop) S.pos = n; },
       busy: () => !!S.hop,
       heroY: () => charPos(performance.now()).y * k,

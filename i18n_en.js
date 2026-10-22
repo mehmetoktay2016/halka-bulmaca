@@ -92,6 +92,7 @@ var RING_LANG_EN = {
   'Çıkartma': 'Stickers',
   'Yeni rozet': 'New badge',
   '+{n} altın': ['+{n} coin', '+{n} coins'],
+  'Kumbara: +{n} altın': ['Piggy jar: +{n} coin', 'Piggy jar: +{n} coins'],
   'Kazanıldı · +{n} altın': ['Earned · +{n} coin', 'Earned · +{n} coins'],
   'Bazı bölümlerde halkalara takılmış bir hayvan ya da eşya seni bekliyor. Kurtardıkların bu albümde toplanır.':
     'In some levels an animal or an object is caught in the rings. The ones you rescue are collected in this album.',
