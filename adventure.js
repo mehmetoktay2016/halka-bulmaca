@@ -2456,7 +2456,30 @@
         // liman: iki iskele feneri arasından geçiş; son kapı dev deniz fenerinin kapısı
         g.fillStyle = '#6a7380'; g.fillRect(0, y - 6, W, 14);
         if (kind === 'harborLights') { for (const sx of [-1, 1]) lighthouse(cx + sx * 110, y - 4, 1.9, now + sx * 400); }
-        else lighthouse(cx, y + 4, 3, now);
+        else {
+          // dev fener: kayalık üstünde taş kaide, daralan kırmızı-beyaz kule, balkon ve korkuluk, camlı fener odası, kubbe
+          g.fillStyle = '#2e3640'; g.beginPath(); g.moveTo(cx - 130, y + 6); g.lineTo(cx - 110, y - 14); g.lineTo(cx - 60, y - 22); g.lineTo(cx + 70, y - 20); g.lineTo(cx + 118, y - 10); g.lineTo(cx + 134, y + 6); g.fill();
+          masonry(cx - 82, y - 64, cx + 82, y - 4, '#7d8590');
+          const tower = () => { g.beginPath(); g.moveTo(cx - 60, y - 64); g.lineTo(cx - 40, y - 205); g.lineTo(cx + 40, y - 205); g.lineTo(cx + 60, y - 64); g.closePath(); };
+          g.save(); tower(); g.clip();
+          for (let k = 0; k < 5; k++) { g.fillStyle = k % 2 ? '#eee6dc' : '#b8352a'; g.fillRect(cx - 62, y - 104 - k * 40, 124, 40); }
+          const cyl = g.createLinearGradient(cx - 60, 0, cx + 60, 0); cyl.addColorStop(0, 'rgba(0,0,0,.2)'); cyl.addColorStop(0.25, 'rgba(255,255,255,.18)'); cyl.addColorStop(0.55, 'rgba(0,0,0,0)'); cyl.addColorStop(1, 'rgba(0,0,0,.45)');
+          g.fillStyle = cyl; g.fillRect(cx - 62, y - 205, 124, 145);
+          for (const wy of [y - 125, y - 170]) { g.fillStyle = '#3a3a44'; rr(cx - 7, wy - 12, 14, 22, 6); g.fill(); g.fillStyle = 'rgba(255,220,140,.8)'; rr(cx - 4, wy - 9, 8, 16, 4); g.fill(); }
+          g.restore();
+          g.fillStyle = '#2a2e36'; g.fillRect(cx - 54, y - 211, 108, 8); g.strokeStyle = '#2a2e36'; g.lineWidth = 1.6;
+          g.beginPath(); g.moveTo(cx - 52, y - 227); g.lineTo(cx + 52, y - 227); for (let x = cx - 52; x <= cx + 52; x += 8) { g.moveTo(x, y - 227); g.lineTo(x, y - 211); } g.stroke();
+          g.fillStyle = '#1e2228'; g.fillRect(cx - 30, y - 261, 60, 50);
+          const on = 0.75 + (reduced() ? 0.25 : 0.25 * Math.sin(now / 300));
+          for (let i = 0; i < 3; i++) { g.fillStyle = `rgba(255,226,140,${on})`; g.fillRect(cx - 27 + i * 19, y - 257, 16, 42); }
+          g.fillStyle = '#7a1e1a'; g.beginPath(); g.ellipse(cx, y - 261, 36, 22, 0, Math.PI, 0); g.fill(); g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(cx - 12, y - 269, 10, 6, -0.4, 0, TAU); g.fill();
+          g.strokeStyle = '#2a2e36'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx, y - 283); g.lineTo(cx, y - 297); g.stroke(); g.fillStyle = '#c0882a'; g.beginPath(); g.arc(cx, y - 298, 3, 0, TAU); g.fill();
+          add(() => {
+            glow(cx, y - 236, 60, 'rgba(255,230,150,.7)');
+            const a = reduced() ? 0.6 : now / 1400, len = 230 * Math.abs(Math.cos(a));
+            for (const d of [-1, 1]) { const gr = g.createLinearGradient(cx, 0, cx + d * len, 0); gr.addColorStop(0, 'rgba(255,240,180,.5)'); gr.addColorStop(1, 'rgba(255,240,180,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(cx, y - 236); g.lineTo(cx + d * len, y - 256); g.lineTo(cx + d * len, y - 216); g.closePath(); g.fill(); }
+          });
+        }
       } else if (kind === 'seaCave') {
         // kayalıklarda deniz mağarası: dalgalar mağaranın ağzına vurur
         g.fillStyle = '#3e4a58'; g.beginPath(); g.moveTo(cx - 220, y + 4); g.lineTo(cx - 190, y - 130); g.lineTo(cx - 90, y - 180); g.lineTo(cx + 40, y - 190); g.lineTo(cx + 170, y - 160); g.lineTo(cx + 220, y + 4); g.closePath(); g.fill();
@@ -2486,8 +2509,23 @@
         g.strokeStyle = '#c8b4ff'; g.lineWidth = 10; g.beginPath(); g.arc(cx, y - 80, 74, Math.PI, 0); g.stroke(); add(() => glow(cx, y - 154, 40, 'rgba(200,170,255,.6)'));
       } else if (kind === 'phoenixPortal') {
         // Anka'nın portalı: dev ateş halkası ve iki yana açılan alev kanatları
-        portalRing(cx, y - 90, 96, '#ff8a4c', now);
-        add(() => { for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) { const a = -0.3 - i * 0.18 + (reduced() ? 0 : Math.sin(now / 500 + i) * 0.05), len = 150 - i * 14; g.strokeStyle = `rgba(255,${140 + i * 15},70,${0.75 - i * 0.08})`; g.lineWidth = 9 - i; g.beginPath(); g.moveTo(cx + sx * 70, y - 120); g.quadraticCurveTo(cx + sx * (70 + len * 0.6), y - 120 + Math.sin(a) * len, cx + sx * (70 + len * Math.cos(a)), y - 120 + Math.sin(a) * len * 0.9); g.stroke(); } });
+        // taş sütunlar üstünde mangallar, oyma taş halka (runeleri kor gibi yanar), içinde ateş halkası, halkanın
+        // omuzlarından açılan alev kanatlar
+        for (const sx of [-1, 1]) {
+          const px = cx + sx * 132;
+          masonry(px - 16, y - 150, px + 16, y + 4, '#5e4452'); g.fillStyle = '#7a5a68'; g.fillRect(px - 22, y - 158, 44, 10); g.fillRect(px - 22, y - 4, 44, 8);
+          g.fillStyle = '#3a2a24'; g.beginPath(); g.moveTo(px - 18, y - 158); g.lineTo(px + 18, y - 158); g.lineTo(px + 10, y - 170); g.lineTo(px - 10, y - 170); g.fill();
+          const fl = reduced() ? 0 : Math.sin(now / 120 + sx) * 3;
+          g.fillStyle = '#ff9a3c'; g.beginPath(); g.moveTo(px - 12, y - 170); g.quadraticCurveTo(px - 8, y - 196 + fl, px, y - 206 + fl); g.quadraticCurveTo(px + 8, y - 196 - fl, px + 12, y - 170); g.fill();
+          g.fillStyle = '#ffe08a'; g.beginPath(); g.moveTo(px - 5, y - 170); g.quadraticCurveTo(px, y - 188 + fl, px + 5, y - 170); g.fill();
+          add(() => glow(px, y - 182, 46, 'rgba(255,150,60,.6)'));
+        }
+        const ring = g.createLinearGradient(cx - 112, 0, cx + 112, 0); ring.addColorStop(0, '#8a6a78'); ring.addColorStop(0.5, '#5e4452'); ring.addColorStop(1, '#3a2632');
+        g.strokeStyle = ring; g.lineWidth = 26; g.beginPath(); g.arc(cx, y - 90, 100, 0, TAU); g.stroke();
+        g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1.5; for (let k = 0; k < 16; k++) { const a = k * TAU / 16; g.beginPath(); g.moveTo(cx + Math.cos(a) * 87, y - 90 + Math.sin(a) * 87); g.lineTo(cx + Math.cos(a) * 113, y - 90 + Math.sin(a) * 113); g.stroke(); }
+        add(() => { for (let k = 0; k < 16; k++) { const a = k * TAU / 16 + TAU / 32; glow(cx + Math.cos(a) * 100, y - 90 + Math.sin(a) * 100, 6, 'rgba(255,140,60,.9)', reduced() ? 1 : 0.6 + 0.4 * Math.sin(now / 400 + k)); } });
+        portalRing(cx, y - 90, 80, '#ff8a4c', now);
+        add(() => { for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) { const a = -0.35 - i * 0.2 + (reduced() ? 0 : Math.sin(now / 500 + i) * 0.05), len = 120 - i * 14; g.strokeStyle = `rgba(255,${140 + i * 18},70,${0.7 - i * 0.1})`; g.lineWidth = 7 - i; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx + sx * 80, y - 160); g.quadraticCurveTo(cx + sx * (80 + len * 0.6), y - 160 + Math.sin(a) * len, cx + sx * (80 + len * Math.cos(a)), y - 160 + Math.sin(a) * len * 0.9); g.stroke(); } });
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
         masonry(cx - 170, y - 140, cx + 170, y + 4, '#7a4436');
@@ -2512,7 +2550,7 @@
         for (const sx of [-1, 1]) light(cx + sx * 80, y - 150, 10, 'rgba(255,100,100,.9)');
       }
       door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : '#8a929c');
-      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 236, domeGate: 236, starGate: 240, iceArch: 208, iceCave: 222, sluiceGate: 196, millGate: 262, barnGate: 236, mirrorGate: 186, phoenixPortal: 236 }[kind] || 158), acc);
+      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 190, domeGate: 236, starGate: 240, iceArch: 208, iceCave: 222, sluiceGate: 196, millGate: 262, barnGate: 236, mirrorGate: 186, phoenixPortal: 236 }[kind] || 158), acc);
     }
 
     // ---- sis: ulaşılmamış kapıların ötesi ----
