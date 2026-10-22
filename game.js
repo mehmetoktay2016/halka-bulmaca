@@ -2871,7 +2871,8 @@
     const core = ease((t - 1.4) / 0.6);
     if (core > 0) ring(cx, cy, R * 0.62 * (0.6 + 0.4 * core), '#ffd36b', -run2 * (t - 1.8) * 0.8, 13, core);
     const rise = finale ? ease((t - 2.2) / 1.4) : 0;
-    if (rise > 0) phoenix(g, cx, cy + R * 0.25 * (1 - rise) + Math.sin(t * 2) * 3, R * 0.0105 * (0.4 + 0.6 * rise), quick ? 0.4 : Math.sin(t * 5), rise);
+    // kuyruk başlığa binmesin (küçük ekranlarda): kuş halkanın biraz üstünde durur
+    if (rise > 0) phoenix(g, cx, cy - R * 0.35 + R * 0.5 * (1 - rise) + Math.sin(t * 2) * 3, R * 0.008 * (0.4 + 0.6 * rise), quick ? 0.4 : Math.sin(t * 5), rise);
     // Kıvılcımlar (finalde Anka'nın kanat uçlarından alev)
     if (run2 > 0 && !quick && Math.random() < 0.6) {
       const a = Math.random() * Math.PI * 2, wing = rise > 0.5 ? (Math.random() < 0.5 ? -1 : 1) : 0;

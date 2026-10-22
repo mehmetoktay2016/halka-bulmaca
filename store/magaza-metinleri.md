@@ -129,14 +129,14 @@ Büyük güncelleme! 60 bölüm 200 oldu: 8 dünya ve 20 kapı. Her dünyanın k
 |---|---|
 | Uygulama simgesi (512×512) | `../icon-512.png` |
 | Öne çıkan görsel (1024×500) | `feature-graphic.png` |
-| Telefon ekran görüntüleri (2–8 adet, 1080×1920) | `screenshots/` klasöründeki 8 dosya (`node tools/store_shots.js` ile yeniden üretilir) |
+| Telefon ekran görüntüleri (2–8 adet, 1080×1920) | `screenshots/` klasöründeki 7 dosya (`node tools/store_shots.js` ile yeniden üretilir) |
 
 ---
 
 # English store listing (en-US)
 
 Play Console → **Grow → Store presence → Main store listing → Manage translations → Add your own translations → English (United States)**,
-then paste the texts below. Graphics for English: phone screenshots `screenshots-en/` (8 files), feature graphic `feature-graphic-en.png`
+then paste the texts below. Graphics for English: phone screenshots `screenshots-en/` (7 files), feature graphic `feature-graphic-en.png`
 (both made with `node tools/store_shots.js <address> --lang en`). The app icon is the same.
 
 ## App name (max 30 characters)
