@@ -204,6 +204,28 @@
       g.strokeStyle = 'rgba(180,200,255,.55)'; g.lineWidth = 0.9; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
       add(() => pts.forEach(([x, y], i) => { const tw = 0.6 + 0.4 * Math.sin(t / 400 + i); g.fillStyle = `rgba(255,250,220,${tw})`; star(x, y, 2.6); }));
     }
+    function barn(x, y, k, lit) {
+      g.save(); g.translate(x, y); g.scale(k, k);
+      g.fillStyle = '#a8322a'; g.beginPath(); g.moveTo(-22, 0); g.lineTo(-22, -24); g.lineTo(-14, -36); g.lineTo(14, -36); g.lineTo(22, -24); g.lineTo(22, 0); g.closePath(); g.fill();
+      g.fillStyle = '#5a2a20'; g.beginPath(); g.moveTo(-24, -24); g.lineTo(-15, -38); g.lineTo(15, -38); g.lineTo(24, -24); g.lineTo(21, -24); g.lineTo(13, -35); g.lineTo(-13, -35); g.lineTo(-21, -24); g.closePath(); g.fill();
+      g.strokeStyle = '#f2ece0'; g.lineWidth = 1.6; g.strokeRect(-9, -18, 18, 18); g.beginPath(); g.moveTo(-9, -18); g.lineTo(9, 0); g.moveTo(9, -18); g.lineTo(-9, 0); g.stroke();
+      g.fillStyle = lit ? '#ffd98a' : '#3a1a14'; g.fillRect(-4, -31, 8, 6);
+      g.restore();
+    }
+    function windmill(x, y, k, now) {
+      g.save(); g.translate(x, y); g.scale(k, k);
+      g.fillStyle = '#e8e0d0'; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-7, -34); g.lineTo(7, -34); g.lineTo(10, 0); g.closePath(); g.fill();
+      g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(-9, -34); g.lineTo(0, -44); g.lineTo(9, -34); g.closePath(); g.fill(); g.fillStyle = '#5a3a24'; g.fillRect(-3, -10, 6, 10);
+      g.save(); g.translate(0, -36); g.rotate(reduced() ? 0.4 : now / 900);
+      for (let i = 0; i < 4; i++) { g.rotate(TAU / 4); g.fillStyle = '#6b4a2a'; g.fillRect(-1, 0, 2, 26); g.fillStyle = 'rgba(240,232,215,.9)'; g.fillRect(1, 8, 6, 18); }
+      g.restore(); g.restore();
+    }
+    function waterWheel(x, y, r, now) {
+      g.save(); g.translate(x, y); g.rotate(reduced() ? 0 : now / 1400);
+      g.strokeStyle = '#6b4a2a'; g.lineWidth = r / 8; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+      for (let i = 0; i < 8; i++) { g.rotate(TAU / 8); g.beginPath(); g.moveTo(0, 0); g.lineTo(0, r); g.stroke(); g.fillStyle = '#8a643a'; g.fillRect(-r / 6, r - 1, r / 3, r / 4); }
+      g.restore();
+    }
     function lighthouse(x, y, k, now) {
       g.save(); g.translate(x, y); g.scale(k, k);
       for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? '#c0392b' : '#f2ece0'; g.beginPath(); g.moveTo(-10 + i * 0.8, -i * 10); g.lineTo(10 - i * 0.8, -i * 10); g.lineTo(10 - (i + 1) * 0.8, -(i + 1) * 10); g.lineTo(-10 + (i + 1) * 0.8, -(i + 1) * 10); g.closePath(); g.fill(); }
@@ -327,7 +349,7 @@
         });
         return null;
       }
-      if (id === 'vadi') {
+      if (id === 'vadi' || id === 'degirmen') {
         const gr = g.createLinearGradient(0, r.top, 0, r.bottom);
         gr.addColorStop(0, '#132a2a'); gr.addColorStop(0.5, '#14302a'); gr.addColorStop(1, '#0f231f');
         g.fillStyle = gr; g.fillRect(0, top, W, bot - top);
@@ -341,6 +363,7 @@
             else { g.fillStyle = ['rgba(255,255,255,.55)', 'rgba(255,201,74,.55)', 'rgba(255,143,171,.55)'][Math.floor(R() * 3)]; g.beginPath(); g.arc(x, y, 1.8, 0, TAU); g.fill(); }
           }
         }
+        if (id === 'degirmen') for (let y = Math.floor(top / 500) * 500 + 330; y < bot; y += 500) { g.strokeStyle = 'rgba(210,180,90,.13)'; g.lineWidth = 5; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(0, y + k * 12); g.lineTo(W, y + k * 12 - 30); g.stroke(); } }
         add(() => {
           for (let y0 = Math.floor(top / 260) * 260; y0 < bot; y0 += 260) {
             const R = rng(y0 * 5 + 7);
@@ -575,6 +598,9 @@
       scope: asDecor('devteleskop', 0.8),
       globe: asDecor('gokkure', 0.8),
       constel: asDecor('takimyildiz'),
+      smallMill(d, now) { windmill(d.x, d.y, 0.9 * d.s, now + d.ph * 999); },
+      hay: asDecor('saman', 0.8),
+      fence: asDecor('cit', 0.8),
       house(d, now) {
         const { x, y, s } = d;
         shadow(x + 8, y + 4, 30 * s, 6 * s, 0.4);
@@ -1671,6 +1697,58 @@
         g.fillStyle = '#c0392b'; g.beginPath(); g.moveTo(-5, 0); g.lineTo(-3, -18); g.lineTo(3, -18); g.lineTo(5, 0); g.fill(); g.fillStyle = '#ffc94a'; g.beginPath(); g.arc(0, -22, 4, 0, TAU); g.fill();
         if (on) for (let i = 0; i < 3; i++) { const a = t / 260 + i * TAU / 3, x = Math.cos(a) * 12, y = -34 + Math.sin(a) * 9; g.fillStyle = '#ffb347'; g.beginPath(); g.arc(x, y, 2.6, 0, TAU); g.fill(); light(x, y, 8, 'rgba(255,170,80,.8)'); }
       },
+      // ---- Buzul: eksik istasyonlar (kapı 34-35) ----
+      buzbalikci(on, t) {
+        g.fillStyle = '#bfe0f0'; g.beginPath(); g.ellipse(0, -2, 22, 6, 0, 0, TAU); g.fill(); g.fillStyle = '#1e4f78'; g.beginPath(); g.ellipse(6, -2, 6, 2.4, 0, 0, TAU); g.fill();
+        g.fillStyle = '#e8463a'; g.beginPath(); g.arc(-10, -16, 6, 0, TAU); g.fill(); g.fillStyle = '#f2e6d0'; g.beginPath(); g.arc(-10, -24, 4.6, 0, TAU); g.fill();
+        const b = on ? Math.max(0, Math.sin(t / 700)) * 3 : 0; g.strokeStyle = '#6b4a2a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-6, -18); g.lineTo(10, -32 + b); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(10, -32 + b); g.lineTo(6, -3); g.stroke();
+      },
+      cam(on, t) { for (const [x, k] of [[-12, 0.7], [12, 0.6], [0, 0.85]]) DECOR_ART.pine({ x, y: -14 * k, s: k }); },
+      sarkit(on, t) {
+        g.fillStyle = '#9fc3d6'; g.fillRect(-24, -46, 48, 6);
+        for (let i = 0; i < 7; i++) { const x = -21 + i * 7, h = 10 + ((i * 37) % 4) * 6; g.fillStyle = 'rgba(200,236,255,.9)'; g.beginPath(); g.moveTo(x - 3, -40); g.lineTo(x + 3, -40); g.lineTo(x, -40 + h); g.closePath(); g.fill(); }
+        if (on) { const ph = (t / 900) % 1; g.fillStyle = `rgba(200,236,255,${1 - ph})`; g.beginPath(); g.arc(0, -24 + ph * 22, 1.6, 0, TAU); g.fill(); }
+      },
+      donmusselale(on, t) { STATION_ART.selale(false, t); g.fillStyle = 'rgba(230,248,255,.55)'; g.fillRect(-6, -46, 12, 46); },
+      // ---- Değirmen: kapı 36-38 ----
+      sucarki(on, t) { g.fillStyle = '#2f6fa0'; g.fillRect(-26, -6, 52, 6); waterWheel(-6, -20, 16, t); g.fillStyle = '#e8e0d0'; g.fillRect(8, -34, 16, 34); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(6, -34); g.lineTo(16, -42); g.lineTo(26, -34); g.closePath(); g.fill(); },
+      kumes(on, t) {
+        g.fillStyle = '#c99a5a'; g.beginPath(); g.moveTo(-18, 0); g.lineTo(-18, -20); g.lineTo(0, -32); g.lineTo(18, -20); g.lineTo(18, 0); g.closePath(); g.fill();
+        g.fillStyle = '#5a3a24'; g.beginPath(); g.arc(0, -12, 5, Math.PI, 0); g.fill(); g.fillRect(-5, -12, 10, 12); g.strokeStyle = '#8a643a'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(-14, 0); g.lineTo(-24, -10); g.stroke();
+        if (on) { const x = 14 + Math.sin(t / 700) * 6; g.fillStyle = '#fff'; g.beginPath(); g.arc(x, -4, 3.4, 0, TAU); g.fill(); g.fillStyle = '#e8463a'; g.fillRect(x - 1, -9, 2, 2); }
+      },
+      sepet() {
+        g.fillStyle = '#b8824a'; g.beginPath(); g.moveTo(-16, -14); g.lineTo(16, -14); g.lineTo(12, 0); g.lineTo(-12, 0); g.closePath(); g.fill();
+        g.strokeStyle = '#8a5a2a'; g.lineWidth = 1; for (let y = -11; y < 0; y += 3) { g.beginPath(); g.moveTo(-15, y); g.lineTo(15, y); g.stroke(); }
+        g.fillStyle = '#fff5e6'; for (const [x, y] of [[-8, -16], [0, -18], [8, -16], [-4, -20], [4, -21]]) { g.beginPath(); g.ellipse(x, y, 3.4, 4.4, 0, 0, TAU); g.fill(); }
+        g.strokeStyle = '#8a5a2a'; g.lineWidth = 2; g.beginPath(); g.arc(0, -14, 14, Math.PI, 0); g.stroke();
+      },
+      bentkapak(on, t) {
+        g.fillStyle = '#2f6fa0'; g.fillRect(-26, -8, 52, 8); g.fillStyle = '#6b4a2a'; g.fillRect(-14, -40, 4, 40); g.fillRect(10, -40, 4, 40); g.fillRect(-16, -42, 32, 4);
+        const up = on ? 6 + Math.sin(t / 1200) * 5 : 0; g.fillStyle = '#8a643a'; g.fillRect(-10, -30 - up, 20, 24); g.strokeStyle = '#5a3a24'; g.lineWidth = 1; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(-10, -26 - up + k * 6); g.lineTo(10, -26 - up + k * 6); g.stroke(); }
+        if (on && up > 3) { g.fillStyle = 'rgba(200,240,255,.8)'; g.fillRect(-9, -6, 18, 2); }
+      },
+      yeldegirmeni(on, t) { windmill(0, 0, 1.15, t); },
+      yun(on, t) {
+        g.fillStyle = '#6b4a2a'; g.fillRect(-18, -4, 30, 4); g.fillRect(-14, -24, 3, 20);
+        g.save(); g.translate(-12, -24); g.rotate(on ? t / 500 : 0); g.strokeStyle = '#8a643a'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 13, 0, TAU); g.stroke(); for (let i = 0; i < 6; i++) { g.rotate(TAU / 6); g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 13); g.stroke(); } g.restore();
+        g.fillStyle = '#f2ece0'; for (const [x, y, r2] of [[10, -14, 7], [16, -10, 5], [6, -8, 5]]) { g.beginPath(); g.arc(x, y, r2, 0, TAU); g.fill(); }
+      },
+      ambar(on) { barn(0, 0, 1, on); },
+      sut() { g.fillStyle = '#b8bec8'; g.beginPath(); g.moveTo(-10, -22); g.lineTo(10, -22); g.lineTo(8, 0); g.lineTo(-8, 0); g.closePath(); g.fill(); g.fillStyle = '#fffaf0'; g.beginPath(); g.ellipse(0, -22, 10, 3, 0, 0, TAU); g.fill(); g.strokeStyle = '#8a929c'; g.lineWidth = 1.4; g.beginPath(); g.arc(0, -22, 10, Math.PI, 0); g.stroke(); },
+      peynir() {
+        g.fillStyle = '#6b4a2a'; g.fillRect(-20, -6, 40, 6);
+        g.fillStyle = '#ffd34a'; g.beginPath(); g.moveTo(-16, -6); g.lineTo(-16, -18); g.lineTo(14, -24); g.lineTo(14, -6); g.closePath(); g.fill(); g.fillStyle = '#e0b02a'; for (const [x, y, r2] of [[-8, -12, 2.4], [2, -16, 1.8], [8, -10, 2]]) { g.beginPath(); g.arc(x, y, r2, 0, TAU); g.fill(); }
+      },
+      bugday(on, t) {
+        for (let i = -4; i <= 4; i++) { const sw = on ? Math.sin(t / 700 + i * 0.6) * 3 : 0, x = i * 5; g.strokeStyle = '#c99a3a'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + sw, -26); g.stroke(); g.fillStyle = '#e8c06a'; g.beginPath(); g.ellipse(x + sw, -30, 2, 5, sw * 0.05, 0, TAU); g.fill(); }
+      },
+      aycicegi(on, t) {
+        for (const [x, h] of [[-12, 26], [2, 34], [14, 24]]) {
+          g.strokeStyle = '#3f8a52'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, -h); g.stroke(); g.fillStyle = '#5cc27f'; g.beginPath(); g.ellipse(x + 4, -h / 2, 5, 2.4, -0.5, 0, TAU); g.fill();
+          g.save(); g.translate(x, -h); g.rotate(on ? Math.sin(t / 3000) * 0.3 : 0); g.fillStyle = '#ffc94a'; for (let i = 0; i < 10; i++) { g.rotate(TAU / 10); g.beginPath(); g.ellipse(0, -7, 2.4, 4.4, 0, 0, TAU); g.fill(); } g.fillStyle = '#6b4226'; g.beginPath(); g.arc(0, 0, 4.6, 0, TAU); g.fill(); g.restore();
+        }
+      },
       // Şekil bölümü: şeklin resmi bir şövalede; kapı finali (Dev Halka) altın çerçevede, daha büyük
       portrait(on, t, state, st) { portraitArt(st, on, false); },
       finalPortrait(on, t, state, st) { portraitArt(st, on, true); },
@@ -1842,6 +1920,7 @@
       santral: ['pylon', 'reel', 'hangLamp', 'solar', 'crate', 'pylon'],
       fener: ['buoy', 'rock', 'gull', 'smallLight', 'buoy', 'rock'],
       rasathane: ['smallDome', 'scope', 'globe', 'rock', 'constel', 'scope'],
+      degirmen: ['tree', 'smallMill', 'hay', 'flowers', 'fence', 'bush'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {
@@ -2046,7 +2125,8 @@
       7: 'workDoor', 8: 'gearGate', 9: 'pendulumGate', 10: 'springCage', 11: 'cellGate', 12: 'cryptGate', 13: 'streetArch', 14: 'townTower',
       15: 'factoryGate', 16: 'boilerHatch', 17: 'launchTower', 18: 'airlock',
       19: 'mastersHall', 20: 'machineGate', 21: 'funArch', 22: 'funArch', 23: 'coasterTunnel',
-      24: 'substation', 25: 'damGate', 26: 'harborLights', 27: 'seaCave', 28: 'lighthouseDoor', 29: 'domeGate', 30: 'starGate' };
+      24: 'substation', 25: 'damGate', 26: 'harborLights', 27: 'seaCave', 28: 'lighthouseDoor', 29: 'domeGate', 30: 'starGate',
+      34: 'iceArch', 35: 'iceCave', 36: 'sluiceGate', 37: 'millGate', 38: 'barnGate' };
     function themedGate(gt, y, open, now) {
       const kind = THEMED_GATES[gt], cx = W / 2, acc = worldOfGate(gt).theme.accent;
       g.fillStyle = 'rgba(6,14,12,.5)'; g.beginPath(); g.ellipse(cx + 8, y + 12, 170, 16, 0, 0, TAU); g.fill();
@@ -2189,6 +2269,20 @@
         // gözlemevi: kapı kubbenin dibinde; Yıldız Haritası'nda kubbenin üstünde takımyıldız kemeri
         observatory(cx, y + 4, 5, now);
         if (kind === 'starGate') { const pts = []; for (let k = 0; k <= 8; k++) { const a = Math.PI + (k / 8) * Math.PI; pts.push([cx + Math.cos(a) * 150, y - 120 + Math.sin(a) * 100 + (k % 2) * 10]); } constellation(pts, now); }
+      } else if (kind === 'iceArch' || kind === 'iceCave') {
+        // buz blokları kemeri, sarkıtlar; mağarada iki yanda buz yığınları ve parlayan kristaller
+        if (kind === 'iceCave') { g.fillStyle = '#9fc3d6'; g.beginPath(); g.moveTo(cx - 220, y + 4); g.quadraticCurveTo(cx - 160, y - 210, cx, y - 200); g.quadraticCurveTo(cx + 160, y - 210, cx + 220, y + 4); g.closePath(); g.fill(); for (const sx of [-1, 1]) { g.save(); g.translate(cx + sx * 140, y); g.scale(1.6, 1.6); STATION_ART.crystal(true); g.restore(); } }
+        for (let k = 0; k <= 12; k++) { const a = Math.PI + (k / 12) * Math.PI, bx = cx + Math.cos(a) * 96, by = y - 70 + Math.sin(a) * 110; g.save(); g.translate(bx, by); g.rotate(a + Math.PI / 2); g.fillStyle = k % 2 ? '#d8eef8' : '#bfe0f0'; g.fillRect(-14, -12, 28, 24); g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(-14, -12, 28, 4); g.restore(); }
+        for (let k = 0; k < 8; k++) { const x = cx - 56 + k * 16; g.fillStyle = 'rgba(220,245,255,.9)'; g.beginPath(); g.moveTo(x - 4, y - 154); g.lineTo(x + 4, y - 154); g.lineTo(x, y - 136 - (k % 3) * 6); g.closePath(); g.fill(); }
+      } else if (kind === 'sluiceGate') {
+        // bent: ark boydan boya akar, bir yanda dönen su çarkı, öbür yanda değirmen evi
+        g.fillStyle = '#2f6fa0'; g.fillRect(0, y - 20, W, 26);
+        g.fillStyle = '#e8e0d0'; g.fillRect(cx + 70, y - 130, 90, 130); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(cx + 60, y - 130); g.lineTo(cx + 115, y - 170); g.lineTo(cx + 170, y - 130); g.closePath(); g.fill();
+        waterWheel(cx - 110, y - 50, 50, now);
+      } else if (kind === 'millGate') {
+        windmill(cx, y + 4, 4, now);
+      } else if (kind === 'barnGate') {
+        barn(cx, y + 4, 5.6, true); for (const sx of [-1, 1]) { g.save(); g.translate(cx + sx * 160, y); g.scale(1.6, 1.6); STATION_ART.saman(); g.restore(); }
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
         g.fillStyle = '#3a3f54'; g.fillRect(cx - 170, y - 140, 340, 144);
@@ -2213,7 +2307,7 @@
         for (const sx of [-1, 1]) light(cx + sx * 80, y - 150, 10, 'rgba(255,100,100,.9)');
       }
       door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : '#8a929c');
-      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 236, domeGate: 236, starGate: 240 }[kind] || 158), acc);
+      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 236, domeGate: 236, starGate: 240, iceArch: 208, iceCave: 222, sluiceGate: 196, millGate: 262, barnGate: 236 }[kind] || 158), acc);
     }
 
     // ---- sis: ulaşılmamış kapıların ötesi ----
