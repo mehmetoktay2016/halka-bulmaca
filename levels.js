@@ -1829,7 +1829,7 @@
   let gsLast = '';
   const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; gsLast = k; };
   // plan dışarıdan verilebilir (meydan okumalar: hamle tavanı maxPar, parçalar mech, işe yaraması gereken parçalar own,
-  // halka sayısı minRings-maxRings, üç halkayı kesme olasılığı cross3)
+  // halka sayısı minRings-maxRings, üç halkayı kesme olasılığı cross3, sıkışık yerleştirme dense)
   function growFor(levelNo, plan = NORMAL_PLAN[levelNo]) {
     GROW_DIAG.length = 0; // tanı kaydı: her deneme nasıl bitti (yalnız son bölümünki tutulur)
     const maxPar = plan.maxPar || maxParOfGate(plan.gate), t = plan.target;
@@ -1870,15 +1870,17 @@
       const x0 = Math.min(...rings.map(R => R.x - R.r)), x1 = Math.max(...rings.map(R => R.x + R.r));
       const y0 = Math.min(...rings.map(R => R.y - R.r)), y1 = Math.max(...rings.map(R => R.y + R.r));
       const needW = x1 - x0 < 300, needH = y1 - y0 < 400;
-      for (let k = 0; k < 16; k++) {
+      for (let k = 0; k < (plan.dense ? 64 : 16); k++) {
         const a = rnd() * Math.PI * 2;
         const c = { x: Math.round((P.x + Math.cos(a) * d) * 10) / 10, y: Math.round((P.y + Math.sin(a) * d) * 10) / 10, r, a: Math.round(rnd() * 360) };
         if (!fits(c, rings)) continue;
         const cross = rings.filter(R => { const e = Math.hypot(c.x - R.x, c.y - R.y); return e < c.r + R.r && e > Math.abs(c.r - R.r); }).length;
-        if (cross > want) continue;
+        if (cross > (plan.dense ? 4 : want)) continue; // sıkışık düzende en çok dört halkayı kesebilir
         const hit = cross === want;
         const ext = (needW ? Math.max(0, x0 - c.x + c.r) + Math.max(0, c.x + c.r - x1) : 0) + (needH ? Math.max(0, y0 - c.y + c.r) + Math.max(0, c.y + c.r - y1) : 0);
-        const dc = Math.min(...rings.map(R => Math.hypot(c.x - R.x, c.y - R.y) - R.r)) + (needW || needH ? ext : Math.min(c.x - c.r, W - c.x - c.r, c.y - c.r, H - c.y - c.r) * 0.15);
+        const dc0 = Math.min(...rings.map(R => Math.hypot(c.x - R.x, c.y - R.y) - R.r)) + (needW || needH ? ext : Math.min(c.x - c.r, W - c.x - c.r, c.y - c.r, H - c.y - c.r) * 0.15);
+        // Sıkışık düzen (plan.dense, meydan okumalar): alan dolunca boş yere değil kümenin içine en yakın yere konur
+        const dc = plan.dense && !needW && !needH ? -dc0 : dc0;
         if (hit && !bestHit || hit === bestHit && dc > bestD) { best = c; bestD = dc; bestHit = hit; }
       }
       return best;
@@ -1887,12 +1889,15 @@
     let best = null, bestErr = Infinity;
     // Normal bölüm hedefin ±0,4'ünde kabul edilir (0,25'e inince aramayı bırakır); zirve [hedef-0,45, sonraki kapı)
     const upper = plan.peak ? plan.top : t + 0.4;
+    const maxRings = plan.maxRings || (plan.peak ? 12 : 10);
+    // Kapıda tanıtılmış parça: zorlaştırma ancak onları ekler (yoksa bölüm sonda gec_parca ile atılıyordu)
+    const known = m => gateOfLayout(INTRO[m]) <= plan.gate;
     for (let attempt = 0; Date.now() < deadline && bestErr > (plan.peak ? 0 : 0.25); attempt++) {
       const rnd = mulberry32(levelNo * 7919 + attempt * 104729 + 313);
       const mech = plan.mech ? plan.mech.slice() : mechanicsFor(plan.gate, rnd).filter(m => GROW_MECH.includes(m));
       // Zirve denemelerinin yarısında ikinci bir parça zorunlu (tek parçayla zirveye ulaşmak zor)
       if (plan.peak && mech.length === own.length && attempt % 2) {
-        const pool = ['click', 'reverse', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < plan.gate)].filter(m => !mech.includes(m));
+        const pool = ['click', 'reverse', ...Object.keys(NEW25_GATE).filter(m => NEW25_GATE[m] < plan.gate)].filter(m => !mech.includes(m) && known(m));
         mech.push(pool[Math.floor(rnd() * pool.length)]);
       }
       const hub = { x: W / 2 + (rnd() - 0.5) * 40, y: H / 2 + (rnd() - 0.5) * 60, r: 58 + Math.round(rnd() * 10), a: Math.round(rnd() * 360) };
@@ -1941,10 +1946,11 @@
         }
         if (hub.ice === 1 && rings.filter((r, k) => k > 0 && Math.hypot(r.x - hub.x, r.y - hub.y) < r.r + hub.r).length >= 3) choices.push(() => { hub.ice = 2; undoFns.push(() => { hub.ice = 1; }); });
         if (!ownOnly || !choices.length) {
-          choices.push(() => { R.step = [45, 60, 90][Math.floor(rnd() * 3)]; undoFns.push(() => delete R.step); });
-          choices.push(() => { R.fixed = true; undoFns.push(() => delete R.fixed); });
-          if (free.length >= 2) choices.push(() => { const j = free.find(k => k !== i); couples.push([i, j, -1]); undoFns.push(() => couples.pop()); });
+          if (known('click')) choices.push(() => { R.step = [45, 60, 90][Math.floor(rnd() * 3)]; undoFns.push(() => delete R.step); });
+          if (known('fixed')) choices.push(() => { R.fixed = true; undoFns.push(() => delete R.fixed); });
+          if (free.length >= 2 && known('reverse')) choices.push(() => { const j = free.find(k => k !== i); couples.push([i, j, -1]); undoFns.push(() => couples.pop()); });
         }
+        if (!choices.length) return;
         choices[Math.floor(rnd() * choices.length)]();
         const back = () => { for (const f of undoFns.reverse()) f(); };
         const b = build();
@@ -1956,7 +1962,7 @@
       };
       let fails = 0, lastSc = 0, lastDef = null, post = []; gsLast = '';
       // Zirvede yayılmış düzenin eksik zorluğu için 12 halkaya kadar (normal bölüm 10)
-      while (rings.length < (plan.maxRings || (plan.peak ? 12 : 10)) && fails < 40 && Date.now() < deadline) {
+      while (rings.length < maxRings && fails < 40 && Date.now() < deadline) {
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
         const c = attach(rnd, rings, p);
         if (!c) { fails++; continue; }
@@ -2000,19 +2006,19 @@
         const bh = Math.max(...rings.map(r => r.y + r.r)) - Math.min(...rings.map(r => r.y - r.r));
         // Hedefe ulaşmış bölüm aşağıdaki kontrollerden birine takılırsa son halka geri alınır ve aynı adımda başka yer
         // denenir; halka eklemeyi sürdürmek zorluğu hedefin üstüne çıkarıyor, deneme boşa gidiyordu
-        if (bw < 300 || bh < 400) { gs('alan_kucuk'); if (rings.length >= (plan.peak ? 12 : 10)) undo(); continue; }
+        if (bw < 300 || bh < 400) { gs('alan_kucuk'); if (rings.length >= maxRings) undo(); continue; }
         // Hedef aralıkta: bir kez tam çözülür, ipucu çözebilmeli, kapının parçası işe yaramalı
-        if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { undo(); continue; }
+        if (features(def).some(f => gateOfLayout(INTRO[f]) > plan.gate)) { gs('gec_parca'); undo(); continue; }
         const exact = Logic.solve(L, L.startAngles, 0, 20000);
         def.par = exact ? exact.moves : quick.moves;
-        if (def.par < 3) continue;
-        if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) { undo(); continue; }
-        if (!connected(L)) { undo(); continue; }
+        if (def.par < 3) { gs('kisa'); continue; }
+        if (!Logic.solveFast(L, L.startAngles, 0, 40000, 0.8)) { gs('ipucu_cozemez'); undo(); continue; }
+        if (!connected(L)) { gs('kopuk'); undo(); continue; }
         if (!mattersAll(def, own.filter(m => features(def).includes(m)))) { gs('parca_onemsiz'); intensify(true); continue; }
         // Dopamin anı: en iyi çözümde tek hamlede en az 3 (zirvede 4) parçanın birden uçtuğu bir zincir olmalı
         if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); undo(); continue; }
         const s2 = difficultyScore(def);
-        if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { undo(); continue; }
+        if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { gs('tam_puan_disi'); undo(); continue; }
         const err = plan.peak ? 0 : Math.abs(s2 - t);
         if (err < bestErr) { best = def; bestErr = err; }
         gsLast = 'KABUL'; break;

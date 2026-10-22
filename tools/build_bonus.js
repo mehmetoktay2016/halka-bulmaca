@@ -1,8 +1,8 @@
 // Kullanım: node tools/build_bonus.js [süreç sayısı=3]
 // Meydan okumalar (2.5, Z22): her 20 bölümde bir, isteğe bağlı ve çok zor bölüm. Kaynak numarası levels.js BONUS.first + k - 1,
 // k. meydan okuma 20k. bölümden sonra (kapı 2k'nın sonunda) açılır.
-// Zorluk: o kapının en zor bölümünün puanından BONUS.extra fazla; hamle tavanı kapınınkinden BONUS.par fazla;
-// normal bölümlerden çok halka (minRings-maxRings), sıkışık ve iç içe (yeni halka bazen üç halkayı keser);
+// Zorluk: o kapının en zor bölümünün puanından en az BONUS.extra fazla; hamle tavanı BONUS.maxPar;
+// normal bölümlerden çok halka (minRings-maxRings), sıkışık ve iç içe (yeni halka dört halkaya kadar keser);
 // o ana kadar tanıtılmış parçalardan en çok üçü, hepsi çözümde işe yarar (levels.js growFor). Bitmiş meydan okuma atlanır,
 // her biri biter bitmez tools/out/bonus.json'a yazılır; hepsi bitince levels_data.js'e eklenir.
 const fs = require('fs');
@@ -13,7 +13,7 @@ const OUT = path.join(__dirname, 'out'), FILE = path.join(OUT, 'bonus.json');
 const DATA = path.join(__dirname, '..', 'levels_data.js');
 const Levels = require('../levels.js');
 // numaralar levels.js'te (oyun da oradan okur); burada yalnız üretim ayarları
-const BONUS = { ...Levels.BONUS, count: 20, extra: 1.5, par: 3, maxPar: 14, pieces: 3, minRings: 13, maxRings: 16 };
+const BONUS = { ...Levels.BONUS, count: 20, extra: 1.5, maxPar: 16, pieces: 3, minRings: 11, maxRings: 14 };
 const readData = () => new Function(fs.readFileSync(DATA, 'utf8') + '; return RING_LEVEL_DATA;')();
 const readDone = () => (fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, 'utf8')) : {});
 
@@ -26,9 +26,10 @@ function planFor(k, pre, order) {
   const avail = Levels.GROW_MECH.filter(m => intro(m) <= gate).sort((a, b) => intro(a) - intro(b));
   // en yeni iki parça ve eskilerden biri: oyuncu son öğrendiklerini bir arada kullanır
   const mech = avail.length <= BONUS.pieces ? avail : [...avail.slice(-2), avail[(k * 7) % (avail.length - 2)]];
-  const maxPar = Math.min(BONUS.maxPar, Levels.maxParOf(order[gate * 10 - 1]) + BONUS.par);
-  return { gate, target: Math.round((peak + BONUS.extra) * 100) / 100, peak: true, top: peak + BONUS.extra + 1.2,
-    near: 0.54, minRings: BONUS.minRings, maxRings: BONUS.maxRings, cross3: 0.3, maxPar, mech, own: mech };
+  // Üst puan sınırı yok: 11+ halkalı sıkışık düzen kapının zirvesini zaten çok aşar. near 0,7: yeni halka bağlandığı
+  // halkaya daha yakın konunca kümede başkalarına çarpıyor, 13 halkaya varılamıyordu
+  return { gate, target: Math.round((peak + BONUS.extra) * 100) / 100, peak: true, top: Infinity,
+    near: 0.7, dense: true, minRings: BONUS.minRings, maxRings: BONUS.maxRings, cross3: 0.3, maxPar: BONUS.maxPar, mech, own: mech };
 }
 
 if (process.argv[2] === '--worker') {
