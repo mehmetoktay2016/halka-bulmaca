@@ -45,35 +45,46 @@
   };
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
-  function Music(getContext) {
-    let ac = null, bus = null, verb = null, noise = null;
-    let timer = 0, step = 0, nextT = 0, playing = false, level = 0.4;
-    let done = 0, pending = 0, freedN = 0, glitter = 0, cadenceEnd = 0;
-    let style = STYLES.vadi, wanted = style; // dünya değişince yeni çeşitleme bir sonraki ölçüde başlar
-    let mode = null, boom = false;           // özel an: null, 'boss' (Dev Halka), 'rain' (Altın Yağmuru)
-    const sp = () => 60 / (mode === 'rain' ? 130 : style[1]) / 4; // 16'lık süresi (sn)
+  // Kayıtların örnekleme hızı: telefonda bellek ve işlem az, tiz çalgılar için yeterli
+  const SR = 24000;
 
-    function setup() {
-      ac = getContext();
-      if (!ac) return false;
-      if (bus) return true;
-      // sınırlayıcı: üst üste binen notalar ve oyun sesleriyle taşıp cızırdamasın
-      const lim = ac.createDynamicsCompressor();
-      lim.threshold.value = -12; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25;
-      // alçak frekans süzgeci: telefon hoparlörü 150 Hz altını çalamaz, zorlanınca cızırdar
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150; hp.Q.value = 0.7;
-      bus = ac.createGain(); bus.gain.value = 0; bus.connect(hp); hp.connect(lim); lim.connect(ac.destination);
-      // yankı: iki geri beslemeli gecikme (evrişimli yankı telefonda ses iş parçacığını yorup cızırtı yapıyordu)
-      verb = ac.createGain();
-      const wet = ac.createGain(); wet.gain.value = 0.22; wet.connect(bus);
+  function Music(getContext) {
+    let live = null;                                       // canlı çıkış: { ac, bus, verb, noise }
+    let ac = null, bus = null, verb = null, noise = null;  // çalgıların o an yazdığı yer (canlı çıkış ya da kayıt)
+    let level = 0.4, done = 0, freedN = 0, cadEnd = 0, playing = false, want = false;
+    let wid = 'vadi', style = STYLES.vadi, mode = null;    // mode: null, 'boss' (Dev Halka), 'rain' (Altın Yağmuru)
+    let cur = null, src = null, gains = [], t0 = 0;        // çalan kayıt, kaynağı, katman sesleri, başlangıcı
+    const cache = new Map();                               // dünya:kip -> kayıt sözü; bellekte en çok iki
+    const sp = () => 60 / (mode === 'rain' ? 130 : style[1]) / 4; // 16'lık süresi (sn)
+    const use = o => { ({ ac, bus, verb, noise } = o); };
+
+    // yankı: iki geri beslemeli gecikme (evrişimli yankı telefonda ağır)
+    function makeVerb(cx, dest) {
+      const v = cx.createGain(), wet = cx.createGain(); wet.gain.value = 0.22; wet.connect(dest);
       for (const [dt, fb] of [[0.137, 0.35], [0.211, 0.3]]) {
-        const dl = ac.createDelay(1), lp = ac.createBiquadFilter(), back = ac.createGain();
+        const dl = cx.createDelay(1), lp = cx.createBiquadFilter(), back = cx.createGain();
         dl.delayTime.value = dt; lp.type = 'lowpass'; lp.frequency.value = 2500; back.gain.value = fb;
-        verb.connect(dl); dl.connect(lp); lp.connect(back); back.connect(dl); lp.connect(wet);
+        v.connect(dl); dl.connect(lp); lp.connect(back); back.connect(dl); lp.connect(wet);
       }
-      noise = ac.createBuffer(1, ac.sampleRate * 0.6, ac.sampleRate);
-      const d = noise.getChannelData(0);
+      return v;
+    }
+    function makeNoise(cx) {
+      const n = cx.createBuffer(1, Math.round(cx.sampleRate * 0.6), cx.sampleRate), d = n.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return n;
+    }
+    function setup() {
+      const cx = getContext();
+      if (!cx) return false;
+      if (!live) {
+        // sınırlayıcı (taşma olmasın) ve 150 Hz alçak frekans süzgeci (telefon hoparlörü zorlanmasın)
+        const lim = cx.createDynamicsCompressor();
+        lim.threshold.value = -12; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25;
+        const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150; hp.Q.value = 0.7;
+        const master = cx.createGain(); master.gain.value = 0; master.connect(hp); hp.connect(lim); lim.connect(cx.destination);
+        live = { ac: cx, bus: master, verb: makeVerb(cx, master), noise: makeNoise(cx) };
+      }
+      use(live);
       return true;
     }
     function out(node, dry, wet) {
@@ -166,94 +177,142 @@
       noiseHit(t, 'bandpass', 2000, 9000, 0.35, 0.05, 0.2, 0.5);
     }
 
-    // ---- akış: 16'lık adımlar önceden zamanlanır ----
+    // ---- kayıt: dünyanın 8 ölçüsü önceden sese dönüştürülür ----
+    // Anlık sentezde her nota yeni ses kaynakları açıyordu; zayıf telefonda ses işlemcisi yetişemeyip cızırdıyordu.
+    // Artık her dünya (ve özel kip) bir kez, katmanları ayrı kanallarda kaydedilir; çalarken yalnız kayıt döner.
+    // Canlı kalanlar yalnız kurtuluş notaları, parıltı ve Dev Halka vuruşu (birkaç nota).
     function layers() { return mode === 'rain' ? [true, true, true, true] : [true, mode === 'boss' || done >= 0.2, done >= 0.45, done >= 0.65]; }
-    function schedule(s, t) {
-      if (s % 16 === 0) style = wanted;
-      const [R, , lead, pulse] = style, bar = Math.floor(s / 16), st = s % 16, ch = CHORDS[bar % 4], on = layers(), q = sp();
-      if (st === 0) { pad(t, ch.map(n => R + n), 1, q * 16); bass(t, R - 12 + BASS[bar % 4], 1, q * 7); }
-      if (st === 8) bass(t, R - 12 + BASS[bar % 4], 0.8, q * 6);
-      // Altın Yağmuru'nda arpej 16'lık (susulan adımda bir önceki nota)
-      const a = ARP[st] >= 0 ? ARP[st] : mode === 'rain' ? ARP[st - 1] : -1;
-      if (on[1] && a >= 0) INST[pulse](t, R + 12 + ch[a], ACCENT.includes(st) ? 1 : 0.55);
-      if (on[2] && (st % 2 === 1 || mode === 'rain')) noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
-      // Dev Halka: her vuruşta davul, aradaki 8'liklerde kısa pompalayan bas; Yağmur: ölçü başında ve ortasında davul
-      if (mode === 'boss' && st % 4 === 0) drum(t, st % 8 ? 0.6 : 1);
-      if (mode === 'boss' && st % 4 === 2) bass(t, R - 24 + BASS[bar % 4], 0.6, q);
-      if (mode === 'rain' && st % 8 === 0) drum(t, 0.7);
-      if (on[3]) for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
+    // L. katmanın (0 pad + bas, 1 arpej, 2 ritim, 3 ezgi) s. adımı, t anında
+    function note(L, s, t) {
+      const [R, , lead, pulse] = style, bar = Math.floor(s / 16), st = s % 16, ch = CHORDS[bar % 4], q = sp();
+      if (L === 0) {
+        if (st === 0) { pad(t, ch.map(n => R + n), 1, q * 16); bass(t, R - 12 + BASS[bar % 4], 1, q * 7); }
+        if (st === 8) bass(t, R - 12 + BASS[bar % 4], 0.8, q * 6);
+        if (mode === 'boss' && st % 4 === 2) bass(t, R - 24 + BASS[bar % 4], 0.6, q); // Dev Halka: pompalayan bas
+      } else if (L === 1) {
+        const a = ARP[st] >= 0 ? ARP[st] : mode === 'rain' ? ARP[st - 1] : -1; // Altın Yağmuru'nda 16'lık arpej
+        if (a >= 0) INST[pulse](t, R + 12 + ch[a], ACCENT.includes(st) ? 1 : 0.55);
+      } else if (L === 2) {
+        if (st % 2 === 1 || mode === 'rain') noiseHit(t, 'highpass', 6500, 0, 0.002, st % 4 === 3 ? 0.07 : 0.045, 0.05, 0.2);
+        if (mode === 'boss' && st % 4 === 0) drum(t, st % 8 ? 0.6 : 1);
+        if (mode === 'rain' && st % 8 === 0) drum(t, 0.7);
+      } else for (const [at, n, len] of MELODY[bar % 8]) if (at === st) INST[lead](t, R + n, 1, len * q);
     }
-    // bekleyen kurtuluş notaları ve parıltı bir sonraki 8'liğe oturur
-    function release(t, ch) {
-      for (let i = 0; i < pending; i++) { const k = freedN + i; INST[style[4]](t + i * sp() * 0.5, style[0] + 12 + ch[k % 3] + 12 * (Math.floor(k / 3) % 2), 0.9); }
-      freedN += pending; pending = 0;
-      if (glitter) { sparkle(t + sp(), ch, glitter); glitter = 0; }
-      if (boom) { drum(t, 1.5); bass(t, style[0] - 24, 1.2, sp() * 6); pad(t, ch.map(n => style[0] + 12 + n), 1.6, sp() * 6); boom = false; }
-    }
-    // Notalar AHEAD saniye önceden zamanlanır: telefon bir an takılsa da müzik kesilmez. Zamanlayıcı yine de
-    // geride kalırsa kaçan adımlar atlanır (geçmişe yazılan nota zarfı aniden başlar, hoparlörde tıkırdar)
-    const AHEAD = 0.35;
-    function tick() {
-      while (nextT < ac.currentTime + 0.02) { nextT += sp(); step++; }
-      while (nextT < ac.currentTime + AHEAD) { schedule(step, nextT); nextT += sp(); step++; }
-      flush();
-    }
-    // Kurtuluş notaları önden zamanlanan akışı beklemez: zaten zamanlanmış ızgaradaki bir sonraki 8'liğe oturur
-    function flush() {
-      if (!playing || !(pending || glitter || boom)) return;
-      const q = sp(), soon = ac.currentTime + 0.03;
-      let e = step - Math.floor((nextT - soon) / q);
-      if (e % 2) e++;
-      release(nextT - (step - e) * q, CHORDS[Math.floor(e / 16) % 4]);
-    }
-
-    // Bölüm başında: döngü baştan, yalnız pad ve bas
-    function play() {
-      if (!setup()) return;
-      done = 0; pending = 0; freedN = 0; glitter = 0;
-      bus.gain.cancelScheduledValues(ac.currentTime);
-      bus.gain.setTargetAtTime(level * VOLUME, ac.currentTime, 0.3);
-      if (playing) return;
-      playing = true; step = 0; nextT = ac.currentTime + 0.08;
-      clearInterval(timer); timer = setInterval(tick, 40);
-    }
-    function stop() {
-      if (!bus) return;
-      bus.gain.cancelScheduledValues(ac.currentTime);
-      bus.gain.setTargetAtTime(0, ac.currentTime, 0.25);
-      playing = false; clearInterval(timer);
-    }
-    // Son halka: ritim durur; bir sonraki 8'likte V akoru, yarım ölçü sonra I'e çözülür, kurtuluş çalgısı yükselir
-    function resolve() {
-      if (!playing) return;
-      playing = false; clearInterval(timer);
-      const R = style[0], ring = INST[style[4]], V = CHORDS[3];
-      const t = Math.max(ac.currentTime + 0.05, nextT - (step % 2 ? sp() : 0)), t2 = t + sp() * 8;
-      release(t, V);
+    // Son halka: V akoru, yarım ölçü sonra I'e çözülür, kurtuluş çalgısı yükselir
+    function cadence(t) {
+      const R = style[0], ring = INST[style[4]], V = CHORDS[3], t2 = t + sp() * 8;
       pad(t, V.map(n => R + n), 1.2, sp() * 8); bass(t, R - 12 + V[0], 1, sp() * 7);
       pad(t2, [0, 4, 7].map(n => R + n), 1.4, 4); bass(t2, R - 12, 1, 3);
       [0, 4, 7, 12, 16].forEach((n, i) => ring(t2 + i * 0.11, R + 12 + n, 0.9));
       ring(t2 + 0.6, R + 28, 1);
-      cadenceEnd = t2 + 1.4;
     }
-    // Kusursuz seri cıngılı: çözülüşten sonra I akorunda kısa zafer ezgisi
-    function jingle() {
-      if (!setup() || bus.gain.value < 0.001) return;
-      const R = style[0], t = Math.max(ac.currentTime + 0.05, cadenceEnd), q = sp();
+    // Kusursuz seri cıngılı: I akorunda kısa zafer ezgisi
+    function fanfare(t) {
+      const R = style[0], q = sp();
       [0, 4, 7, 4, 7, 12].forEach((n, i) => INST[style[3]](t + i * q * 1.5, R + 12 + n, 1));
       INST[style[4]](t + q * 9, R + 28, 1); INST[style[4]](t + q * 9, R + 31, 0.8);
       sparkle(t + q * 9, [0, 4, 7], 4); bass(t + q * 9, R - 12, 1, 1.2);
     }
+    // ch kanallı çevrimdışı kayıt: draw(çıkışlar) çalgıları her kanalın girişine yazar
+    function offline(chs, secs, draw) {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const cx = new OAC(chs, Math.ceil(secs * SR), SR), m = cx.createChannelMerger(chs), n = makeNoise(cx);
+      m.connect(cx.destination);
+      const outs = Array.from({ length: chs }, (_, i) => { const g = cx.createGain(); g.connect(m, 0, i); return { ac: cx, bus: g, verb: makeVerb(cx, g), noise: n }; });
+      draw(outs);
+      use(live);
+      return cx.startRendering();
+    }
+    // Döngünün dikişsiz olması için döngü sonundan taşan yankı ve sönümler başa eklenir
+    function fold(b, n) {
+      const o = live.ac.createBuffer(b.numberOfChannels, n, SR);
+      for (let k = 0; k < b.numberOfChannels; k++) { const x = b.getChannelData(k), d = o.getChannelData(k); d.set(x.subarray(0, n)); for (let i = n; i < x.length; i++) d[i - n] += x[i]; }
+      return o;
+    }
+    function render() {
+      const key = wid + ':' + mode;
+      if (cache.has(key)) return cache.get(key);
+      const q = sp(), len = 128 * q;
+      const parts = [
+        offline(4, len + 2.5, outs => outs.forEach((o, L) => { use(o); for (let s = 0; s < 128; s++) note(L, s, s * q + 0.01); })),
+        offline(1, q * 8 + 4.5, ([o]) => { use(o); cadence(0.01); }),
+        offline(1, q * 9 + 2.5, ([o]) => { use(o); fanfare(0.01); }),
+      ];
+      const r = Promise.all(parts).then(([b, cad, jin]) => ({ key, q, loop: fold(b, Math.round(len * SR)), cad, jin }));
+      cache.set(key, r);
+      while (cache.size > 2) cache.delete(cache.keys().next().value);
+      return r;
+    }
+
+    // ---- çalma ----
+    function stopSrc(t) { if (src) { try { src.stop(t); } catch (e) { /* zaten durdu */ } src = null; } }
+    function start(r) {
+      use(live); stopSrc(ac.currentTime + 0.05);
+      const split = ac.createChannelSplitter(4), on = layers();
+      cur = r; src = ac.createBufferSource(); src.buffer = r.loop; src.loop = true; src.connect(split);
+      gains = on.map((o, i) => { const g = ac.createGain(); g.gain.value = o ? 1 : 0; split.connect(g, i); g.connect(bus); return g; });
+      t0 = ac.currentTime + 0.05; src.start(t0); playing = true;
+    }
+    function fade() { const on = layers(); gains.forEach((g, i) => g.gain.setTargetAtTime(on[i] ? 1 : 0, ac.currentTime, 0.4)); }
+    // döngü ızgarasında `after` anından sonraki 8'lik ve o anki akor
+    function grid(after) {
+      let k = Math.ceil((after - t0) / cur.q); if (k % 2) k++;
+      return { t: t0 + k * cur.q, ch: CHORDS[Math.floor((k % 128) / 16) % 4] };
+    }
+    function once(buf, t) { const b = ac.createBufferSource(); b.buffer = buf; b.connect(bus); b.start(t); }
+
+    // Bölüm başında: aynı dünyada döngü sürer, katmanlar başa döner; yeni dünyada kayıt hazır olunca başlar
+    function play() {
+      if (!setup()) return;
+      want = true; done = 0; freedN = 0;
+      bus.gain.cancelScheduledValues(ac.currentTime);
+      bus.gain.setTargetAtTime(level * VOLUME, ac.currentTime, 0.3);
+      const key = wid + ':' + mode;
+      if (playing && cur && cur.key === key) { fade(); return; }
+      render().then(r => { if (want && r.key === wid + ':' + mode && !(playing && cur === r)) start(r); });
+    }
+    function stop() {
+      want = false;
+      if (!live) return;
+      use(live);
+      bus.gain.cancelScheduledValues(ac.currentTime);
+      bus.gain.setTargetAtTime(0, ac.currentTime, 0.25);
+      playing = false; stopSrc(ac.currentTime + 1.2);
+    }
+    // Son halka: döngü bir sonraki 8'likte susar, çözülüş kaydı çalar
+    function resolve() {
+      if (!playing || !cur) return;
+      use(live); playing = false;
+      const { t } = grid(ac.currentTime + 0.03);
+      gains.forEach(g => g.gain.setTargetAtTime(0, t, 0.03)); stopSrc(t + 0.3);
+      once(cur.cad, t);
+      cadEnd = t + cur.q * 8 + 1.4;
+    }
+    function jingle() {
+      if (!cur || !want) return;
+      use(live); once(cur.jin, Math.max(ac.currentTime + 0.05, cadEnd));
+    }
 
     return {
       play, stop, resolve, jingle,
-      world(id) { wanted = STYLES[id] || STYLES.vadi; if (!playing) style = wanted; },
+      world(id) { wid = STYLES[id] ? id : 'vadi'; style = STYLES[wid]; if (live) render(); }, // kayıt dünyaya girerken hazırlanır
       mode(m) { mode = m; },
-      hit() { if (playing) { boom = true; glitter = 6; flush(); } }, // Dev Halka yenildi
-      progress(f) { done = f; },                       // tahtanın boşalan oranı (0..1): katmanlar
-      free(n) { if (playing) { pending += n; flush(); } }, // kurtulan halka sayısı
-      sparkle(n) { if (playing) { glitter = Math.max(glitter, Math.min(n, 6)); flush(); } },
-      volume(v) { level = v; if (bus && playing) bus.gain.setTargetAtTime(level * VOLUME, ac.currentTime, 0.1); },
+      progress(f) { done = f; if (playing) fade(); },   // tahtanın boşalan oranı (0..1): katmanlar
+      // kurtulan halkalar: notaları döngünün bir sonraki 8'liğine ve akoruna oturur, yükselerek dağılır
+      free(n) {
+        if (!playing) return;
+        use(live); const { t, ch } = grid(ac.currentTime + 0.03);
+        for (let i = 0; i < n; i++) { const k = freedN + i; INST[style[4]](t + i * cur.q * 0.5, style[0] + 12 + ch[k % 3] + 12 * (Math.floor(k / 3) % 2), 0.9); }
+        freedN += n;
+      },
+      sparkle(n) { if (!playing) return; use(live); const { t, ch } = grid(ac.currentTime + 0.03); sparkle(t + cur.q, ch, Math.min(n, 6)); },
+      // Dev Halka yenildi: gümbürtü, I akoru ve parıltı
+      hit() {
+        if (!playing) return;
+        use(live); const { t, ch } = grid(ac.currentTime + 0.03);
+        drum(t, 1.5); bass(t, style[0] - 24, 1.2, cur.q * 6); pad(t, ch.map(n => style[0] + 12 + n), 1.6, cur.q * 6); sparkle(t + cur.q, ch, 6);
+      },
+      volume(v) { level = v; if (live && want) live.bus.gain.setTargetAtTime(level * VOLUME, live.ac.currentTime, 0.1); },
     };
   }
 

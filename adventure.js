@@ -2013,6 +2013,7 @@
       if (final) { g.strokeStyle = '#ffe07a'; g.lineWidth = 1.6; rr(-s - 2, top - 2, s * 2 + 4, s * 2 + 4, 4); g.stroke(); }
       g.fillStyle = '#161b2e'; rr(-s, top, s * 2, s * 2, 3); g.fill();
       if (img && img.complete && img.naturalWidth) g.drawImage(img, -s + 2, top + 2, s * 2 - 4, s * 2 - 4);
+      else imgWait = true; // şekil resmi henüz yüklenmedi: bu dilim saklanmaz
       if (final && on) light(0, top + s, s * 2, 'rgba(255,201,74,.35)');
     }
 
@@ -3053,16 +3054,43 @@
     }
 
     // ---- çizim döngüsü ----
-    // Kaydırılırken 0,75x çözünürlük (boyanacak piksel 7 kat az, zayıf telefonda harita parmağı izler), durunca 2x keskin
-    let lastTop = 0, moveT = 0;
+    let lastTop = 0, moveT = 0; // son kaydırma anı: kaydırılırken harita dilimlerden çizilir (draw)
     function resize() {
       const now = performance.now();
       if (Math.abs(sc.scrollTop - lastTop) > 0.5) moveT = now;
       lastTop = sc.scrollTop;
-      const dpr = Math.min(window.devicePixelRatio || 1, now - moveT < 150 ? 0.75 : 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); // 3x ekranlarda 2x yeter
       const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       return dpr;
+    }
+    // Haritanın sahnesi (kahraman ve efektler hariç); ad tabelaları kahramanın üstüne çizilsin diye geri döner
+    function scene(now, top, bot) {
+      for (const r of REGIONS) if (r.bottom > top && r.top < bot) ground(r, Math.max(top, r.top), Math.min(bot, r.bottom), now);
+      road(S.hop ? tOf(S.hop.from) + (tOf(S.hop.to) - tOf(S.hop.from)) * Math.max(0, Math.min(1, (now - S.hop.t0 - CROUCH) / S.hop.ms)) : tOf(Math.max(1, FRONT)), top, bot);
+      for (const d of DECOR) { if (d.y < top - 80) continue; if (d.y > bot + 80) break; (DECOR_ART[d.kind] || DECOR_ART.rock)(d, now); }
+      gates(now, top, bot);
+      const banners = pedestals(now, top, bot);
+      shrines(now, top, bot);
+      fog(now, top, bot);
+      return banners;
+    }
+    // Dilim: sahnenin TILE birimlik yatay şeridi, bir kez boyanır (en çok 6 dilim bellekte)
+    const TILE = 480, TILES = new Map();
+    let tileKey = '', imgWait = false;
+    function tile(i, dpr) {
+      let c = TILES.get(i);
+      if (c) return c;
+      // dilim alttan 4 birim taşar: komşusuyla üst üste biner, birleşim yerinde çizgi kalmaz
+      c = document.createElement('canvas'); c.width = cv.width; c.height = Math.ceil((TILE + 4) * k * dpr);
+      const main = g; g = c.getContext('2d'); imgWait = false;
+      g.setTransform(dpr * k, 0, 0, dpr * k, 0, -i * TILE * dpr * k);
+      for (const st of scene(performance.now(), i * TILE, (i + 1) * TILE + 4)) nameBanner(st, performance.now());
+      g = main;
+      if (imgWait) return c;
+      TILES.set(i, c);
+      if (TILES.size > 6) TILES.delete(TILES.keys().next().value);
+      return c;
     }
     function draw(now) {
       FRONT = D.frontier(); OPEN.length = 0;
@@ -3074,18 +3102,26 @@
         sc.scrollTop += (want - sc.scrollTop) * (reduced() ? 1 : 0.1);
       }
       const camY = sc.scrollTop / k, top = camY, bot = camY + vh;
-      g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
-      g.clearRect(0, top, W + 60, vh);
-      for (const r of REGIONS) if (r.bottom > top && r.top < bot) ground(r, Math.max(top, r.top), Math.min(bot, r.bottom), now);
-      const lit = S.hop ? tOf(S.hop.from) + (tOf(S.hop.to) - tOf(S.hop.from)) * Math.max(0, Math.min(1, (now - S.hop.t0 - CROUCH) / S.hop.ms)) : tOf(Math.max(1, FRONT));
-      road(lit, top, bot);
-      for (const d of DECOR) { if (d.y < top - 80) continue; if (d.y > bot + 80) break; (DECOR_ART[d.kind] || DECOR_ART.rock)(d, now); }
-      gates(now, top, bot);
-      const banners = pedestals(now, top, bot);
-      shrines(now, top, bot);
-      fog(now, top, bot);
-      hero(now);
-      for (const st of banners) nameBanner(st, now);
+      // Kaydırılırken (kahraman yürümüyorsa) sahne her karede boyanmaz: önceden boyanmış dilimler kopyalanır,
+      // telefonda harita parmağı akıcı izler; durunca canlı (animasyonlu) çizime dönülür
+      const key = FRONT + ':' + cv.width + ':' + k + ':' + Object.keys(S.opening).length;
+      if (key !== tileKey) { TILES.clear(); tileKey = key; }
+      const first = Math.floor(top / TILE), last = Math.floor(bot / TILE);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      if (now - moveT < 150 && !S.hop && !S.follow) {
+        g.clearRect(0, 0, cv.width, cv.height);
+        for (let i = first; i <= last; i++) g.drawImage(tile(i, dpr), 0, Math.round((i * TILE - top) * k * dpr));
+        g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
+        hero(now);
+      } else {
+        g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
+        g.clearRect(0, top, W + 60, vh);
+        const banners = scene(now, top, bot);
+        hero(now);
+        for (const st of banners) nameBanner(st, now);
+        // dururken görünen bölgenin ve komşularının dilimleri hazırlanır (karede en çok bir dilim)
+        for (let i = first - 1; i <= last + 1; i++) if (i >= 0 && !TILES.has(i)) { tile(i, dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); break; }
+      }
       effects(now, top);
       if (D.jar) hudJar(now, top);
       g.setTransform(1, 0, 0, 1, 0, 0);
