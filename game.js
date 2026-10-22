@@ -4508,9 +4508,18 @@
 
   // Övgü ve "Zincir ×N" yazıları: büyüyerek belirir, yükselir ve söner (efektler kapalıysa büyümeden)
   const FLOAT_FONT = '"Baloo F", "Baloo 2", "Trebuchet MS", sans-serif';
+  // Yazılar üst üste binmez: ekranda yeni bir yazı varken gelen yazı, öncekinin çıkışından FLOAT_GAP sonra sıraya girer
+  const FLOAT_GAP = 650;
   function drawFloaters(now) {
+    for (const f of floaters) {
+      if (f.queued) continue;
+      f.queued = true;
+      const prev = floaters.filter(o => o !== f && o.queued && o.t0 + (o.life || 1300) > f.t0).reduce((m, o) => Math.max(m, o.t0), -Infinity);
+      if (f.t0 < prev + FLOAT_GAP) f.t0 = prev + FLOAT_GAP;
+    }
     floaters = floaters.filter(f => now < f.t0 + (f.life || 1300));
     for (const f of floaters) {
+      if (now < f.t0) continue;
       const t = (now - f.t0) / (f.life || 1300);
       const pop = !fxOn() ? 1 : t < 0.12 ? 0.5 + (t / 0.12) * 0.7 : t < 0.25 ? 1.2 - ((t - 0.12) / 0.13) * 0.2 : 1;
       const size = f.size || (f.big ? 38 : 32);
