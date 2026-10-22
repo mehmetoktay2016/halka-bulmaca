@@ -174,6 +174,36 @@
     }
     // Lunapark tezgâhı: tenteli tezgâh (dekordaki stall) ve tezgâhın üstündeki ürün
     function standStall(c, item, t) { DECOR_ART.stall({ x: 0, y: -14, c }, t); g.save(); g.translate(0, -40); item(); g.restore(); }
+    // Uçan kâğıt fener (yolculukta Halka'yı taşır, Uçan Fener Tepesi'nde yükselir)
+    function skyLantern(ly, c1, c2, t) {
+      add(() => glow(0, ly, 46, c1 === '#9ff0ff' ? 'rgba(140,240,255,.55)' : 'rgba(255,200,110,.6)'));
+      g.fillStyle = INK; g.beginPath(); g.moveTo(-15, ly - 18); g.lineTo(15, ly - 18); g.lineTo(11, ly + 15); g.lineTo(-11, ly + 15); g.closePath(); g.fill();
+      const lg = g.createLinearGradient(0, ly - 17, 0, ly + 14); lg.addColorStop(0, c1); lg.addColorStop(1, c2);
+      g.fillStyle = lg; g.beginPath(); g.moveTo(-13.5, ly - 16.5); g.lineTo(13.5, ly - 16.5); g.lineTo(9.8, ly + 13.5); g.lineTo(-9.8, ly + 13.5); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-4, ly - 15, 2, 27); g.fillRect(4, ly - 15, 2, 27);
+      g.fillStyle = '#fff5c0'; g.beginPath(); g.ellipse(0, ly + 9, 3, 4 + Math.sin(t * 20), 0, 0, TAU); g.fill();
+    }
+    // Teleskop: üç ayak üstünde, a açısıyla göğe bakan tüp
+    function telescope(x, y, k, a) {
+      g.save(); g.translate(x, y); g.scale(k, k);
+      g.strokeStyle = '#6a5a4a'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -14); g.lineTo(-9, 0); g.moveTo(0, -14); g.lineTo(9, 0); g.moveTo(0, -14); g.lineTo(0, 0); g.stroke();
+      g.translate(0, -16); g.rotate(a); g.fillStyle = '#c99a3a'; g.fillRect(-14, -3.5, 28, 7); g.fillStyle = '#e0b24a'; g.fillRect(10, -4.5, 6, 9); g.fillStyle = '#2a2a34'; g.fillRect(-17, -2.5, 4, 5);
+      g.restore();
+    }
+    // Gözlemevi: silindir gövde, yarığı açık kubbe, yarıktan çıkan teleskop
+    function observatory(x, y, k, now) {
+      g.save(); g.translate(x, y); g.scale(k, k);
+      g.fillStyle = '#d8d0c0'; g.fillRect(-20, -20, 40, 20); g.fillStyle = 'rgba(0,0,0,.15)'; g.fillRect(6, -20, 14, 20);
+      g.fillStyle = '#9aa6b8'; g.beginPath(); g.arc(0, -20, 20, Math.PI, 0); g.fill(); g.fillStyle = '#1a1e2e'; g.fillRect(-3, -40, 7, 20);
+      g.save(); g.translate(0, -22); g.rotate(-1 + (reduced() ? 0 : Math.sin(now / 3000) * 0.15)); g.fillStyle = '#c99a3a'; g.fillRect(0, -2.5, 22, 5); g.restore();
+      g.fillStyle = '#ffd98a'; g.fillRect(-12, -14, 6, 7); add(() => glow(-9, -10, 12, 'rgba(255,210,130,.5)'));
+      g.restore();
+    }
+    // Takımyıldız: yıldızlar ve aralarındaki ince çizgiler
+    function constellation(pts, t) {
+      g.strokeStyle = 'rgba(180,200,255,.55)'; g.lineWidth = 0.9; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+      add(() => pts.forEach(([x, y], i) => { const tw = 0.6 + 0.4 * Math.sin(t / 400 + i); g.fillStyle = `rgba(255,250,220,${tw})`; star(x, y, 2.6); }));
+    }
     function lighthouse(x, y, k, now) {
       g.save(); g.translate(x, y); g.scale(k, k);
       for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? '#c0392b' : '#f2ece0'; g.beginPath(); g.moveTo(-10 + i * 0.8, -i * 10); g.lineTo(10 - i * 0.8, -i * 10); g.lineTo(10 - (i + 1) * 0.8, -(i + 1) * 10); g.lineTo(-10 + (i + 1) * 0.8, -(i + 1) * 10); g.closePath(); g.fill(); }
@@ -285,9 +315,10 @@
         for (let y = Math.floor(top / 420) * 420 + 200; y < bot + 260; y += 420) glow((y / 420) % 2 ? 80 : 320, y, 220, 'rgba(255,240,180,.08)');
         return null;
       }
-      if (id === 'uzay') {
-        g.fillStyle = '#070912'; g.fillRect(0, top, W, bot - top);
-        for (let y = Math.floor(top / 500) * 500 + 250; y < bot + 300; y += 500) glow((y / 500) % 2 ? 90 : 310, y, 240, (y / 500) % 2 ? 'rgba(140,80,220,.16)' : 'rgba(60,140,230,.14)');
+      if (id === 'uzay' || id === 'rasathane') {
+        const ras = id === 'rasathane';
+        g.fillStyle = ras ? '#0c1024' : '#070912'; g.fillRect(0, top, W, bot - top);
+        for (let y = Math.floor(top / 500) * 500 + 250; y < bot + 300; y += 500) glow((y / 500) % 2 ? 90 : 310, y, 240, ras ? 'rgba(220,230,255,.09)' : (y / 500) % 2 ? 'rgba(140,80,220,.16)' : 'rgba(60,140,230,.14)');
         add(() => {
           for (let y0 = Math.floor(top / 200) * 200; y0 < bot; y0 += 200) {
             const R = rng(y0 * 17 + 5);
@@ -540,6 +571,10 @@
       buoy: asDecor('samandira'),
       gull: asDecor('marti', 0.9),
       smallLight(d, now) { lighthouse(d.x, d.y, 0.6 * d.s, now); },
+      smallDome(d, now) { observatory(d.x, d.y, 0.9 * d.s, now); },
+      scope: asDecor('devteleskop', 0.8),
+      globe: asDecor('gokkure', 0.8),
+      constel: asDecor('takimyildiz'),
       house(d, now) {
         const { x, y, s } = d;
         shadow(x + 8, y + 4, 30 * s, 6 * s, 0.4);
@@ -1573,6 +1608,69 @@
         g.beginPath(); g.moveTo(-8, 0); g.lineTo(-14, -4); g.lineTo(-14, 4); g.closePath(); g.fill(); g.beginPath(); g.moveTo(0, -3); g.lineTo(-3, -8); g.lineTo(3, -3); g.fill(); g.restore();
       },
       lighthouseSt(on, t) { lighthouse(0, 0, 0.75, t); },
+      // ---- Rasathane: kapı 29-30 ----
+      gunessaati(on, t) {
+        g.fillStyle = '#9aa0b0'; g.beginPath(); g.ellipse(0, -6, 20, 7, 0, 0, TAU); g.fill(); g.fillStyle = '#d8d0c0'; g.beginPath(); g.ellipse(0, -8, 18, 6, 0, 0, TAU); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 0.8; for (let i = 0; i < 12; i++) { const a = i * TAU / 12; g.beginPath(); g.moveTo(Math.cos(a) * 14, -8 + Math.sin(a) * 4.6); g.lineTo(Math.cos(a) * 17, -8 + Math.sin(a) * 5.6); g.stroke(); }
+        g.fillStyle = '#c99a3a'; g.beginPath(); g.moveTo(0, -8); g.lineTo(0, -24); g.lineTo(8, -8); g.closePath(); g.fill();
+        const a = on ? t / 4000 : 1; g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.moveTo(0, -8); g.lineTo(Math.cos(a) * 16, -8 + Math.sin(a) * 5); g.lineTo(Math.cos(a + 0.2) * 16, -8 + Math.sin(a + 0.2) * 5); g.closePath(); g.fill();
+      },
+      gokkure(on, t) {
+        g.fillStyle = '#6a5a4a'; g.fillRect(-2, -16, 4, 16); g.fillRect(-10, -2, 20, 2);
+        g.save(); g.translate(0, -28); g.rotate(on ? t / 2000 : 0.3); g.strokeStyle = '#c99a3a'; g.lineWidth = 1.6;
+        for (const [rx, ry] of [[14, 14], [14, 5], [5, 14]]) { g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, TAU); g.stroke(); }
+        g.restore(); g.fillStyle = '#4895ef'; g.beginPath(); g.arc(0, -28, 4, 0, TAU); g.fill();
+      },
+      donertabla(on, t) {
+        g.fillStyle = '#4a5068'; g.beginPath(); g.ellipse(0, -6, 22, 7, 0, 0, TAU); g.fill();
+        for (let i = 0; i < 3; i++) { const a = (on ? t / 1400 : 0) + i * TAU / 3, x = Math.cos(a) * 15, y = -8 + Math.sin(a) * 4.6; planet(x, y - 6, 4 + i, ['#ffc94a', '#4cc9f0', '#ff8a4c'][i], ['#a07a1a', '#1a6aa0', '#a0401a'][i]); }
+        g.fillStyle = '#ffe9a0'; g.beginPath(); g.arc(0, -14, 5, 0, TAU); g.fill(); if (on) light(0, -14, 14, 'rgba(255,230,150,.8)');
+      },
+      pusula(on, t) {
+        g.fillStyle = '#5a3a24'; g.fillRect(-20, -18, 40, 5); g.fillRect(-17, -13, 4, 13); g.fillRect(13, -13, 4, 13);
+        g.fillStyle = '#e8d29a'; g.save(); g.translate(0, -20); g.scale(1, 0.45); g.beginPath(); g.arc(0, 0, 12, 0, TAU); g.fill();
+        g.rotate(on ? Math.sin(t / 900) * 0.4 : 0); g.fillStyle = '#c0392b'; g.beginPath(); g.moveTo(0, -10); g.lineTo(2.4, 0); g.lineTo(-2.4, 0); g.fill(); g.fillStyle = '#5a5f74'; g.beginPath(); g.moveTo(0, 10); g.lineTo(2.4, 0); g.lineTo(-2.4, 0); g.fill(); g.restore();
+      },
+      evre(on, t) {
+        for (let i = 0; i < 4; i++) { const x = -18 + i * 12, k = i / 3; g.fillStyle = '#e8e0c8'; g.beginPath(); g.arc(x, -24, 5, 0, TAU); g.fill(); g.fillStyle = '#0c1024'; g.beginPath(); g.ellipse(x + 5 * k * 2 - 5, -24, 5 * (1 - k * 0.9), 5, 0, 0, TAU); g.fill(); }
+        if (on) light(18, -24, 12, 'rgba(240,235,210,.6)');
+      },
+      takimyildiz(on, t) { constellation([[-16, -14], [-8, -30], [2, -24], [10, -38], [18, -20]], t); },
+      devteleskop(on, t) { telescope(0, 0, 1.4, -0.7 + (on ? Math.sin(t / 2500) * 0.15 : 0)); },
+      harita(on, t) {
+        g.fillStyle = '#e8d29a'; g.fillRect(-18, -40, 36, 32); g.fillStyle = '#c9a774'; g.beginPath(); g.arc(-18, -24, 3, 0, TAU); g.arc(18, -24, 3, 0, TAU); g.fill();
+        constellation([[-12, -16], [-4, -30], [6, -22], [12, -34]], t);
+      },
+      gozlemevi(on, t) { observatory(0, 0, 1.1, t); },
+      // ---- Havai Fişek: eksik istasyonlar (kapı 31-33) ----
+      fitil(on, t) {
+        barrel(-12, 0, 0.9); g.strokeStyle = '#d9b48a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-6, -18); g.bezierCurveTo(4, -30, 10, -6, 20, -20); g.stroke();
+        if (on) { const u = (t / 2500) % 1, x = 20 - u * 26, y = -20 + Math.sin(u * 6) * 4; light(x, y, 10, 'rgba(255,200,90,.95)'); g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 1.4, 0, TAU); g.fill(); }
+      },
+      kibrit(on, t) {
+        for (let r2 = 0; r2 < 5; r2++) { const y = -r2 * 7, w = 16 - r2 * 2.5; g.fillStyle = '#e0b24a'; g.fillRect(-w, y - 3, w * 2, 2.6); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(-w, y - 1.7, 1.8, 0, TAU); g.arc(w, y - 1.7, 1.8, 0, TAU); g.fill(); }
+        if (on) { g.fillStyle = '#ffb347'; g.beginPath(); g.moveTo(-3, -36); g.quadraticCurveTo(0, -46 - Math.sin(t / 80) * 2, 3, -36); g.fill(); light(0, -38, 14, 'rgba(255,170,80,.8)'); }
+      },
+      kivilcimyagmuru(on, t) {
+        g.fillStyle = '#5a3a58'; g.beginPath(); g.moveTo(-6, 0); g.lineTo(-4, -14); g.lineTo(4, -14); g.lineTo(6, 0); g.fill();
+        if (on) add(() => { for (let i = 0; i < 14; i++) { const ph = ((t / 900) + i / 14) % 1, a = -Math.PI / 2 + Math.sin(i * 2.3) * 0.7, d = ph * 34; g.fillStyle = `rgba(255,${200 + (i % 3) * 20},120,${1 - ph})`; g.beginPath(); g.arc(Math.cos(a) * d, -14 + Math.sin(a) * d + ph * ph * 20, 1.4, 0, TAU); g.fill(); } glow(0, -16, 14, 'rgba(255,230,150,.9)'); });
+      },
+      horozkule(on, t) {
+        g.fillStyle = '#7a5a6a'; g.fillRect(-7, -30, 14, 30); g.fillStyle = '#a0522d'; g.beginPath(); g.moveTo(-10, -30); g.lineTo(0, -40); g.lineTo(10, -30); g.closePath(); g.fill();
+        g.save(); g.translate(0, -46); g.rotate(on ? Math.sin(t / 1300) * 0.5 : 0); g.fillStyle = '#e0b24a';
+        g.beginPath(); g.ellipse(0, 0, 6, 4, 0, 0, TAU); g.fill(); g.beginPath(); g.arc(5, -4, 2.6, 0, TAU); g.fill(); g.beginPath(); g.moveTo(-5, -1); g.lineTo(-11, -8); g.lineTo(-8, 1); g.fill(); g.fillStyle = '#c0392b'; g.fillRect(4, -8, 2.4, 2.4); g.restore();
+        g.strokeStyle = '#e0b24a'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, -40); g.lineTo(0, -44); g.stroke();
+      },
+      tavusbahce(on, t) {
+        const open = on ? 0.7 + 0.3 * Math.sin(t / 1500) : 0.6;
+        for (let i = 0; i < 9; i++) { const a = -Math.PI / 2 + (i - 4) * 0.28 * open; g.strokeStyle = '#2d8a6a'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -10); g.lineTo(Math.cos(a) * 30, -10 + Math.sin(a) * 30); g.stroke(); g.fillStyle = '#2dd4bf'; g.beginPath(); g.arc(Math.cos(a) * 30, -10 + Math.sin(a) * 30, 4, 0, TAU); g.fill(); g.fillStyle = '#4895ef'; g.beginPath(); g.arc(Math.cos(a) * 30, -10 + Math.sin(a) * 30, 1.8, 0, TAU); g.fill(); }
+        g.fillStyle = '#2a5ad0'; g.beginPath(); g.ellipse(0, -8, 4, 7, 0, 0, TAU); g.fill(); g.beginPath(); g.arc(0, -17, 3, 0, TAU); g.fill();
+      },
+      ucanfener(on, t) { g.save(); g.scale(0.6, 0.6); for (let i = 0; i < 3; i++) { const ph = on ? ((t / 5000) + i / 3) % 1 : 0.3 + i * 0.2; g.save(); g.translate(-20 + i * 20, 0); g.globalAlpha = 1 - ph * 0.6; skyLantern(-20 - ph * 50, '#ffd27a', '#ff8a3c', t / 1000); g.restore(); } g.restore(); },
+      atescambazi(on, t) {
+        g.fillStyle = '#c0392b'; g.beginPath(); g.moveTo(-5, 0); g.lineTo(-3, -18); g.lineTo(3, -18); g.lineTo(5, 0); g.fill(); g.fillStyle = '#ffc94a'; g.beginPath(); g.arc(0, -22, 4, 0, TAU); g.fill();
+        if (on) for (let i = 0; i < 3; i++) { const a = t / 260 + i * TAU / 3, x = Math.cos(a) * 12, y = -34 + Math.sin(a) * 9; g.fillStyle = '#ffb347'; g.beginPath(); g.arc(x, y, 2.6, 0, TAU); g.fill(); light(x, y, 8, 'rgba(255,170,80,.8)'); }
+      },
       // Şekil bölümü: şeklin resmi bir şövalede; kapı finali (Dev Halka) altın çerçevede, daha büyük
       portrait(on, t, state, st) { portraitArt(st, on, false); },
       finalPortrait(on, t, state, st) { portraitArt(st, on, true); },
@@ -1743,6 +1841,7 @@
       lunapark: ['tent', 'balloons', 'lamp', 'carousel', 'stall', 'tent'],
       santral: ['pylon', 'reel', 'hangLamp', 'solar', 'crate', 'pylon'],
       fener: ['buoy', 'rock', 'gull', 'smallLight', 'buoy', 'rock'],
+      rasathane: ['smallDome', 'scope', 'globe', 'rock', 'constel', 'scope'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {
@@ -1947,7 +2046,7 @@
       7: 'workDoor', 8: 'gearGate', 9: 'pendulumGate', 10: 'springCage', 11: 'cellGate', 12: 'cryptGate', 13: 'streetArch', 14: 'townTower',
       15: 'factoryGate', 16: 'boilerHatch', 17: 'launchTower', 18: 'airlock',
       19: 'mastersHall', 20: 'machineGate', 21: 'funArch', 22: 'funArch', 23: 'coasterTunnel',
-      24: 'substation', 25: 'damGate', 26: 'harborLights', 27: 'seaCave', 28: 'lighthouseDoor' };
+      24: 'substation', 25: 'damGate', 26: 'harborLights', 27: 'seaCave', 28: 'lighthouseDoor', 29: 'domeGate', 30: 'starGate' };
     function themedGate(gt, y, open, now) {
       const kind = THEMED_GATES[gt], cx = W / 2, acc = worldOfGate(gt).theme.accent;
       g.fillStyle = 'rgba(6,14,12,.5)'; g.beginPath(); g.ellipse(cx + 8, y + 12, 170, 16, 0, 0, TAU); g.fill();
@@ -2086,6 +2185,10 @@
         g.fillStyle = '#3e4a58'; g.beginPath(); g.moveTo(cx - 220, y + 4); g.lineTo(cx - 190, y - 130); g.lineTo(cx - 90, y - 180); g.lineTo(cx + 40, y - 190); g.lineTo(cx + 170, y - 160); g.lineTo(cx + 220, y + 4); g.closePath(); g.fill();
         g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.moveTo(cx - 190, y - 130); g.lineTo(cx - 90, y - 180); g.lineTo(cx - 80, y - 110); g.closePath(); g.fill();
         if (!reduced()) { const ph = (now / 1600) % 1; g.fillStyle = `rgba(230,245,255,${0.8 * (1 - ph)})`; for (let i = 0; i < 8; i++) { g.beginPath(); g.arc(cx - 70 + i * 20, y - 20 - ph * 40 - (i % 3) * 8, 3, 0, TAU); g.fill(); } }
+      } else if (kind === 'domeGate' || kind === 'starGate') {
+        // gözlemevi: kapı kubbenin dibinde; Yıldız Haritası'nda kubbenin üstünde takımyıldız kemeri
+        observatory(cx, y + 4, 5, now);
+        if (kind === 'starGate') { const pts = []; for (let k = 0; k <= 8; k++) { const a = Math.PI + (k / 8) * Math.PI; pts.push([cx + Math.cos(a) * 150, y - 120 + Math.sin(a) * 100 + (k % 2) * 10]); } constellation(pts, now); }
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
         g.fillStyle = '#3a3f54'; g.fillRect(cx - 170, y - 140, 340, 144);
@@ -2110,7 +2213,7 @@
         for (const sx of [-1, 1]) light(cx + sx * 80, y - 150, 10, 'rgba(255,100,100,.9)');
       }
       door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : '#8a929c');
-      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 236 }[kind] || 158), acc);
+      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 236, domeGate: 236, starGate: 240 }[kind] || 158), acc);
     }
 
     // ---- sis: ulaşılmamış kapıların ötesi ----
@@ -2372,12 +2475,7 @@
       } else if (md === 'lantern') {
         const c1 = icy ? '#9ff0ff' : '#ffd27a', c2 = icy ? '#2dd4bf' : '#ff8a3c', ly = -64 + Math.sin(t * 2) * 2;
         g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1; g.beginPath(); g.moveTo(-hx, hy); g.lineTo(-9, ly + 14); g.moveTo(hx, hy); g.lineTo(9, ly + 14); g.stroke();
-        add(() => glow(0, ly, 46, icy ? 'rgba(140,240,255,.55)' : 'rgba(255,200,110,.6)'));
-        g.fillStyle = INK; g.beginPath(); g.moveTo(-15, ly - 18); g.lineTo(15, ly - 18); g.lineTo(11, ly + 15); g.lineTo(-11, ly + 15); g.closePath(); g.fill();
-        const lg = g.createLinearGradient(0, ly - 17, 0, ly + 14); lg.addColorStop(0, c1); lg.addColorStop(1, c2);
-        g.fillStyle = lg; g.beginPath(); g.moveTo(-13.5, ly - 16.5); g.lineTo(13.5, ly - 16.5); g.lineTo(9.8, ly + 13.5); g.lineTo(-9.8, ly + 13.5); g.closePath(); g.fill();
-        g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-4, ly - 15, 2, 27); g.fillRect(4, ly - 15, 2, 27);
-        g.fillStyle = '#fff5c0'; g.beginPath(); g.ellipse(0, ly + 9, 3, 4 + Math.sin(t * 20), 0, 0, TAU); g.fill();
+        skyLantern(ly, c1, c2, t);
       } else if (md === 'bird') {
         const by = -R - 26, fl = Math.sin(t * 22);
         g.save(); g.translate(0, by);
