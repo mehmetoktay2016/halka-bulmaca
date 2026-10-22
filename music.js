@@ -60,13 +60,17 @@
       // sınırlayıcı: üst üste binen notalar ve oyun sesleriyle taşıp cızırdamasın
       const lim = ac.createDynamicsCompressor();
       lim.threshold.value = -12; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25;
-      bus = ac.createGain(); bus.gain.value = 0; bus.connect(lim); lim.connect(ac.destination);
-      // yankı: üstel sönen gürültüden darbe yanıtı
-      verb = ac.createConvolver();
-      const len = ac.sampleRate * 1.2, ir = ac.createBuffer(2, len, ac.sampleRate);
-      for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
-      verb.buffer = ir;
-      const wet = ac.createGain(); wet.gain.value = 0.28; verb.connect(wet); wet.connect(bus);
+      // alçak frekans süzgeci: telefon hoparlörü 150 Hz altını çalamaz, zorlanınca cızırdar
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150; hp.Q.value = 0.7;
+      bus = ac.createGain(); bus.gain.value = 0; bus.connect(hp); hp.connect(lim); lim.connect(ac.destination);
+      // yankı: iki geri beslemeli gecikme (evrişimli yankı telefonda ses iş parçacığını yorup cızırtı yapıyordu)
+      verb = ac.createGain();
+      const wet = ac.createGain(); wet.gain.value = 0.22; wet.connect(bus);
+      for (const [dt, fb] of [[0.137, 0.35], [0.211, 0.3]]) {
+        const dl = ac.createDelay(1), lp = ac.createBiquadFilter(), back = ac.createGain();
+        dl.delayTime.value = dt; lp.type = 'lowpass'; lp.frequency.value = 2500; back.gain.value = fb;
+        verb.connect(dl); dl.connect(lp); lp.connect(back); back.connect(dl); lp.connect(wet);
+      }
       noise = ac.createBuffer(1, ac.sampleRate * 0.6, ac.sampleRate);
       const d = noise.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;

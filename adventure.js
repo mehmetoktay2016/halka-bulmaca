@@ -3053,8 +3053,13 @@
     }
 
     // ---- çizim döngüsü ----
+    // Kaydırılırken 1x çözünürlük (boyanacak piksel 4 kat az, harita parmağı izler), durunca 2x keskin
+    let lastTop = 0, moveT = 0;
     function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2); // 3x ekranlarda 2x yeter, kaydırma akıcı kalır
+      const now = performance.now();
+      if (Math.abs(sc.scrollTop - lastTop) > 0.5) moveT = now;
+      lastTop = sc.scrollTop;
+      const dpr = Math.min(window.devicePixelRatio || 1, now - moveT < 150 ? 1 : 2);
       const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       return dpr;
@@ -3099,7 +3104,7 @@
       };
     }
     // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır
-    const stopFollow = () => { if (!S.hop) S.follow = false; };
+    const stopFollow = () => { S.follow = false; }; // yürüyüş sürerken de: parmak haritayı geri çekmesin
     sc.addEventListener('wheel', stopFollow, { passive: true });
     sc.addEventListener('touchstart', stopFollow, { passive: true });
 
