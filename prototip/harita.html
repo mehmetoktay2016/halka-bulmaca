@@ -1134,8 +1134,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   }
   // ---- efektler ----
   function effects(now, top, bot) {
-    // gökyüzünde fişekler (Havai Fişek ekrandayken)
-    if (!REDUCED && Math.random() < 0.004 && bot > SPLIT) S.fireworks.push({ x: 40 + Math.random() * (W - 80), y: Math.max(SPLIT + 60, top + 50 + Math.random() * 180), t0: now, c: ['#ffd34a', '#ff6fb5', '#4cc9f0', '#ff7a45', '#b388ff'][Math.floor(Math.random() * 5)] });
+    // Rastgele ortam fişeği yok: fişek yalnız kutlamada ve kale açılışında patlar
     S.fireworks = S.fireworks.filter(f => now - f.t0 < 1600);
     add(() => {
       for (const f of S.fireworks) {
