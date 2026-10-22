@@ -695,12 +695,15 @@
     // Kapalı kapının altından geçen taşlar görünmez
     const gateHiddenStone = (s, gt) => !gateShownOpen(gt) && Math.abs(s.y - (GATE_Y[gt] - 30)) < 60 && Math.abs(s.x - W / 2) < 60;
     const tOf = n => L.index[n];
-    const gateShownOpen = gt => gt === 1 || (S.opening[gt] != null) || D.gateOpen(gt);
-    const openAmount = (gt, now) => (S.opening[gt] != null ? Math.min(1, (now - S.opening[gt]) / 1200) : gateShownOpen(gt) ? 1 : 0);
+    // İlerleme ve kapıların açıklığı kare başına bir kez sorulur (yol taşı başına sormak pahalı)
+    let FRONT = 1;
+    const OPEN = [];
+    const gateShownOpen = gt => gt === 1 || (S.opening[gt] != null) || (gt in OPEN ? OPEN[gt] : (OPEN[gt] = D.gateOpen(gt)));
+    const openAmount = (gt, now) => (S.opening[gt] != null && !reduced() ? Math.min(1, (now - S.opening[gt]) / 1200) : gateShownOpen(gt) ? 1 : 0);
 
     // ---- kaideler, istasyonlar, plaket, ödüller ----
     function pedestals(now, top, bot) {
-      const front = D.frontier();
+      const front = FRONT;
       S.playRect = null;
       const banners = [];
       for (let n = 1; n <= N; n++) {
@@ -2380,9 +2383,9 @@
     // ---- sis: ulaşılmamış kapıların ötesi ----
     function fog(now, top, bot) {
       let gt = 0;
-      for (let i = 2; i <= L.gates; i++) if (!gateShownOpen(i) || (S.fogT[i] != null && now - S.fogT[i] < 1700)) { gt = i; break; }
+      for (let i = 2; i <= L.gates; i++) if (!gateShownOpen(i) || (S.fogT[i] != null && !reduced() && now - S.fogT[i] < 1700)) { gt = i; break; }
       if (!gt) return;
-      const a = S.fogT[gt] != null ? Math.max(0, 1 - (now - S.fogT[gt]) / 1700) : 1;
+      const a = S.fogT[gt] == null ? 1 : reduced() ? 0 : Math.max(0, 1 - (now - S.fogT[gt]) / 1700);
       if (a <= 0) return;
       const edge = GATE_Y[gt] - 110;
       if (edge < top - 300) return;
@@ -2840,9 +2843,9 @@
     }
     function burstJar(stars, max) {
       const now = performance.now(), x = 34, y = sc.scrollTop / k + 44;
-      S.jarBurst = { t0: now, stars, max };
       snd.noise(0.3, 0.25, 4000, 1500); [1319, 1568, 2093, 2637].forEach((f, i) => snd.tone(f, 0.12, 'triangle', 0.06, null, 0.15 + i * 0.07));
       if (reduced()) return;
+      S.jarBurst = { t0: now, stars, max };
       for (let i = 0; i < 14; i++) { const a = Math.random() * TAU, sp = 2 + Math.random() * 3; S.fx.push({ k: 'shard', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 3 }); }
       for (let i = 0; i < Math.min(30, stars); i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, sp = 3 + Math.random() * 4; S.fx.push({ k: 'coin', x, y, vx: Math.cos(a) * sp + 1.5, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 6 }); }
     }
@@ -2855,6 +2858,7 @@
       return dpr;
     }
     function draw(now) {
+      FRONT = D.frontier(); OPEN.length = 0;
       const dpr = resize();
       if (!cv.width || !k) return;
       const vh = cv.clientHeight / k;
@@ -2866,7 +2870,7 @@
       g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
       g.clearRect(0, top, W + 60, vh);
       for (const r of REGIONS) if (r.bottom > top && r.top < bot) ground(r, Math.max(top, r.top), Math.min(bot, r.bottom), now);
-      const lit = S.hop ? tOf(S.hop.from) + (tOf(S.hop.to) - tOf(S.hop.from)) * Math.max(0, Math.min(1, (now - S.hop.t0 - CROUCH) / S.hop.ms)) : tOf(Math.max(1, D.frontier()));
+      const lit = S.hop ? tOf(S.hop.from) + (tOf(S.hop.to) - tOf(S.hop.from)) * Math.max(0, Math.min(1, (now - S.hop.t0 - CROUCH) / S.hop.ms)) : tOf(Math.max(1, FRONT));
       road(lit, top, bot);
       for (const d of DECOR) { if (d.y < top - 80) continue; if (d.y > bot + 80) break; (DECOR_ART[d.kind] || DECOR_ART.rock)(d, now); }
       gates(now, top, bot);

@@ -168,11 +168,7 @@
     return html + '</svg>';
   }
 
-  // Haritadaki parça işareti: yapboz parçası
-  const pieceIcon = accent => `<svg class="piece-ico" viewBox="0 0 25 24" aria-hidden="true">
-    <path d="M3 8.5h5a3.2 3.2 0 1 1 6 0h5v5a3.2 3.2 0 1 1 0 6V22H3z" fill="${accent}" stroke="#1d1934" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-
-  const api = { SETS, PIECES, svg, wedge, pieceIcon };
+  const api = { SETS, PIECES, svg, wedge };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingStickers = api;
 })(this);
