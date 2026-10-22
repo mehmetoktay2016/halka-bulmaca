@@ -488,7 +488,8 @@
   // ---- Başarımlar (rozetler) ve şekil albümü ----
   const B = window.RingBadges;
   let failedLevel = null; // hamlesi biten bölüm: hemen ardından kazanılırsa "Pes Etmeyen"
-  const stat = (key, v = 1) => { progress.stats[key] = (progress.stats[key] || 0) + v; };
+  const stat = (key, v = 1) => { if (v) progress.stats[key] = (progress.stats[key] || 0) + v; };
+  let tries = 0, triesOf = 0; // aynı bölümün art arda kaçıncı denemesi ("Sabırlı" rozeti)
   let shapeList = null;
   const shapeLevels = () => shapeList || (shapeList = ORDER.map((_, i) => i + 1).filter(n => getLevel(srcOf(n)).name));
 
@@ -515,6 +516,7 @@
       coinsTotal: st.coinsTotal || 0,
       bulbsBought: progress.bulbsBought || 0,
       hintsUsed: st.hintsUsed || 0,
+      st, // 2.5 rozetlerinin sayaçları (bombs, iceCracks, boilers, teleports, bosses, rains, mysteries, bestStreak, lastBreath, patient)
     };
   }
 
@@ -539,7 +541,7 @@
   }
 
   const medalHtml = (b, done) =>
-    `<span class="medal${done ? '' : ' locked'}" style="--tc:${B.TIERS[b.tier].color}"><svg viewBox="0 0 24 24" aria-hidden="true">${B.ICONS[b.icon]}</svg></span>`;
+    `<span class="medal${done ? '' : ' locked'}" style="--tc:${B.TIERS[b.tier].color}"><svg viewBox="0 0 24 24" aria-hidden="true">${B.ICONS[b.secret && !done ? 'soru' : b.icon]}</svg></span>`;
 
   function nextToast() {
     if (toastBusy || !toastQ.length) return;
@@ -584,12 +586,15 @@
       const s = B.status(b, ctx);
       const done = !!progress.badges[b.id];
       const reward = B.TIERS[b.tier].coins;
+      // Gizli rozet kazanılana kadar adı, koşulu ve ilerlemesi görünmez
+      const hide = b.secret && !done;
       const meta = done
         ? `<span class="got">${tr('Kazanıldı · +{n} altın', { n: reward })}</span>`
+        : hide ? `<span>+${reward}</span>`
         : `<span class="bar-track"><i style="width:${Math.round(100 * s.value / s.goal)}%"></i></span><span>${s.value} / ${s.goal}</span><span>+${reward}</span>`;
       html += `<div class="badge-row${fresh.has(b.id) ? ' new' : ''}" style="--tc:${B.TIERS[b.tier].color}">
         ${medalHtml(b, done)}
-        <div><b>${b.name}</b><p>${b.desc}</p><div class="meta">${meta}</div></div>
+        <div><b>${hide ? '???' : b.name}</b><p>${hide ? tr('Gizli rozet: kazanınca görünür') : b.desc}</p><div class="meta">${meta}</div></div>
       </div>`;
     }
     return html;
@@ -1224,6 +1229,7 @@
     if (!def) { showTip(tr('Bu seviye yüklenemedi')); return; }
     applyWorld(W.worldOfGate(W.gateOf(n)));
     if (n !== failedLevel) failedLevel = null;
+    tries = n === triesOf ? tries + 1 : 1; triesOf = n;
     startDef(def, n, null);
     maybeWorldCard(n);
     maybePieceCard(def);
@@ -1322,7 +1328,7 @@
     // Bomba patlar: vurulan halkalar parlar ve sonraki dalgada bombadan uzağa dönerek uçar
     const blastFrom = {};
     // Kazan: basıncı dolunca düdük öter, kazan akkor parlar; sonraki dalgada çıkıp bomba gibi patlar
-    let boiled = -1;
+    let boiled = -1, boils = 0;
     fuses.forEach((fs, w) => {
       for (const i of fs) {
         const L0 = S.L;
@@ -1331,7 +1337,7 @@
           setTimeout(() => { if (S.L === L0) { S.bossFuse[i] = performance.now(); Sound.riser(); } }, at[w] + FUSE_WAIT);
           continue;
         }
-        boiled = i;
+        boiled = i; boils++;
         setTimeout(() => { if (S.L === L0) { S.boilFuse[i] = performance.now(); Sound.whistle(); } }, at[w] + FUSE_WAIT);
       }
     });
@@ -1374,7 +1380,7 @@
     const motorAt = kicks.findIndex(ks => ks.some(k => k.motor));
     const onTime = motorAt < 0 ? [] : waves.slice(motorAt + 1).flat();
     // Buz halkalar dalga dalga çatlar: çizimde eski kat sayısı çatlama anına dek kalır
-    let melted = -1;
+    let melted = -1, cracks = 0;
     if (S.L.hasIce) {
       const L0 = S.L;
       let m = S.mask;
@@ -1387,6 +1393,7 @@
           if (left === was[i]) return;
           (S.iceHold[i] = S.iceHold[i] || []).push({ left: was[i], until: now + at[w] });
           if (!left) melted = i;
+          cracks++;
           setTimeout(() => { if (S.L === L0) iceCrack(i, !left); }, at[w]);
         });
       });
@@ -1439,7 +1446,11 @@
       }
     });
     const freed = waves.flat();
-    if (!S.preview && S.tut == null) setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
+    if (!S.preview && S.tut == null) {
+      setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
+      stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
+      if (bossDown >= 0) stat('bosses');
+    }
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
@@ -1628,6 +1639,7 @@
     if (roll < 0.25) c.bulbs = 1;
     else c.coins = roll < 0.9 ? 5 + Math.floor(Math.random() * 6) : 20;
     progress.loot[idOf(S.levelNo)] = 'mystery';
+    stat('mysteries');
     progress.coins += c.coins;
     progress.hints += c.bulbs;
     stat('coinsTotal', c.coins);
@@ -2144,6 +2156,9 @@
     const flawless = !S.extra && !S.usedHint && S.moves <= par;
     progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
     const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
+    progress.stats.bestStreak = Math.max(progress.stats.bestStreak || 0, progress.streakPerfect);
+    if (!S.extra && S.moves >= S.limit) stat('lastBreath');
+    if (tries >= 5) stat('patient');
     const streakBonus = earned * (streakMult - 1);
     earned += streakBonus;
     progress.coins += earned;
@@ -2312,6 +2327,7 @@
   // Süre dolunca: yarım kalan tahtanın toplanmış altınları da sayılır, özet çıkar
   function endRain() {
     if (!rain) return;
+    stat('rains');
     if (S.coins) {
       const part = S.coins.filter(c => c.taken).length * S.coinMult;
       if (part) { progress.coins += part; stat('coinsTotal', part); rain.total += part; S.coins.forEach(c => { c.taken = false; }); S.coinsTaken = 0; saveProgress(); }
