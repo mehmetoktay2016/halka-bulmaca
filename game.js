@@ -328,8 +328,8 @@
   // Tarayıcı sesi ancak bir dokunuştan sonra açar: ilk dokunuşta ortam sesi başlar
   document.addEventListener('pointerdown', () => { if (progress.ambient !== false) { Sound.context(); ambience.resume(); } }, true);
   document.addEventListener('visibilitychange', syncAmbience);
-  // Müzik (2.5, music.js): oyun ekranında, bölüm sürerken çalar; ayarlardan ayrıca kapatılır, sesi ayarlanır (varsayılan kısık)
-  const music = window.RingMusic.Music(() => Sound.context());
+  // Müzik (2.5, music.js): hazır parça, oyun ekranında bölüm sürerken çalar; ayarlardan ayrıca kapatılır, sesi ayarlanır (varsayılan kısık)
+  const music = window.RingMusic.Music();
   function syncMusic() {
     if (progress.music !== false && !document.hidden && !$('game').hidden && !S.won) { music.volume((progress.musicVol ?? 40) / 100); music.play(); }
     else music.stop();
@@ -384,7 +384,6 @@
   function applyWorld(world) {
     if (themeWorld === world.id) return;
     themeWorld = world.id;
-    music.world(world.id); // dünyanın müzik çeşitlemesi bir sonraki ölçüde girer
     const root = document.documentElement;
     root.style.setProperty('--scene', W.sceneCss(world.theme));
     root.style.setProperty('--accent', world.theme.accent);
@@ -1213,7 +1212,6 @@
     $('game').classList.toggle('tutorial', tut != null);
     renderMeter(true);
     updateHud();
-    music.mode(rain ? 'rain' : S.L.bosses.length ? 'boss' : null);
     syncMusic(); // yeni bölüm: müzik baştan, yalnız pad ve bas (Altın Yağmuru'nda kesintisiz sürer)
   }
 
@@ -1458,10 +1456,7 @@
       }
     });
     const freed = waves.flat();
-    // müzik: kurtulanların notaları, boşalan tahtaya göre katmanlar, son halkada çözülüş
-    music.free(freed.length);
-    music.progress(S.L.rings.filter((_, i) => mask & (1 << i)).length / S.L.rings.length);
-    if (finale && !rain) music.resolve(); // Altın Yağmuru tahtalar arasında durmaz, süre bitince çözülür
+    if (finale && !rain) music.resolve(); // son halkada müzik kısılır; Altın Yağmuru tahtalar arasında sürer
     if (!S.preview && S.tut == null) {
       setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
       stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
@@ -2014,7 +2009,6 @@
     let bursts = 0;
     while (comboPts >= COMBO_FULL) { comboPts -= COMBO_FULL; bursts++; }
     renderCombo(n >= 2);
-    if (n >= 3 || comboStreak >= 2) music.sparkle(n);
     if (bursts) comboBurst(bursts);
   }
   function renderCombo(bump) {
@@ -2174,7 +2168,6 @@
     progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
     const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
     progress.stats.bestStreak = Math.max(progress.stats.bestStreak || 0, progress.streakPerfect);
-    if (progress.streakPerfect === 3 || progress.streakPerfect === 6) music.jingle(); // altın çarpanı arttı
     if (!S.extra && S.moves >= S.limit) stat('lastBreath');
     if (tries >= 5) stat('patient');
     const streakBonus = earned * (streakMult - 1);
@@ -2351,7 +2344,7 @@
       if (part) { progress.coins += part; stat('coinsTotal', part); rain.total += part; S.coins.forEach(c => { c.taken = false; }); S.coinsTaken = 0; saveProgress(); }
     }
     S.won = true;
-    music.resolve(); music.jingle();
+    music.resolve();
     $('rainTotal').textContent = '+' + rain.total;
     $('rainBoards').textContent = tr('{n} tahta temizlendi', { n: rain.boards });
     $('rainEnd').classList.remove('hidden');
@@ -3623,7 +3616,7 @@
   // Dev Halka parçalandı: gümleme ve zafer çıngılı, kendi renginde büyük parça yağmuru, şok dalgası ve sarsıntı
   function bossBreak(i) {
     const r = S.L.rings[i];
-    Sound.boom(); Sound.victory(); music.hit();
+    Sound.boom(); Sound.victory();
     if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch (e) { /* yok say */ } }
     if (REDUCED) return;
     const color = ringColor(i);

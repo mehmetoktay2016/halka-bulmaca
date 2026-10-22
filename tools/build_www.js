@@ -12,9 +12,9 @@ const FILES = [
 ];
 
 fs.rmSync(www, { recursive: true, force: true });
-fs.mkdirSync(path.join(www, 'fonts'), { recursive: true });
-for (const f of FILES) fs.copyFileSync(path.join(root, f), path.join(www, f));
-for (const f of fs.readdirSync(path.join(root, 'fonts'))) {
-  fs.copyFileSync(path.join(root, 'fonts', f), path.join(www, 'fonts', f));
+for (const dir of ['fonts', 'music']) {
+  fs.mkdirSync(path.join(www, dir), { recursive: true });
+  for (const f of fs.readdirSync(path.join(root, dir)).filter(f => !f.endsWith('.md'))) fs.copyFileSync(path.join(root, dir, f), path.join(www, dir, f));
 }
-console.log(`www/ hazır: ${FILES.length} dosya + fonts/`);
+for (const f of FILES) fs.copyFileSync(path.join(root, f), path.join(www, f));
+console.log(`www/ hazır: ${FILES.length} dosya + fonts/ + music/`);
