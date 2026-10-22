@@ -2697,7 +2697,7 @@
     if (S.preview) { $('win').classList.add('hidden'); showScreen('home'); return; }
     // 200. bölüm ilk kez bitince Büyük Makine (yeni dünyalar açılır), son bölüm ilk kez bitince Yıldız Haritası finali
     if (S.levelNo === MACHINE_END && !progress.rewards.ending) { $('win').classList.add('hidden'); showEnding('machine'); return; }
-    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards.finale) { $('win').classList.add('hidden'); showEnding('finale'); return; }
+    if (S.levelNo === TOTAL && TOTAL > MACHINE_END && !progress.rewards[FINALE_KEY]) { $('win').classList.add('hidden'); showEnding('finale'); return; }
     // Kapının finalinden sonra haritaya dönülür: orada yeni kapı açılır
     if (W.posInGate(S.levelNo) !== W.GATE_SIZE && S.levelNo < TOTAL && isUnlocked(S.levelNo + 1)) loadLevel(S.levelNo + 1);
     else { $('win').classList.add('hidden'); showScreen('levels'); }
@@ -2708,6 +2708,8 @@
   // Yıldız Haritası: 12 dünyanın halkası (dünyanın kendi renginde) yıldız çemberine oturur, aralarına takımyıldız
   // çizgileri çekilir, altın merkez halka hepsini döndürür. İkisinde de ardından yolculuğun özeti gelir.
   const MACHINE_END = 20 * W.GATE_SIZE;
+  // Final, o anki son bölüme bağlı: oyuna bölüm eklenince yeni sonda yeniden oynar (eski kayıtların 'finale' alanı 300'ündü)
+  const FINALE_KEY = 'finale:' + TOTAL;
   const END_RINGS = {
     machine: COLORS.slice(0, 8),
     finale: LIVE_WORLDS.map(w => w.theme.accent),
@@ -2715,7 +2717,7 @@
   let endingRun = null;
   function showEnding(kind, replay) {
     if (!replay) {
-      progress.rewards[kind === 'finale' ? 'finale' : 'ending'] = today();
+      progress.rewards[kind === 'finale' ? FINALE_KEY : 'ending'] = today();
       saveProgress();
     }
     const el = $('ending');
@@ -2727,10 +2729,10 @@
     const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
     const perfect = nums.filter(n => starsOf(n) === 3).length;
-    $('endingEyebrow').textContent = kind === 'finale' ? tr('Yolculuğun sonu') : tr('İlk 8 dünya tamam');
-    $('endingTitle').textContent = kind === 'finale' ? tr('Yıldız Haritası tamamlandı!') : tr('Büyük Makine çalıştı!');
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Üçüncü perde tamam') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Anka kanatlandı!') : tr('Büyük Makine çalıştı!');
     $('endingLead').textContent = kind === 'finale'
-      ? tr('{n} bölümün hepsini bitirdin. Bütün dünyaların ustası sensin.', { n: TOTAL })
+      ? tr('{n} bölümün hepsini bitirdin. Anka\'nın ateşi bütün dünyalara ışık taşıyor.', { n: TOTAL })
       : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
       [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],
@@ -2741,6 +2743,7 @@
     const missing = last - perfect;
     $('endingMore').textContent = kind === 'machine' && TOTAL > MACHINE_END
       ? tr('Yeni dünyalar açıldı: {names}. Yolculuk sürüyor.', { names: LIVE_WORLDS.slice(8).map(w => tr(w.name)).join(', ') })
+      : kind === 'finale' && missing > 0 ? tr('Yolculuk sürüyor: yeni bölümler yolda. {n} bölüm hâlâ 3 yıldızı bekliyor.', { n: missing })
       : missing > 0 ? tr('{n} bölüm hâlâ 3 yıldızı bekliyor. Altın kapılar seni bekliyor.', { n: missing }) : tr('Bütün bölümler 3 yıldız. Sen gerçek bir Halka Ustasısın.');
     $('endingGo').textContent = kind === 'machine' && TOTAL > MACHINE_END ? tr('Yeni dünyalara') : tr('Haritaya dön');
     const quick = REDUCED || !fxOn();
@@ -2845,10 +2848,13 @@
     // Altın merkez halka: halkalar yerleşince belirir, sonra hepsini döndürür
     const core = ease((t - 1.4) / 0.6);
     if (core > 0) ring(cx, cy, R * 0.62 * (0.6 + 0.4 * core), '#ffd36b', -run2 * (t - 1.8) * 0.8, 13, core);
-    // Kıvılcımlar
+    const rise = finale ? ease((t - 2.2) / 1.4) : 0;
+    if (rise > 0) phoenix(g, cx, cy + R * 0.25 * (1 - rise) + Math.sin(t * 2) * 3, R * 0.0105 * (0.4 + 0.6 * rise), quick ? 0.4 : Math.sin(t * 5), rise);
+    // Kıvılcımlar (finalde Anka'nın kanat uçlarından alev)
     if (run2 > 0 && !quick && Math.random() < 0.6) {
-      const a = Math.random() * Math.PI * 2;
-      run.sparks.push({ x: cx + Math.cos(a) * R * 0.62, y: cy + Math.sin(a) * R * 0.62, vx: Math.cos(a) * (1 + Math.random() * 2.5), vy: Math.sin(a) * (1 + Math.random() * 2.5), life: 1 });
+      const a = Math.random() * Math.PI * 2, wing = rise > 0.5 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+      const x = wing ? cx + wing * R * 0.95 : cx + Math.cos(a) * R * 0.62, y = wing ? cy - R * 0.35 : cy + Math.sin(a) * R * 0.62;
+      run.sparks.push({ x, y, vx: wing ? wing * Math.random() : Math.cos(a) * (1 + Math.random() * 2.5), vy: wing ? 0.5 + Math.random() : Math.sin(a) * (1 + Math.random() * 2.5), life: 1 });
     }
     run.sparks = run.sparks.filter(s => (s.life -= 0.02) > 0);
     for (const s of run.sparks) {
@@ -2857,6 +2863,43 @@
       g.beginPath(); g.arc(s.x, s.y, 2, 0, Math.PI * 2); g.fill();
     }
     g.globalAlpha = 1;
+  }
+
+  // Anka Kuşu (400 finali): alev kanatlar (flap -1..1 çırpış), tepeli baş, üç kuyruk tüyü; s ölçek, 100 birim kanat yarısı
+  function phoenix(g, x, y, s, flap, alpha) {
+    g.save(); g.translate(x, y); g.scale(s, s); g.globalAlpha = alpha;
+    const flame = (r0, r1) => { const gr = g.createRadialGradient(0, -10, r0, 0, -10, r1); gr.addColorStop(0, '#fff6c2'); gr.addColorStop(0.35, '#ffc94a'); gr.addColorStop(0.7, '#ff7a2e'); gr.addColorStop(1, '#d9342b'); return gr; };
+    g.shadowColor = 'rgba(255,150,60,.9)'; g.shadowBlur = 30;
+    // kuyruk: üç uzun tüy, uçları kıvrık
+    g.fillStyle = flame(5, 120);
+    for (const k of [-1, 0, 1]) {
+      g.beginPath(); g.moveTo(-6, 10); g.bezierCurveTo(k * 30 - 10, 50, k * 40, 80, k * 52 + 8 * k, 118);
+      g.bezierCurveTo(k * 30 + 6, 92, k * 16 + 8, 50, 6, 10); g.closePath(); g.fill();
+    }
+    // kanatlar: gövdeden açılır, arka kenarı tüy tüy
+    for (const side of [-1, 1]) {
+      const lift = flap * 26;
+      g.beginPath(); g.moveTo(0, -12);
+      g.bezierCurveTo(side * 40, -60 - lift, side * 80, -70 - lift, side * 104, -48 - lift * 1.4);
+      for (let i = 1; i <= 5; i++) {
+        const u = i / 5, ex = side * (104 - u * 92), ey = -48 - lift * 1.4 * (1 - u) + u * 52;
+        g.quadraticCurveTo(ex + side * 14, ey - 4, ex, ey + 4);
+      }
+      g.closePath(); g.fillStyle = flame(10, 110); g.fill();
+      g.strokeStyle = 'rgba(255,240,190,.55)'; g.lineWidth = 1.5;
+      for (let i = 1; i <= 4; i++) { const u = i / 5; g.beginPath(); g.moveTo(side * 8, -8); g.lineTo(side * (104 - u * 92), -44 - lift * 1.4 * (1 - u) + u * 52); g.stroke(); }
+    }
+    // gövde ve baş
+    g.fillStyle = flame(2, 40);
+    g.beginPath(); g.ellipse(0, 0, 12, 24, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(0, -30, 10, 0, Math.PI * 2); g.fill();
+    g.shadowBlur = 0;
+    // tepe alevleri, gaga, göz
+    g.fillStyle = '#ffb347';
+    for (const k of [-1, 0, 1]) { g.beginPath(); g.moveTo(k * 4 - 3, -37); g.quadraticCurveTo(k * 10, -52, k * 7 + k * 4, -58 + Math.abs(k) * 6); g.quadraticCurveTo(k * 3 + 2, -46, k * 4 + 3, -37); g.fill(); }
+    g.fillStyle = '#ffd36b'; g.beginPath(); g.moveTo(-3, -27); g.lineTo(0, -18); g.lineTo(3, -27); g.closePath(); g.fill();
+    g.fillStyle = '#5a1a10'; g.beginPath(); g.arc(-3.5, -32, 1.8, 0, Math.PI * 2); g.arc(3.5, -32, 1.8, 0, Math.PI * 2); g.fill();
+    g.restore();
   }
 
   // ---- İpucu: ampul sayacı ve kademeli ipucu ----

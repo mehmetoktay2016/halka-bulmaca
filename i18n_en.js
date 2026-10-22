@@ -577,12 +577,14 @@ var RING_LANG_EN = {
   've ampul': 'and a bulb',
 
   // ---- Yolculuğun sonu ----
-  'Yolculuğun sonu': 'Journey’s end',
   'Büyük Makine çalıştı!': 'The Great Machine is running!',
   '200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.': 'You finished all 200 levels. You are a Ring Master now.',
   'İlk 8 dünya tamam': 'First 8 worlds complete',
-  'Yıldız Haritası tamamlandı!': 'The Star Map is complete!',
-  '{n} bölümün hepsini bitirdin. Bütün dünyaların ustası sensin.': 'You finished all {n} levels. You are the master of every world.',
+  'Yolculuğun sonu': 'Journey’s end',
+  'Üçüncü perde tamam': 'Act Three complete',
+  'Anka kanatlandı!': 'The Phoenix takes flight!',
+  "{n} bölümün hepsini bitirdin. Anka'nın ateşi bütün dünyalara ışık taşıyor.": "You finished all {n} levels. The Phoenix's fire carries light to every world.",
+  'Yolculuk sürüyor: yeni bölümler yolda. {n} bölüm hâlâ 3 yıldızı bekliyor.': ['The journey goes on: new levels are on the way. {n} level is still waiting for 3 stars.', 'The journey goes on: new levels are on the way. {n} levels are still waiting for 3 stars.'],
   'Yeni dünyalar açıldı: {names}. Yolculuk sürüyor.': 'New worlds are open: {names}. The journey goes on.',
   'Yeni dünyalara': 'On to the new worlds',
   '/ {n} yıldız': '/ {n} stars',
