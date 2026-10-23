@@ -27,6 +27,9 @@
     twin: '#2dd4bf',
     chain: '#d8b46a',
     reef: ['#ff8a7a', '#5b8def', '#c792ea'],
+    // raylı halka gök mavisi; raylı bölümde renksizler gün batımı pembesi, altın, lila
+    sky: '#7fd0ff',
+    dusk: ['#ff9ec7', '#ffd36b', '#b9a2ff'],
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)
@@ -135,7 +138,7 @@
       intro: 'Raylı halkalar dönmez, rayda kayar. Kaydıkça kesişimleri değişir.',
       theme: { top: '#121a35', bottom: '#080c1c', accent: '#9fd8ff',
                glows: [['#9fd8ff', 0.10], ['#ffc0e0', 0.07], ['#ffd36b', 0.06]],
-               board: { kind: 'mermer', tint: '#b8cce4', alpha: 0.07 }, air: 'isik' } },
+               board: { kind: 'bulut', tint: '#b8cce4', alpha: 0.07 }, air: 'bulut' } },
   ];
 
   // Kapı n (1'den başlar): adı ve dünyası

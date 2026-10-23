@@ -44,6 +44,8 @@ for (const n of numbers) {
         if (Levels.barVsRing(bar, ring) === 'bad') problems.push(`çubuk ${A.type === 'bar' ? i : j} halkayı sıyırıyor`);
         continue;
       }
+      // İnci istiridyesinin içinde saklıdır, belirince görünür: geometri kuralı ona uygulanmaz (kullanıcı kararı)
+      if (A.pearl != null || B.pearl != null) continue;
       const d = Math.hypot(A.x - B.x, A.y - B.y);
       const crosses = d < A.r + B.r && d > Math.abs(A.r - B.r);
       if (crosses && (d > A.r + B.r - 24 || d < Math.abs(A.r - B.r) + 20)) problems.push(`halka ${i}-${j} sıyırarak kesişiyor`);
@@ -103,8 +105,8 @@ for (let g = 0; g < order.length / G; g++) {
   const flat = g + 1 >= PLATEAU;
   if (g + 1 === PLATEAU - 1) plateauPeak = peak;
   if (!flat && peak <= prevPeak && !RISE_EXCEPT.has(g + 1)) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
-  // Cırcır kapılarının (44-45) zirvesi bilerek 2 yüksek (kullanıcı kararı)
-  if (flat && plateauPeak != null && !Levels.RATCHET_GATES.includes(g + 1) && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
+  // Kapı 44-48'in zirvesi sabit düzeyden sapabilir: 44-45 bilerek 2 yüksek, 46-48 zirvesi geniş aralıkta (kullanıcı kararı)
+  if (flat && plateauPeak != null && !Levels.LONG_GATES.includes(g + 1) && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
   const avgD = avg(mains);
   if (!flat && avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
   const near = row.filter(generated).map(s => Levels.closeness(get(s)));

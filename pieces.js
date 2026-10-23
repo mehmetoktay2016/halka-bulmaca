@@ -58,12 +58,14 @@
       text: 'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.' },
     { id: 'chain', intro: 1019, name: 'Zincirli ikizler',
       text: 'Zincirle bağlı iki halka ancak aynı anda serbest kalınca birlikte uçar. Biri hazırsa eşini bekler; bomba birini uçurursa zincir kopar.' },
+    { id: 'rail', intro: 1020, name: 'Raylı halka',
+      text: 'Gök mavisi halka dönmez; rayı boyunca sürükleyince en yakın durağa oturur. Kaydığı yerde başka halkaları keser. Her kayma bir hamle.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!'];
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'kaydır'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -797,6 +799,21 @@
       dragFinger(g, B[0], B[1], r, bAng, t - 2000, 900);
       label(g, tx('eşini bekliyor'), 130, 178, wait ? 1 : 0);
       label(g, tx('birlikte!'), 130, 178, seg(t, 3000, 3200) * (t < 4300 ? 1 : 0));
+    } },
+    // 2.6: raylı halka soldaki durakta kırmızıyı keser; parmak onu sağdaki durağa kaydırır, orada boşluğu açık kesişime bakar
+    rail: { ms: 4400, draw(g, t) {
+      const A = [78, 96], B = [178, 96], r = 40, sky = '#7fd0ff';
+      const m = io(seg(t, 600, 1300)), fly = seg(t, 1500, 1950), x = A[0] + (B[0] - A[0]) * m;
+      g.save(); g.strokeStyle = 'rgba(232,241,255,.55)'; g.lineWidth = 2;
+      for (const d of [-5, 5]) { g.beginPath(); g.moveTo(A[0], A[1] + d); g.lineTo(B[0], B[1] + d); g.stroke(); }
+      for (const P of [A, B]) { g.fillStyle = 'rgba(8,12,28,.85)'; g.beginPath(); g.arc(P[0], P[1], 9, 0, TAU); g.fill(); g.strokeStyle = '#e8f1ff'; g.beginPath(); g.arc(P[0], P[1], 6.5, 0, TAU); g.stroke(); }
+      g.restore();
+      ring(g, 30, 96, 30, 0, C.red);
+      ring(g, 226, 96, 30, Math.PI, C.yellow);
+      if (fly === 0) ring(g, x, A[1], r, -150 * DEG, sky); else flyRing(g, B[0], B[1], r, -150 * DEG, sky, fly, 0, -1);
+      if (m === 1 && fly < 0.4) openPoint(g, 206, 96);
+      finger(g, x, A[1] + r, t > 500 && t < 1350, t > 300 && t < 1500 ? 1 : 0);
+      label(g, tx('kaydır'), 130, 178, t > 500 && t < 1600 ? 1 : 0);
     } },
   };
 

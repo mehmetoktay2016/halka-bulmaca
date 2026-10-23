@@ -94,7 +94,7 @@ function coinSpots(L) {
   const out = [];
   for (const k of L.links) {
     // saklı incinin kesişimine altın konmaz (görünmeyen halkada asılı kalırdı)
-    if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2 || L.shellOf[k.a] >= 0 || L.shellOf[k.b] >= 0) continue;
+    if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2 || L.shellOf[k.a] >= 0 || L.shellOf[k.b] >= 0 || L.rings[k.a].rail || L.rings[k.b].rail) continue;
     const x = (k.pts[0].x + k.pts[1].x) / 2, y = (k.pts[0].y + k.pts[1].y) / 2;
     const clear = L.rings.every((r, i) => i === k.a || i === k.b ||
       (r.kind !== 'ring' ? pieceDist(x, y, r) > 18 : Math.abs(Math.hypot(x - r.x, y - r.y) - r.r) > 18));
@@ -122,7 +122,7 @@ for (const src of order) {
   const spots = coinSpots(L);
   const cands = [];
   L.rings.forEach((r, i) => {
-    if (r.kind !== 'ring' || deco.has(i) || carried.has(i) || !at[i] || L.shellOf[i] >= 0) return;
+    if (r.kind !== 'ring' || deco.has(i) || carried.has(i) || !at[i] || L.shellOf[i] >= 0 || r.rail) return;
     const busy = r.fixed || r.lockedBy >= 0 || marked.has(i) || L.rings.some(k => k.lockedBy === i);
     const p = spot(L, i, busy, def.table);
     if (p) cands.push({ i, x: p.x, y: p.y, room: coinRoom(spots, p.x, p.y), rank: at[i] === total ? -1 : at[i] });

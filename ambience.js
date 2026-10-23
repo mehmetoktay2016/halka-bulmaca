@@ -364,6 +364,16 @@
         k.every(5, 11, t => { for (let i = 0; i < 6; i++) k.puff(t + i * (0.03 + rand() * 0.04), 'highpass', 5000, 1, 0.015, 0.012); });
         return 3;
       },
+      // Bulut Krallığı (2.6): yükseklerde esen ince rüzgâr, uzak rüzgâr çanları, arada kuş cıvıltısı
+      bulut(k) {
+        const wind = k.bed('bandpass', 900, 0.4, 0.03);
+        k.lfo(wind.filter.frequency, 0.05, 400);
+        k.lfo(wind.gain.gain, 0.04, 0.015);
+        const chime = k.echo(0.4, 0.4, 5000);
+        k.every(5, 11, t => { for (let i = 0, n = 2 + Math.floor(rand() * 3); i < n; i++) k.blip(t + i * (0.2 + rand() * 0.25), pick([1318.5, 1568, 1760, 2093, 2349.3]), 1.6, 0.012, 'sine', 0, chime); });
+        k.every(14, 28, t => { for (let i = 0; i < 3; i++) { const f = 2800 + rand() * 800; k.blip(t + i * 0.11, f, 0.07, 0.01, 'sine', f * 1.3); } });
+        return 3.4;
+      },
     };
 
     function stopScene(scene, fade) {

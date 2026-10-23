@@ -96,7 +96,7 @@ function thumb(def, w = 160) {
       const p = a => `${(r.x + r.r * Math.cos(a)).toFixed(1)} ${(r.y + r.r * Math.sin(a)).toFixed(1)}`;
       out.push(`<path d="M ${p(a0)} A ${r.r} ${r.r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p(a1)}" fill="none" stroke="${col}" stroke-width="${r.ice ? 12 : 8}" stroke-linecap="round"/>`);
     }
-    const tag = [r.bomb && 'B', r.cbomb && 'R', r.motor && 'M', r.ratchet && (r.ratchet > 0 ? 'C+' : 'C-'), r.pearl != null && 'I' + r.pearl, r.chain != null && 'Z' + r.chain, r.portal != null && 'P' + r.portal, r.tokens != null && 'T' + r.tokens,
+    const tag = [r.bomb && 'B', r.cbomb && 'R', r.motor && 'M', r.ratchet && (r.ratchet > 0 ? 'C+' : 'C-'), r.pearl != null && 'I' + r.pearl, r.chain != null && 'Z' + r.chain, r.rail && 'Y', r.portal != null && 'P' + r.portal, r.tokens != null && 'T' + r.tokens,
       r.boiler && 'K' + r.boiler, r.ice && '*' + r.ice, r.step && 'tık', r.lockedBy != null && 'k' + r.lockedBy].filter(Boolean).join(' ');
     if (tag) out.push(`<text x="${r.x}" y="${r.y + 8}" text-anchor="middle" font-size="24" font-weight="700" fill="${col}" font-family="sans-serif">${tag}</text>`);
   });

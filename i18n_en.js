@@ -591,6 +591,13 @@ var RING_LANG_EN = {
   'Dalgalı kenarlı halka istiridyedir. Kurtulunca içindeki inci halka belirir, onu da kurtar': 'The ring with the wavy rim is an oyster. When it flies off, the pearl ring inside appears: free it too',
   'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.': 'When the wavy-rimmed oyster flies off, the pearl inside appears. While hidden the pearl holds no ring; once it appears it holds the rings it touches. Open the oyster last.',
   'Deniz Kabuğu': 'Seashell',
+  // 2.6 Raylı halka
+  'Raylı halka': 'Rail ring',
+  'Tam durağında!': 'Right on the stop!',
+  'kaydır': 'slide',
+  'Mavi halkayı parlayan durağa kaydır': 'Slide the blue ring to the glowing stop',
+  'Mavi halka dönmez, rayında kayar: onu sürükle, bıraktığın durağa oturur': 'The blue ring does not turn, it slides on its rail: drag it and it settles on the stop where you let go',
+  'Gök mavisi halka dönmez; rayı boyunca sürükleyince en yakın durağa oturur. Kaydığı yerde başka halkaları keser. Her kayma bir hamle.': 'The sky-blue ring does not turn; drag it along its rail and it settles on the nearest stop. Where it lands it crosses other rings. Each slide is a move.',
   // 2.6 Zincirli ikizler
   'Zincirli ikizler': 'Chained twins',
   'İkizler birlikte!': 'Twins together!',

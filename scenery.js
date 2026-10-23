@@ -459,6 +459,22 @@
         g.restore();
       }
     },
+    // Bulut Krallığı (2.6): üst üste binen yumuşak bulut kümeleri ve yıldız serpintisi
+    bulut(g, w, h, c, a, R) {
+      for (let k = 0; k < 7; k++) {
+        const x = R() * w, y = R() * h, s = 26 + R() * 30;
+        g.fillStyle = rgba(c, a * 0.8);
+        for (const [dx, dy, f] of [[0, 0, 1], [-0.9, 0.25, 0.7], [0.9, 0.2, 0.75], [-0.4, -0.45, 0.65], [0.45, -0.35, 0.6]]) {
+          g.beginPath(); g.arc(x + dx * s, y + dy * s, s * f, 0, TAU); g.fill();
+        }
+      }
+      g.fillStyle = rgba(c, a * 1.6);
+      for (let k = 0; k < (w * h) / 5000; k++) {
+        const x = R() * w, y = R() * h, s = 1 + R() * 2.2;
+        g.beginPath(); g.moveTo(x, y - s * 2); g.lineTo(x + s * 0.5, y); g.lineTo(x, y + s * 2); g.lineTo(x - s * 0.5, y); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(x - s * 2, y); g.lineTo(x, y + s * 0.5); g.lineTo(x + s * 2, y); g.lineTo(x, y - s * 0.5); g.closePath(); g.fill();
+      }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -882,6 +898,29 @@
         g.globalAlpha = 0.4; g.strokeStyle = '#bff3ff'; g.lineWidth = 1.2;
         g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.stroke();
         g.fillStyle = '#ffffff'; g.beginPath(); g.arc(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.3, 0, TAU); g.fill();
+      },
+    },
+    // Bulut Krallığı (2.6): yavaşça süzülen bulut tutamları; arada çapraz kayan yıldız
+    bulut: {
+      count: 14,
+      make: (w, h, fresh) => (rand() < 0.06 && !fresh
+        ? { star: true, x: rand() * w * 0.6, y: -10, vx: 160 + rand() * 80, vy: 110 + rand() * 50 }
+        : { x: fresh ? rand() * w : -60, y: rand() * h, vx: 6 + rand() * 10, s: 10 + rand() * 18, ph: rand() * TAU }),
+      step: (p, dt, w, h) => {
+        if (p.star) { p.x += p.vx * dt; p.y += p.vy * dt; return p.x < w + 40 && p.y < h + 40; }
+        p.x += p.vx * dt; return p.x < w + 60;
+      },
+      draw: (g, p, now) => {
+        if (p.star) {
+          const len = 40, d = Math.hypot(p.vx, p.vy), ux = p.vx / d, uy = p.vy / d;
+          const gr = g.createLinearGradient(p.x - ux * len, p.y - uy * len, p.x, p.y);
+          gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,246,214,.8)');
+          g.strokeStyle = gr; g.lineWidth = 2; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(p.x - ux * len, p.y - uy * len); g.lineTo(p.x, p.y); g.stroke();
+          return;
+        }
+        g.globalAlpha = 0.1 + 0.04 * Math.sin(now / 1500 + p.ph); g.fillStyle = '#eef4ff';
+        for (const [dx, dy, f] of [[0, 0, 1], [-0.9, 0.2, 0.7], [0.9, 0.2, 0.7]]) { g.beginPath(); g.arc(p.x + dx * p.s, p.y + dy * p.s, p.s * f, 0, TAU); g.fill(); }
       },
     },
   };

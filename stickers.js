@@ -152,6 +152,13 @@
         <path d="M38 80H62L58 90H42Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>
         <circle cx="74" cy="72" r="6" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>`,
     },
+    bulut: {
+      name: 'Sıcak Hava Balonu',
+      art: c => `<path d="M50 12C30 12 20 28 20 42C20 58 36 66 42 74H58C64 66 80 58 80 42C80 28 70 12 50 12Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M50 12C42 22 40 50 44 74M50 12C58 22 60 50 56 74" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M43 74L42 80M57 74L58 80" stroke="${c.ink}" stroke-width="3"/>
+        <rect x="40" y="80" width="20" height="12" rx="2" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5"/>`,
+    },
   };
   const PIECES = 5;
 
