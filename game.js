@@ -922,25 +922,75 @@
     else go();
   }
 
+  // Kapı rayı: sağ kenarda dünyalara bölünmüş ince ray (her dünya kendi renginde, uzunluğu kapı sayısıyla orantılı),
+  // içinde kapı başına bir çentik (açık: dünyanın rengi, kilitli: soluk, altın kapı: altın). Haritadaki konum rayda
+  // numaralı bir haptır. Raya dokununca o kapıya gidilir; sürüklerken harita da kayar ve yanda dünya ile kapı yazılır.
+  // Ekran okuyucu ve klavye için kaydırıcıdır (ok tuşları kapı değiştirir).
+  let stripN = 0, stripGeo = null;
   function renderGateStrip(geo) {
     const strip = $('gateStrip');
-    let html = '';
-    for (let g = 1; g < geo.arches.length; g++) {
-      const teaser = g > GATE_COUNT;
-      const locked = teaser || !isUnlocked(W.gateStart(g));
-      html += `<button data-g="${g}" class="${locked ? 'locked' : ''}${!teaser && gateGold(g) ? ' gold' : ''}"
-        aria-label="${tr('Kapı {n}', { n: g })}${teaser ? ', ' + tr('yakında') : locked ? ', ' + tr('kilitli') : ''}" style="--wa:${W.worldOfGate(g).theme.accent}">${g}</button>`;
+    stripGeo = geo; stripN = geo.arches.length - 1;
+    let html = '<div class="gs-track">';
+    for (let g = 1; g <= stripN;) {
+      const w = W.worldOfGate(g);
+      let end = g;
+      while (end + 1 <= stripN && W.worldOfGate(end + 1) === w) end++;
+      html += `<div class="gs-seg" style="--wa:${w.theme.accent};--n:${end - g + 1}">`;
+      for (let k = g; k <= end; k++) {
+        const locked = k > GATE_COUNT || !isUnlocked(W.gateStart(k));
+        html += `<i class="${locked ? 'locked' : k <= GATE_COUNT && gateGold(k) ? 'gold' : ''}"></i>`;
+      }
+      html += '</div>';
+      g = end + 1;
     }
-    strip.innerHTML = html;
-    strip.querySelectorAll('button').forEach(b => {
-      b.onclick = () => {
-        Sound.tap();
-        const g = Number(b.dataset.g);
-        const wrap = $('map');
-        wrap.scrollTo({ top: geo.arches[g].y - wrap.clientHeight * 0.75, behavior: REDUCED ? 'auto' : 'smooth' });
-      };
-    });
+    strip.innerHTML = html + '</div><div class="gs-thumb"><b></b></div><div class="gs-tip"></div>';
+    strip.setAttribute('aria-valuemin', 1);
+    strip.setAttribute('aria-valuemax', stripN);
     updateGateStrip();
+  }
+  // Raydaki y konumundan kapı (kapı 1 altta)
+  const stripGateAt = y => {
+    const r = $('gateStrip').querySelector('.gs-track').getBoundingClientRect();
+    return Math.max(1, Math.min(stripN, Math.ceil((r.bottom - y) / r.height * stripN)));
+  };
+  function stripGo(g, smooth) {
+    const wrap = $('map');
+    wrap.scrollTo({ top: stripGeo.arches[g].y - wrap.clientHeight * 0.75, behavior: smooth && !REDUCED ? 'smooth' : 'auto' });
+    showStripTip(g);
+  }
+  function showStripTip(g) {
+    const tip = $('gateStrip').querySelector('.gs-tip');
+    tip.textContent = `${tr(W.worldOfGate(g).name)} · ${tr('Kapı {n}', { n: g })}${g > GATE_COUNT ? ' · ' + tr('yakında') : !isUnlocked(W.gateStart(g)) ? ' · ' + tr('kilitli') : ''}`;
+    tip.style.bottom = `${(g - 0.5) / stripN * 100}%`;
+  }
+  {
+    const strip = $('gateStrip');
+    let dragG = 0, tipT = 0;
+    const end = () => { if (!dragG) return; dragG = 0; strip.classList.remove('dragging'); };
+    strip.addEventListener('pointerdown', e => {
+      if (!stripN) return;
+      try { strip.setPointerCapture(e.pointerId); } catch (err) { /* sentetik olay */ }
+      dragG = stripGateAt(e.clientY);
+      strip.classList.add('dragging');
+      Sound.tap();
+      stripGo(dragG, true);
+    });
+    strip.addEventListener('pointermove', e => {
+      if (!dragG) return;
+      const g = stripGateAt(e.clientY);
+      if (g !== dragG) { dragG = g; Sound.tick(); stripGo(g, false); }
+    });
+    strip.addEventListener('pointerup', end);
+    strip.addEventListener('pointercancel', end);
+    strip.addEventListener('keydown', e => {
+      const now = mapGateAt($('map').scrollTop + $('map').clientHeight / 2);
+      const g = { ArrowUp: now + 1, ArrowRight: now + 1, ArrowDown: now - 1, ArrowLeft: now - 1, Home: 1, End: stripN }[e.key];
+      if (!g) return;
+      e.preventDefault();
+      stripGo(Math.max(1, Math.min(stripN, g)), true);
+      strip.classList.add('dragging');
+      clearTimeout(tipT); tipT = setTimeout(() => strip.classList.remove('dragging'), 900);
+    });
   }
 
   // Ekranın ortasındaki kapıyı şeritte işaretler
@@ -952,9 +1002,14 @@
     return g;
   }
   function updateGateStrip() {
-    const wrap = $('map');
-    const g = mapGateAt(wrap.scrollTop + wrap.clientHeight / 2);
-    $('gateStrip').querySelectorAll('button').forEach(b => b.classList.toggle('here', Number(b.dataset.g) === g));
+    if (!stripN) return;
+    const wrap = $('map'), strip = $('gateStrip');
+    const g = mapGateAt(wrap.scrollTop + wrap.clientHeight / 2), thumb = strip.querySelector('.gs-thumb');
+    thumb.style.bottom = `${(g - 0.5) / stripN * 100}%`;
+    thumb.style.setProperty('--wa', W.worldOfGate(g).theme.accent);
+    thumb.firstChild.textContent = g;
+    strip.setAttribute('aria-valuenow', g);
+    strip.setAttribute('aria-valuetext', `${tr('Kapı {n}', { n: g })}, ${tr(W.worldOfGate(g).name)}`);
   }
   $('map').addEventListener('scroll', updateGateStrip, { passive: true });
 

@@ -364,36 +364,77 @@ svg { display: block; }
 .map { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; }
 .map::-webkit-scrollbar { display: none; }
 .map-inner { position: relative; width: calc(100% - 34px); }
-/* Kapı şeridi: sağ kenarda kapılara atlama */
+/* Kapı rayı: sağ kenarda dünyalara bölünmüş ince ray, haritadaki konum numaralı bir hap; dokun ya da sürükle */
 .gate-strip {
   position: absolute;
   z-index: 2;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 4px;
+  top: 14px;
+  bottom: 14px;
+  width: 26px;
+  touch-action: none;
+  cursor: pointer;
+  outline: none;
+}
+.gs-track {
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 6px;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;
-  gap: 6px;
-  max-height: 100%;
-  overflow-y: auto;
-  scrollbar-width: none;
-  padding: 4px 0;
+  gap: 3px;
 }
-.gate-strip button {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  border-radius: 50%;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 12px;
-  background: rgba(0, 0, 0, .35);
-  border: 2px solid color-mix(in srgb, var(--wa) 70%, transparent);
+.gs-seg {
+  flex: var(--n) 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  padding: 1px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .45);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa) 35%, transparent);
+}
+.gs-seg i { flex: 1 1 0; min-height: 0; border-radius: 2px; background: var(--wa); }
+.gs-seg i.locked { background: rgba(255, 255, 255, .14); }
+.gs-seg i.gold { background: var(--gold); }
+.gs-thumb {
+  position: absolute;
+  left: 50%;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 5px;
+  transform: translate(-50%, 50%);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--wa);
+  color: var(--ink);
+  font: 800 11px/1 var(--font-display);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5), 0 0 0 2px rgba(0, 0, 0, .35), 0 0 12px color-mix(in srgb, var(--wa) 60%, transparent);
+  transition: bottom .18s ease-out;
+  pointer-events: none;
+}
+.gate-strip.dragging .gs-thumb { transition: none; }
+.gs-tip {
+  position: absolute;
+  right: 32px;
+  transform: translateY(50%);
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(10, 8, 20, .88);
+  border: 1px solid rgba(255, 255, 255, .15);
   color: var(--text);
+  font: 700 12px/1.2 var(--font-body, inherit);
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
 }
-.gate-strip button.locked { border-color: rgba(255, 255, 255, .12); color: rgba(255, 255, 255, .35); }
-.gate-strip button.gold { border-color: var(--gold); }
-.gate-strip button.here { background: var(--wa); color: var(--ink); border-color: var(--wa); }
+.gate-strip.dragging .gs-tip { opacity: 1; }
+.gate-strip:focus-visible .gs-thumb { box-shadow: 0 0 0 3px var(--text), 0 2px 8px rgba(0, 0, 0, .5); }
+@media (prefers-reduced-motion: reduce) { .gs-thumb, .gs-tip { transition: none; } }
 
 /* Tören: harita dokunmaya kapanır, dokununca atlanır */
 .ceremony { position: absolute; inset: 0; z-index: 4; }
