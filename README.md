@@ -37,15 +37,23 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
   tur iter; jetonlu halka jetonsuz dönmez, jetonu başka halka taşır; şalter iki renkten yalnız birini döndürür;
   nabız halkanın boşluk kapağı her hamlede açılıp kapanır; döner tabla üstündeki iki halkanın yerini değiştirir.
   Her parça ilk görüldüğünde animasyonlu bir kartla anlatılır, koleksiyonda Parçalar sekmesinde durur.
+- 2.5: kapı 31-40 (Havai Fişek, Buzul, Değirmen, Büyü Kulesi): bomba, basınç kazanı, buz, motor ve ikiz portal;
+  kapı finallerinde Dev Halka, Altın Yağmuru, gizem halka, kombo, macera haritası ve oyunla çalan müzik.
+- 2.6: kapı 41-50 (Şeker Diyarı, Piramit, Mercan Resifi, Bulut Krallığı) ve 5 yeni parça. Renk bombası
+  kurtulunca kendi rengindeki bütün halkaları uçurur; cırcır halka yalnız tek yöne, her hamlede bir tık döner;
+  istiridye kurtulunca içindeki inci halka belirir; zincirli ikizler ancak birlikte kurtulur; rüzgâr halka
+  kurtulunca komşularını, taş (sabit) halkaları bile, çeyrek tur çevirir. Kapı 44-50'de hamle tavanı 12
+  (hak en çok 17). 53 rozet, 99 şekil; 500. bölümde Gökyüzü Sarayı finali.
   Kapı 21-30'un zorluğu artmaz, kapı 20 düzeyinde kalır (`PLATEAU`).
 
-300 bölüm 30 kapıya, kapılar 12 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
-Fabrika, Uzay, Büyük Usta, Lunapark, Santral, Deniz Feneri, Rasathane). Her kapının 5. bölümü bir ara şekil,
+500 bölüm 50 kapıya, kapılar 20 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,
+Fabrika, Uzay, Büyük Usta, Lunapark, Santral, Deniz Feneri, Rasathane, Havai Fişek, Buzul, Değirmen, Büyü Kulesi,
+Şeker Diyarı, Piramit, Mercan Resifi, Bulut Krallığı). Her kapının 5. bölümü bir ara şekil,
 10. bölümü bir şekil finalidir; her dünya kendi mekaniğinin tanıtımıyla açılır. 200. bölüm bitince Büyük
-Makine sahnesi gelir ve yeni dünyalar açılır; 300. bölüm bitince Yıldız Haritası finali gelir.
+Makine sahnesi gelir ve yeni dünyalar açılır; son bölüm (500) bitince Gökyüzü Sarayı finali gelir.
 
 Geliştirme adresleri: `?level=N` (N. bölüm), `?src=N` (kaynak numarasıyla önizleme, kayda yazmaz),
-`?world=atolye`, `?gallery` (bütün şekiller), `?ending` (Büyük Makine), `?ending=finale` (Yıldız Haritası), `?debug`.
+`?world=atolye`, `?gallery` (bütün şekiller), `?ending` (Büyük Makine), `?ending=finale` (Gökyüzü Sarayı), `?debug`.
 
 ## GitHub Pages ile yayınlama
 
