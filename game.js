@@ -4792,17 +4792,18 @@
     });
   }
 
-  // Geliştirme: ?gallery bütün şekilleri süsleriyle gösterir (bulmaca değil, yalnızca görünüş)
+  // Geliştirme: ?gallery bütün şekilleri süsleriyle gösterir (bulmaca değil, yalnızca görünüş); ?gallery=20 yalnız son 20'yi
   function showGallery() {
-    const shapes = window.RingLevels.ANIMALS;
+    const last = Number(params.get('gallery')) || 0;
+    const shapes = window.RingLevels.ANIMALS.slice(-last || 0);
     const host = document.createElement('div');
     host.className = 'gallery';
-    host.innerHTML = `<h2>Şekil galerisi</h2><p>${shapes.length} şekil. İlk 10'u oyundaki, diğerleri yeni.</p><div class="g-grid"></div>`;
+    host.innerHTML = `<h2>Şekil galerisi</h2><p>${shapes.length} şekil${last ? ' (en yeniler)' : ". İlk 10'u oyundaki, diğerleri yeni"}.</p><div class="g-grid"></div>`;
     document.body.appendChild(host);
     const grid = host.querySelector('.g-grid');
     const items = shapes.map((s, k) => {
       const fig = document.createElement('figure');
-      fig.innerHTML = `<canvas width="420" height="420"></canvas><figcaption><b>${s.name}</b>${k >= 10 ? '<span>yeni</span>' : ''}</figcaption>`;
+      fig.innerHTML = `<canvas width="420" height="420"></canvas><figcaption><b>${s.name}</b>${k >= 10 && !last ? '<span>yeni</span>' : ''}</figcaption>`;
       grid.appendChild(fig);
       const c = fig.querySelector('canvas');
       return { s, c, g: c.getContext('2d') };
