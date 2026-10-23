@@ -26,8 +26,8 @@ const order = Levels.gateOrder(get);
 const STARS = Number(process.env.STARS || 2);
 
 // game.js ile aynı kurallar
-const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10; // game.js ile aynı
-const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
+// hamle hakkı game.js ile aynı (ortak araçtan: kopyası kapı 44-50'nin 12 hamle tavanında geride kalmıştı)
+const { moveLimit } = require('./test_kit.js');
 // min(n, düzgün dağılımlı lo..hi) beklenen değeri
 function expectedCoins(n) {
   const [lo, hi] = E.levelCoins;

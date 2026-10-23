@@ -28,9 +28,10 @@ order.forEach((src, i) => {
     const ms = Date.now() - t0;
     if (ms > slowest) { slowest = ms; slowestAt = n; }
     if (!s || !s.first) break;
-    if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, a, m, left, ph)); continue; }
-    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, t.angles, m, left, ph)); continue; }
-    ({ mask: m, angles: a, left } = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph));
+    // hamleden sonra oyundaki gibi motorlar da döner (afterMove; cascade motorları atlıyordu, motorlu bölümler yanlış "bitmedi" görünüyordu)
+    if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.afterMove(L, a, m, left, ph)); continue; }
+    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.afterMove(L, t.angles, m, left, ph)); continue; }
+    ({ mask: m, angles: a, left } = Logic.afterMove(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph));
     moves++;
   }
   const ok = m === L.full && moves <= limit;

@@ -243,7 +243,7 @@
         for (const [d, f] of [[0.18, 1046.5], [0.26, 1318.5], [0.34, 1568], [0.42, 2093]]) { tone(f, 1.2, 'sine', 0.045, null, d); tone(f * 2.01, 0.6, 'sine', 0.012, null, d); }
       },
       // Zincir gerilir: metal şıngırtı; ikizler birlikte uçar: uzun şıngırtı ve iki nota birden
-      chain: () => { for (let k = 0; k < 3; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); tone(f * 1.5, 0.12, 'sine', 0.018, null, k * 0.045); } },
+      taut: () => { for (let k = 0; k < 3; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); tone(f * 1.5, 0.12, 'sine', 0.018, null, k * 0.045); } },
       twins: () => {
         for (let k = 0; k < 6; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); }
         for (const f of [659.25, 830.6]) { tone(f, 0.6, 'triangle', 0.07, null, 0.08); tone(f * 2, 0.3, 'sine', 0.02, null, 0.08); }
@@ -1515,7 +1515,7 @@
       }
     });
     if (!waves.length && S.L.chainMate.some((m, i) => waiting(i))) {
-      Sound.chain();
+      Sound.taut();
       if (!S.chainTold) { S.chainTold = true; showTip(tr('Zincirli halka eşini bekliyor: eşini de serbest bırak')); }
     }
     // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
