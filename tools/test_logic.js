@@ -480,5 +480,27 @@ test('renk bombası: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, paint: 0 }] }), /şeker rengi/);
 });
 
+// Cırcır halka (R7): soldaki halkanın boşluğu bir tık geride (90°) kesişimi açar; sağdaki sabit
+const RATCHET = r0 => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 135.6, step: 90, ...r0 }, { x: 170, y: 100, r: 50, fixed: true }] });
+
+test('cırcır: yalnız kendi yönünde ve hamle başı tek tık döner', () => {
+  assert.strictEqual(Logic.solve(RATCHET({}), RATCHET({}).startAngles, 0).moves, 1);
+  const L = RATCHET({ ratchet: 1 });
+  assert.deepStrictEqual(Logic.candidates(L, L.startAngles, 0, 0).map(t => Math.round(t / DEG)), [226]);
+  // Saat yönünde iki tıkla öbür kesişime varır; ilk hamle +90°
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  assert.ok(Math.abs(sol.first.delta - 90 * DEG) < 1e-9);
+  const B = RATCHET({ ratchet: -1 }), solB = Logic.solve(B, B.startAngles, 0);
+  assert.strictEqual(solB.moves, 1);
+  assert.ok(Math.abs(solB.first.delta + 90 * DEG) < 1e-9);
+});
+
+test('cırcır: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => RATCHET({ step: 0, ratchet: 1 }), /cırcır yalnızca tıklı/);
+  assert.throws(() => RATCHET({ ratchet: 1, fixed: true }), /cırcır/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 90, ratchet: 1 }, { x: 170, y: 100, r: 50, kick: [0, 90] }] }), /yayın hedefi/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

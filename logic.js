@@ -107,6 +107,9 @@
       gaps: (r.gaps || [0]).map(g => g * DEG),
       // Tıklı halka: yalnızca başlangıç açısından step'in katları kadar döner (derece; 360'ı tam bölmeli)
       step: r.step ? r.step * DEG : 0,
+      // Cırcır halka (ratchet: 1 saat yönü, -1 ters; tıklı halkada): yalnız o yöne ve her hamlede tek tık döner.
+      // Geri gitmek turu tamamlamayı ister. Dönüşü hep oyuncudan gelir (yay hedefi ya da motor olamaz).
+      ratchet: r.ratchet ? Math.sign(r.ratchet) : 0,
       // Anahtarlı kilit: lockedBy numaralı halka tahtadan çıkana kadar bu halka dönmez
       lockedBy: r.lockedBy == null ? -1 : r.lockedBy,
       // Yaylı halka (kick: [hedef, derece]): tahtadan çıkarken hedef halkayı o kadar döndürür
@@ -203,6 +206,7 @@
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
+      if (r.ratchet && (r.type || !r.step || r.fixed || r.motor)) throw new Error(`Halka ${i}: cırcır yalnızca tıklı, sabit ve motorlu olmayan halkada olur`);
     }
     const n = rings.length;
     const links = [];
@@ -288,7 +292,7 @@
     for (const r of rings) {
       if (!r.kick) continue;
       const t = rings[r.kick.target];
-      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
+      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss || t.ratchet) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
       if (!r.kick.turn) throw new Error(`Halka ${r.id}: yayın tekmesi sıfır olamaz`);
       for (const k of group[t.id]) {
         const st = rings[k].step;
@@ -520,6 +524,8 @@
   // Tıklı halkada hedef en yakın tık yerine çekilir; boşluk orada kesişimi açmıyorsa hedef sayılmaz.
   function candidates(L, angles, mask, i, ph) {
     const ring = L.rings[i];
+    // Cırcırın tek hamlesi: yönünde bir tık
+    if (ring.ratchet) return [norm(angles[i] + ring.ratchet * ring.step)];
     const out = [];
     const pendingKicks = L.kickedBy[i].filter(s => !(mask & (1 << s))).map(s => L.rings[s].kick.turn);
     for (const li of L.ringLinks[i]) {
@@ -577,7 +583,7 @@
       if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left, node.sw)) continue;
       const spent = spend(L, node.left, i);
       for (const target of candidates(L, node.angles, node.mask, i, ph2)) {
-        const delta = signedDelta(node.angles[i], target);
+        const delta = L.rings[i].ratchet ? L.rings[i].ratchet * L.rings[i].step : signedDelta(node.angles[i], target);
         const c = afterMove(L, rotate(L, node.angles, i, delta), node.mask, spent, ph2);
         if (emit({ L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw, ph: ph2 }, { ring: i, target, delta })) return true;
       }
