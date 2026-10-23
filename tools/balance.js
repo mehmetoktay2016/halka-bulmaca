@@ -3,19 +3,12 @@
 // - Her bölüm hamle hakkı içinde bitmeli (ipucu takılırsa oyuncu da takılır).
 // - İpucunun en yavaş adımı ölçülür (telefonda gecikme hissedilmemeli).
 // - Altın, ampul ve rozet ekonomisinin toplamları çıkarılır.
-const fs = require('fs');
-const path = require('path');
 const Logic = require('../logic.js');
 const Levels = require('../levels.js');
 const Badges = require('../achievements.js');
+const { get, moveLimit } = require('./test_kit.js'); // hamle hakkı game.js ile aynı
 
-const pre = new Function(fs.readFileSync(path.join(__dirname, '..', 'levels_data.js'), 'utf8') + '; return RING_LEVEL_DATA;')();
-const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s);
 const order = Levels.gateOrder(get);
-
-// game.js ile aynı kurallar
-const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10; // game.js ile aynı
-const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 // İpucu arama bütçesi (game.js ile aynı olmalı); farklı bütçeleri denemek için HINT_NODES verilebilir
 const HINT_NODES = Number(process.env.HINT_NODES || 2000);
 const FALLBACK_NODES = Number(process.env.FALLBACK_NODES || 30000);
@@ -35,9 +28,10 @@ order.forEach((src, i) => {
     const ms = Date.now() - t0;
     if (ms > slowest) { slowest = ms; slowestAt = n; }
     if (!s || !s.first) break;
-    if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, a, m, left, ph)); continue; }
-    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.cascade(L, t.angles, m, left, ph)); continue; }
-    ({ mask: m, angles: a, left } = Logic.cascade(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph));
+    // hamleden sonra oyundaki gibi motorlar da döner (afterMove; cascade motorları atlıyordu, motorlu bölümler yanlış "bitmedi" görünüyordu)
+    if (s.first.toggle) { sw ^= 1; moves++; ({ mask: m, angles: a, left } = Logic.afterMove(L, a, m, left, ph)); continue; }
+    if (s.first.table) { const t = Logic.turnTable(L, a); L = t.L; moves++; ({ mask: m, angles: a, left } = Logic.afterMove(L, t.angles, m, left, ph)); continue; }
+    ({ mask: m, angles: a, left } = Logic.afterMove(L, Logic.rotate(L, a, s.first.ring, s.first.delta), m, Logic.spend(L, left, s.first.ring), ph));
     moves++;
   }
   const ok = m === L.full && moves <= limit;

@@ -442,5 +442,171 @@ test('dev halka: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, boss: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /dev halka eşli/);
 });
 
+// Renk bombası (R3): üstteki halka 0 rengin bombası; sağdaki kilitli çiftin 3 numarası da 0 renginde
+const PAINT = [{ x: 200, y: 215, r: 70, a: 255, paint: 0, cbomb: true }, { x: 140, y: 320, r: 64, a: 210, paint: 1 }, { x: 260, y: 320, r: 64, a: 105 },
+  { x: 420, y: 215, r: 60, a: 0, paint: 0 }, { x: 490, y: 215, r: 60, a: 90 }];
+
+test('renk bombası: çıkınca kendi rengindeki halkalar kilitli ve uzak olsalar da sonraki dalgada uçar', () => {
+  const L = Logic.buildLevel({ rings: PAINT });
+  assert.deepStrictEqual(L.painted, [[0, 3], [1], []]);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 0, 195 * DEG), 0);
+  assert.deepStrictEqual(c.waves, [[0], [3], [4]]);
+  assert.deepStrictEqual(c.blasts, [[{ from: 0, hits: [3], paint: 0 }], [], []]);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  const P = Logic.buildLevel({ rings: PAINT.map(({ paint, cbomb, ...r }) => r) });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 3);
+});
+
+test('renk bombası: bombanın vurduğu renk bombası da patlar (zincir)', () => {
+  const rings = PAINT.map(({ paint, cbomb, ...r }) => r);
+  rings[0].bomb = true;
+  Object.assign(rings[1], { paint: 0, cbomb: true });
+  rings[3].paint = 0;
+  const L = Logic.buildLevel({ rings });
+  // Bomba, BOMB bölümündeki çözüm hamlesiyle kurtulur
+  const B = Logic.buildLevel({ rings: BOMB }), sol = Logic.solve(B, B.startAngles, 0);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.deepStrictEqual(c.blasts.flat(), [{ from: 0, hits: [1, 2] }, { from: 1, hits: [3], paint: 0 }]);
+  assert.strictEqual(c.mask, L.full);
+});
+
+test('renk bombası: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ cbomb: true }, {}), /rengi yok/);
+  assert.throws(() => two({ paint: 0, cbomb: true }, { paint: 1 }), /renginde başka halka yok/);
+  assert.throws(() => two({ paint: 3 }, {}), /şeker rengi 0-2/);
+  assert.throws(() => two({ paint: 0, fixed: true }, {}), /şeker rengi 0-2/);
+  assert.throws(() => two({ paint: 0, cbomb: true, bomb: true }, { paint: 0 }), /başka parçayla/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, paint: 0 }] }), /şeker rengi/);
+});
+
+// Cırcır halka (R7): soldaki halkanın boşluğu bir tık geride (90°) kesişimi açar; sağdaki sabit
+const RATCHET = r0 => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 135.6, step: 90, ...r0 }, { x: 170, y: 100, r: 50, fixed: true }] });
+
+test('cırcır: yalnız kendi yönünde ve hamle başı tek tık döner', () => {
+  assert.strictEqual(Logic.solve(RATCHET({}), RATCHET({}).startAngles, 0).moves, 1);
+  const L = RATCHET({ ratchet: 1 });
+  assert.deepStrictEqual(Logic.candidates(L, L.startAngles, 0, 0).map(t => Math.round(t / DEG)), [226]);
+  // Saat yönünde iki tıkla öbür kesişime varır; ilk hamle +90°
+  const sol = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(sol.moves, 2);
+  assert.ok(Math.abs(sol.first.delta - 90 * DEG) < 1e-9);
+  const B = RATCHET({ ratchet: -1 }), solB = Logic.solve(B, B.startAngles, 0);
+  assert.strictEqual(solB.moves, 1);
+  assert.ok(Math.abs(solB.first.delta + 90 * DEG) < 1e-9);
+});
+
+test('cırcır: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => RATCHET({ step: 0, ratchet: 1 }), /cırcır yalnızca tıklı/);
+  assert.throws(() => RATCHET({ ratchet: 1, fixed: true }), /cırcır/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 90, ratchet: 1 }, { x: 170, y: 100, r: 50, kick: [0, 90] }] }), /yayın hedefi/);
+});
+
+// İnci halka (R10): 0 istiridye, 1 onun içinde (aynı merkezli) inci, 2 sağda ikisini de kesen halka
+const PEARL = extra => Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 70, a: 90 }, { x: 200, y: 200, r: 40, a: 90, pearl: 0 }, { x: 290, y: 200, r: 60, a: 90, ...extra }] });
+// İstiridye ile sağdaki halkanın kesişimini istiridyenin boşluğuyla açan açılar
+const pearlOpen = L => { const k = L.links.find(l => l.a === 0 && l.b === 2), a = L.startAngles.slice(); a[0] = k.pts[0].angA; return a; };
+
+test('inci: istiridye tahtadayken yok sayılır, çıkınca belirir ve kurtulur', () => {
+  const L = PEARL();
+  assert.deepStrictEqual(L.shellOf, [-1, 0, -1]);
+  assert.strictEqual(Logic.hidden(L, 1, 0), true);
+  assert.strictEqual(Logic.canRotate(L, 1, 0), false);
+  assert.strictEqual(Logic.canRotate(L, 1, 1), true);
+  // İstiridyenin boşluğu sağdaki halkayla kesişimi açar: ikisi uçar (inci sağdakini tutmaz), sonra inci belirip kurtulur
+  const c = Logic.cascade(L, pearlOpen(L), 0);
+  assert.deepStrictEqual(c.waves, [[0, 2], [1]]);
+  assert.strictEqual(c.mask, L.full);
+  // İnci bölümün bitişine sayılır; çözücü onu da kurtarır
+  const s = Logic.solve(L, L.startAngles, 0);
+  assert.ok(s && s.moves >= 1);
+});
+
+test('inci: istiridye tahtadayken bomba onu vurmaz; aynı dalgada istiridye çıkarsa belirmiş inciyi vurur', () => {
+  const B = PEARL({ bomb: true });
+  const k0 = B.links.find(l => l.a === 0 && l.b === 2), a0 = B.startAngles.slice();
+  a0[2] = k0.pts[0].angB;
+  assert.deepStrictEqual(Logic.cascade(B, a0, 0).blasts[0], [{ from: 2, hits: [1] }]);
+  // Soldaki sabit halka istiridyeyi tutar (inciye değmez): bomba yalnız istiridyeyi vurur
+  const L = Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 70, a: 90 }, { x: 200, y: 200, r: 40, a: 90, pearl: 0 }, { x: 290, y: 200, r: 60, a: 90, bomb: true },
+    { x: 120, y: 200, r: 40, a: 180, fixed: true }] });
+  // Sağdaki bomba tek başına kurtulsun: istiridyeyle kesişimini bombanın boşluğu açar
+  const k = L.links.find(l => l.a === 0 && l.b === 2), a = L.startAngles.slice();
+  a[2] = k.pts[0].angB;
+  const c = Logic.cascade(L, a, 0);
+  assert.deepStrictEqual(c.blasts[0], [{ from: 2, hits: [0] }]);
+});
+
+test('inci: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60, ...a }, { x: 100, y: 100, r: 30, ...b }] });
+  assert.throws(() => two({}, { pearl: 1 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({ fixed: true }, { pearl: 0 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({ pearl: 1 }, { pearl: 0 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({}, { pearl: 0, motor: 90 }), /inci başka parçayla/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0 }, { x: 160, y: 100, r: 40 }], couples: [[1, 2]] }), /inci eşli/);
+});
+
+// Zincirli ikizler (R11): 0 ile 2 zincirli; 1 ve 3 onları tutan sabit halkalar
+const CHAIN = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 90, chain: 1 }, { x: 170, y: 100, r: 50, a: 0, fixed: true },
+  { x: 330, y: 100, r: 50, a: 90, chain: 1 }, { x: 400, y: 100, r: 50, a: 0, fixed: true }] });
+// i halkasının boşluğunu sağındaki sabit halkayla kesişime getiren açılar
+const chainOpen = (L, a, i) => { const k = L.links.find(l => l.a === i), out = a.slice(); out[i] = k.pts[0].angA; return out; };
+
+test('zincir: eşi serbest değilken zincirli halka uçmaz, ikisi birden serbestken birlikte uçar', () => {
+  const L = CHAIN;
+  assert.deepStrictEqual(L.chainMate, [2, -1, 0, -1]);
+  // yalnız 0 açık: sabit komşusu 1 uçar ama 0 eşini bekler
+  const one = Logic.cascade(L, chainOpen(L, L.startAngles, 0), 0);
+  assert.deepStrictEqual(one.waves, [[1]]);
+  const both = Logic.cascade(L, chainOpen(L, chainOpen(L, L.startAngles, 0), 2), 0);
+  assert.deepStrictEqual(both.waves[0], [0, 1, 2, 3]);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
+test('zincir: patlamanın vurduğu zincirliyi zincir tutmaz, eşi sonra tek başına kurtulur', () => {
+  const rings = [{ x: 100, y: 100, r: 50, a: 90, chain: 1 }, { x: 170, y: 100, r: 50, a: 0, bomb: true },
+    { x: 330, y: 100, r: 50, a: 90, chain: 1 }, { x: 400, y: 100, r: 50, a: 0, fixed: true }];
+  const L = Logic.buildLevel({ rings });
+  // bombanın boşluğu 0 ile kesişimi açar: bomba uçar, 0'ı vurur; 0 zorla gider, 2 artık zincirsiz
+  const k = L.links.find(l => l.a === 0 && l.b === 1), a = L.startAngles.slice();
+  a[1] = k.pts[0].angB;
+  const c = Logic.cascade(L, a, 0);
+  assert.deepStrictEqual(c.waves, [[1], [0]]);
+  // eşi gittiği için 2 artık tek başına kurtulur
+  assert.deepStrictEqual(Logic.cascade(L, chainOpen(L, c.angles, 2), c.mask).waves, [[2, 3]]);
+});
+
+test('zincir: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, chain: 1 }, { x: 170, y: 100, r: 50 }] }), /tam iki halkada/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, chain: 1, portal: 1 }, { x: 300, y: 100, r: 50, chain: 1, portal: 1 }] }), /zincir portal/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0, chain: 1 }, { x: 300, y: 100, r: 50, chain: 1 }] }), /zincir portal/);
+});
+
+// Rüzgâr halka (R16): 0 rüzgârlı, kurtulunca komşuları 1 ve 2'yi çeyrek tur döndürür; 3 sabit
+const GUST = g => Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 60, a: 90, gust: g }, { x: 120, y: 200, r: 50, a: 270 }, { x: 280, y: 200, r: 50, a: 0, step: 90 }, { x: 200, y: 290, r: 50, a: 0, fixed: true }] });
+
+test('rüzgâr halka: kurtulunca dönebilen komşularını çevirir (tekme gibi, hamle sayılmaz)', () => {
+  const L = GUST(90);
+  assert.deepStrictEqual(L.gustTargets[0], [1, 2, 3]);
+  // 0'ın bütün kesişimlerini açan açılar: komşuların boşlukları 0'a bakar
+  const a = L.startAngles.slice();
+  for (const li of L.ringLinks[0]) { const k = L.links[li]; a[k.b] = k.pts[0].angB; }
+  const c = Logic.cascade(L, a, 0);
+  assert.ok(c.waves[0].includes(0));
+  const turns = c.kicks[0].filter(k => k.gust).map(k => [k.target, Math.round(k.turn / DEG)]);
+  assert.deepStrictEqual(turns.filter(([t]) => !c.waves[0].includes(t)), turns.filter(([t]) => !c.waves[0].includes(t)));
+  assert.ok(turns.every(([, d]) => d === 90));
+  // tıklı komşu 60 derecelik rüzgârla dönmez (tık adımı 90)
+  assert.deepStrictEqual(GUST(60).gustTargets[0], [1, 3]);
+});
+
+test('rüzgâr halka: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90, bomb: true }, { x: 170, y: 100, r: 50 }] }), /rüzgâr halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 70 }, { x: 170, y: 100, r: 50 }] }), /rüzgâr halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90 }, { x: 170, y: 100, r: 50, motor: 90 }] }), /döndürebileceği komşu yok/);
+  // sabit (taş) komşuyu da döndürür
+  assert.deepStrictEqual(Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90 }, { x: 170, y: 100, r: 50, fixed: true }] }).gustTargets[0], [1]);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

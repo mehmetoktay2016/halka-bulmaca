@@ -324,6 +324,56 @@
         k.every(7, 14, t => { for (let i = 0; i < 4; i++) k.blip(t + i * 0.14, pick(scale) * (rand() < 0.3 ? 2 : 1), 0.7, 0.012, 'sine', 0, hall); });
         return 2.6;
       },
+      // Şeker Diyarı (2.6): şekerci dükkânı; kazanda fokurdayan şurup, cam kavanoz tınlaması, kapı zili, ambalaj hışırtısı
+      seker(k) {
+        const room = k.bed('lowpass', 400, 0.7, 0.02);
+        k.lfo(room.gain.gain, 0.08, 0.008);
+        k.every(0.4, 1.4, t => k.blip(t, 160 + rand() * 120, 0.12, 0.018, 'sine', 320 + rand() * 200));
+        const jar = k.echo(0.3, 0.3, 4000);
+        k.every(6, 12, t => k.blip(t, pick([1568, 1760, 2093, 2349]), 0.9, 0.01, 'sine', 0, jar));
+        k.every(18, 34, t => { for (let i = 0; i < 2; i++) k.blip(t + i * 0.16, i ? 1975 : 2637, 0.8, 0.014, 'triangle', 0, jar); });
+        k.every(9, 17, t => { for (let i = 0; i < 4; i++) k.puff(t + i * (0.04 + rand() * 0.05), 'highpass', 4500, 0.8, 0.05, 0.015); });
+        return 2.8;
+      },
+      // Piramit (2.6): çöl rüzgârı ve savrulan kum; taş koridorda derin yankı, arada uzaktan ney
+      piramit(k) {
+        const wind = k.bed('bandpass', 420, 0.5, 0.045);
+        k.lfo(wind.filter.frequency, 0.05, 180);
+        k.lfo(wind.gain.gain, 0.04, 0.02);
+        k.every(2, 5, t => k.puff(t, 'highpass', 3800 + rand() * 1500, 0.6, 0.9 + rand() * 0.8, 0.02, 0.3));
+        const tomb = k.echo(0.45, 0.45, 1200);
+        k.every(12, 24, t => k.blip(t, pick([65.4, 73.4, 82.4]), 2.4, 0.05, 'sine', 0, tomb));
+        // ney: Hicaz dizisinden (Re, Mi bemol, Fa diyez, Sol, La) yavaş kayan iki üç nota
+        k.every(16, 30, t => {
+          let at = t;
+          for (let i = 0, n = 2 + Math.floor(rand() * 2); i < n; i++, at += 0.9) {
+            const f = pick([587.3, 622.3, 740, 784, 880]);
+            k.blip(at, f * 0.995, 1.1, 0.012, 'triangle', f, tomb);
+          }
+        });
+        return 3.2;
+      },
+      // Mercan Resifi (2.6): su altı uğultusu, yükselen kabarcıklar, uzaktan balina ve resifte tıkırdayan karides
+      mercan(k) {
+        const sea = k.bed('lowpass', 260, 0.7, 0.05);
+        k.lfo(sea.gain.gain, 0.06, 0.02);
+        k.lfo(sea.filter.frequency, 0.04, 80);
+        k.every(1.2, 3.5, t => { for (let i = 0, n = 2 + Math.floor(rand() * 4); i < n; i++) { const f = 380 + rand() * 500; k.blip(t + i * 0.07, f, 0.07, 0.02, 'sine', f * 2.2); } });
+        const deep = k.echo(0.5, 0.5, 900);
+        k.every(18, 34, t => { const f = 180 + rand() * 60; k.blip(t, f, 2.6, 0.03, 'sine', f * 1.6, deep); k.blip(t + 2.4, f * 1.5, 1.8, 0.02, 'sine', f, deep); });
+        k.every(5, 11, t => { for (let i = 0; i < 6; i++) k.puff(t + i * (0.03 + rand() * 0.04), 'highpass', 5000, 1, 0.015, 0.012); });
+        return 3;
+      },
+      // Bulut Krallığı (2.6): yükseklerde esen ince rüzgâr, uzak rüzgâr çanları, arada kuş cıvıltısı
+      bulut(k) {
+        const wind = k.bed('bandpass', 900, 0.4, 0.03);
+        k.lfo(wind.filter.frequency, 0.05, 400);
+        k.lfo(wind.gain.gain, 0.04, 0.015);
+        const chime = k.echo(0.4, 0.4, 5000);
+        k.every(5, 11, t => { for (let i = 0, n = 2 + Math.floor(rand() * 3); i < n; i++) k.blip(t + i * (0.2 + rand() * 0.25), pick([1318.5, 1568, 1760, 2093, 2349.3]), 1.6, 0.012, 'sine', 0, chime); });
+        k.every(14, 28, t => { for (let i = 0; i < 3; i++) { const f = 2800 + rand() * 800; k.blip(t + i * 0.11, f, 0.07, 0.01, 'sine', f * 1.3); } });
+        return 3.4;
+      },
     };
 
     function stopScene(scene, fade) {

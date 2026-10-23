@@ -186,6 +186,7 @@
   // extras: whiskers, cheeks, antennae, spots, stripes, mask, horns, freckles, brows, muzzle, bandit
   // (2.4: nose hook (flamingo) ve tube (denizatı), mouth buckteeth (kunduz) ve howl (uluyan kurt))
   // (2.5: nose carrot (kardan adam), mouth tusks (mors), extras horn (tek boynuz), comb (horoz ibiği), crest (tepelik))
+  // (2.6: extras nemes (sfenks başlığı))
   function drawLook(g, r, now, color, L) {
     const ex = new Set(L.extras || []);
     const ey = (L.eyeY ?? -0.08) * r, exx = (L.eyeX ?? 0.3) * r, es = (L.eyeS ?? 0.1) * r;
@@ -247,6 +248,12 @@
       g.save();
       g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
       for (const y of [-0.55, 0.45]) g.fillRect(-r, y * r, 2 * r, 0.16 * r);
+      g.restore();
+    }
+    if (ex.has('nemes')) {
+      // Firavun başlığı: yüzün iki yanında mavi-altın çizgili örtü
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      for (const sx of [-1, 1]) for (let k = 0; k < 6; k++) { g.fillStyle = k % 2 ? '#ffd36b' : '#3a6fd8'; g.fillRect(sx > 0 ? 0.55 * r : -r, (-1 + k * 0.34) * r, 0.45 * r, 0.34 * r); }
       g.restore();
     }
     if (ex.has('freckles')) {
@@ -393,6 +400,12 @@
     g.beginPath();
     if (g.roundRect) g.roundRect(x, y, w, h, rad); else g.rect(x, y, w, h);
   }
+  // Direkte dalgalanan sarı flama (y0: direğin dibi, yarıçap oranı)
+  function pennant(g, r, now, y0) {
+    const wv = Math.sin(now / 300) * 0.06 * r;
+    line(g, [[0, y0 * r], [0, -0.75 * r]], Math.max(2, r * 0.03), INK);
+    g.fillStyle = '#ffc94a'; g.beginPath(); g.moveTo(0, -0.75 * r); g.lineTo(0.3 * r, -0.66 * r + wv); g.lineTo(0, -0.56 * r); g.closePath(); g.fill();
+  }
   const OBJECTS = {
     // Tekerlek: lastik, jant telleri ve göbek; yavaşça döner
     wheel(g, r, now) {
@@ -498,10 +511,10 @@
       hex(0, 0, 0.28 * r);
       for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + TAU / 12; hex(Math.cos(a) * 0.5 * r, Math.sin(a) * 0.5 * r, 0.2 * r); }
     },
-    // Salyangoz kabuğu: sarmal
-    spiral(g, r, now, color) {
-      fillFace(g, r, color, 0.4);
-      g.strokeStyle = 'rgba(90, 50, 20, .6)'; g.lineWidth = Math.max(2.5, r * 0.06); g.lineCap = 'round';
+    // Salyangoz kabuğu: sarmal (candy: lolipop şekeri, beyaz zeminde kalın renkli sarmal)
+    spiral(g, r, now, color, d) {
+      fillFace(g, r, d && d.candy ? '#ffffff' : color, d && d.candy ? 0.85 : 0.4);
+      g.strokeStyle = d && d.candy ? color : 'rgba(90, 50, 20, .6)'; g.lineWidth = Math.max(2.5, r * (d && d.candy ? 0.13 : 0.06)); g.lineCap = 'round';
       g.beginPath();
       for (let t = 0; t <= 3.2 * TAU; t += 0.15) {
         const rr = 0.05 * r + t / (3.2 * TAU) * 0.62 * r;
@@ -509,10 +522,11 @@
       }
       g.stroke();
     },
-    // Kirpi dikenleri: halkanın üst yarısında dışa dönük
-    spikes(g, r) {
-      g.fillStyle = '#6d4c3d';
-      for (let k = 0; k <= 9; k++) {
+    // Kirpi dikenleri: halkanın üst yarısında dışa dönük (all: balon balığı, her yanda ve açık renk)
+    spikes(g, r, now, color, d) {
+      const all = d && d.all;
+      g.fillStyle = all ? '#e0a020' : '#6d4c3d';
+      for (let k = 0; k <= (all ? 17 : 9); k++) {
         const a = Math.PI + k / 9 * Math.PI;
         const c = Math.cos(a), s = Math.sin(a);
         g.beginPath();
@@ -576,9 +590,7 @@
       g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
       for (let k = 0; k < 8; k += 2) { g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(0, -r); g.lineTo((k - 4) * 0.25 * r, r); g.lineTo((k - 3) * 0.25 * r, r); g.closePath(); g.fill(); }
       g.restore();
-      const wv = Math.sin(now / 300) * 0.06 * r;
-      line(g, [[0, -0.2 * r], [0, -0.75 * r]], Math.max(2, r * 0.03), INK);
-      g.fillStyle = '#ffc94a'; g.beginPath(); g.moveTo(0, -0.75 * r); g.lineTo(0.3 * r, -0.66 * r + wv); g.lineTo(0, -0.56 * r); g.closePath(); g.fill();
+      pennant(g, r, now, -0.2);
     },
     // Ateş böceğinin karnı: nabız gibi parlayan ışık
     glow(g, r, now) {
@@ -705,8 +717,9 @@
       for (const [x, y] of [[-0.25, -0.15], [0.2, 0.1], [-0.05, 0.3], [0.25, -0.3]]) circle(g, x * r, y * r, 0.16 * r, 'rgba(255,255,255,.4)');
     },
     // Yel değirmeni kanatları: göbekten çıkan, yavaşça dönen dört kanat
-    blades(g, r, now) {
+    blades(g, r, now, color, d) {
       g.save(); g.rotate(now / 1600);
+      if (d && d.s) g.scale(d.s, d.s); // s: küçültülmüş (denizaltı pervanesi)
       for (let k = 0; k < 4; k++) {
         g.rotate(TAU / 4);
         line(g, [[0, 0], [0, -1.55 * r]], Math.max(2, r * 0.06), 'rgba(90,60,30,.8)');
@@ -749,6 +762,112 @@
       fillFace(g, r, d.light ? '#e8f4ff' : color, d.light ? 0.5 : 0.45);
       g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = Math.max(1.4, r * 0.03);
       for (const a of [-0.5, 0, 0.5]) { g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a + (d.side || 1) * Math.PI / 2) * r * 0.7, Math.sin(a + (d.side || 1) * Math.PI / 2) * r * 0.7); g.stroke(); }
+    },
+    // ---- 2.6: yeni şekillerin süsleri ----
+    // Şeker serpintisi (dondurma topu): halkanın içinde renkli kısa çubuklar
+    sprinkles(g, r, now, color) {
+      fillFace(g, r, color, 0.4);
+      const cols = ['#ff6b6b', '#ffd43b', '#4dabf7', '#ffffff', '#b197fc'];
+      for (let k = 0; k < 16; k++) {
+        const a = k * 2.39996, d = Math.sqrt((k + 0.5) / 16) * 0.68 * r, t = k * 1.3;
+        const x = Math.cos(a) * d, y = Math.sin(a) * d, c = Math.cos(t) * 0.07 * r, s = Math.sin(t) * 0.07 * r;
+        line(g, [[x - c, y - s], [x + c, y + s]], Math.max(2, r * 0.05), cols[k % cols.length]);
+      }
+    },
+    // Dondurma külahı: çapraz waffle çizgileri
+    cone(g, r, now, color) {
+      fillFace(g, r, color, 0.5);
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      g.strokeStyle = 'rgba(120,70,20,.45)'; g.lineWidth = Math.max(1.5, r * 0.04);
+      for (let k = -4; k <= 4; k++) for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(k * 0.3 * r - sx * r, -r); g.lineTo(k * 0.3 * r + sx * r, r); g.stroke(); }
+      g.restore();
+    },
+    // Pasta: krema katmanları, akan krema ve serpinti
+    cake(g, r, now, color) {
+      fillFace(g, r, '#fff3e0', 0.75);
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      g.fillStyle = hexA(color, 0.75); g.fillRect(-r, 0.05 * r, 2 * r, 0.3 * r);
+      g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.moveTo(-r, -0.5 * r);
+      for (let k = 0; k <= 8; k++) g.quadraticCurveTo((-1 + (k - 0.5) / 4) * r, (-0.25 + (k % 2) * 0.12) * r, (-1 + k / 4) * r, -0.32 * r);
+      g.lineTo(r, -r); g.lineTo(-r, -r); g.closePath(); g.fill();
+      g.restore();
+      OBJECTS.sprinkles(g, r * 0.5, now, 'rgba(0,0,0,0)');
+    },
+    // Sakız makinesinin camı: içinde renkli toplar
+    gumballs(g, r) {
+      fillFace(g, r, '#e8f6ff', 0.35);
+      const cols = ['#ff6b6b', '#ffd43b', '#4dabf7', '#69db7c', '#b197fc', '#ff922b'];
+      let k = 0;
+      for (let y = 0.5; y > -0.6; y -= 0.24) for (let x = -0.6; x <= 0.6; x += 0.24) {
+        const xx = x + (Math.round(y / 0.24) % 2 ? 0.12 : 0);
+        if (Math.hypot(xx, y) < 0.62) circle(g, xx * r, y * r, 0.11 * r, cols[k++ % cols.length]);
+      }
+      ellipse(g, -0.32 * r, -0.4 * r, 0.16 * r, 0.08 * r, -0.6, 'rgba(255,255,255,.7)');
+    },
+    // Bok böceği kabuğu: ortadan ayrılan parlak kanat örtüleri
+    scarab(g, r, now, color) {
+      fillFace(g, r, color, 0.5);
+      line(g, [[0, -0.72 * r], [0, 0.72 * r]], Math.max(2, r * 0.04), 'rgba(10,40,36,.6)');
+      const t = (now / 2200) % 1;
+      for (const sx of [-1, 1]) ellipse(g, sx * 0.32 * r, (-0.35 + t * 0.6) * r, 0.1 * r, 0.22 * r, sx * 0.2, 'rgba(255,255,255,.25)');
+    },
+    // Kum saatinin kumu: üstte azalan, altta biriken kum ve akan ince çizgi
+    sand(g, r, now, color, d) {
+      fillFace(g, r, '#e8f6ff', 0.25);
+      const t = (now / 6000) % 1, lvl = d.top ? 0.15 + t * 0.5 : 0.65 - t * 0.5;
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      g.fillStyle = 'rgba(244,196,96,.9)';
+      g.beginPath();
+      if (d.top) { g.moveTo(-r, lvl * r); g.lineTo(r, lvl * r); g.lineTo(0, r); }
+      else { g.moveTo(-r, r); g.lineTo(r, r); g.lineTo(0, lvl * r - 0.3 * r); }
+      g.closePath(); g.fill();
+      g.restore();
+      if (!d.top) line(g, [[0, -r], [0, lvl * r - 0.3 * r]], Math.max(1.5, r * 0.03), 'rgba(244,196,96,.9)');
+    },
+    // Palyaço balığının beyaz bantları (kenarları koyu)
+    bands(g, r) {
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      for (const x of [-0.55, 0.45]) {
+        g.fillStyle = 'rgba(255,255,255,.92)'; g.fillRect(x * r, -r, 0.2 * r, 2 * r);
+        g.strokeStyle = 'rgba(36,32,58,.6)'; g.lineWidth = Math.max(1.5, r * 0.03); g.strokeRect(x * r, -r - 2, 0.2 * r, 2 * r + 4);
+      }
+      g.restore();
+    },
+    // İstiridye kabuğu: yelpaze gibi açılan oluklar (down: alt kabuk)
+    scallop(g, r, now, color, d) {
+      fillFace(g, r, color, 0.4);
+      const sy = d.down ? -1 : 1;
+      g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = Math.max(1.5, r * 0.035);
+      for (let k = -3; k <= 3; k++) { const a = Math.PI / 2 + k * 0.32; g.beginPath(); g.moveTo(0, sy * 0.7 * r); g.lineTo(-Math.cos(a) * 0.7 * r, sy * (0.7 - Math.sin(a) * 1.25) * r); g.stroke(); }
+    },
+    // İnci: sedef parıltılı beyaz küre
+    pearl(g, r, now) {
+      const gr = g.createRadialGradient(-0.3 * r, -0.3 * r, 1, 0, 0, r - 7);
+      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.7, '#efe8ff'); gr.addColorStop(1, '#c9b8f0');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.fill();
+      const p = 0.5 + 0.5 * Math.sin(now / 500);
+      circle(g, -0.3 * r, -0.3 * r, 0.12 * r, `rgba(255,255,255,${0.6 + 0.4 * p})`);
+    },
+    // Sıcak hava balonu: kubbeye doğru incelen renkli dilimler
+    balloon(g, r, now, color) {
+      fillFace(g, r, color, 0.4);
+      g.save(); g.beginPath(); g.arc(0, 0, r - 7, 0, TAU); g.clip();
+      for (const [k, c] of [[-2, '#ffd43b'], [0, '#ffffff'], [2, '#4dabf7']]) {
+        g.fillStyle = hexA(c, 0.6); g.beginPath(); g.ellipse(k * 0.3 * r, 0, 0.13 * r * (3 - Math.abs(k)) / 2, r, 0, 0, TAU); g.fill();
+      }
+      g.restore();
+    },
+    // Şato: mazgallı duvar, kemerli kapı
+    castle(g, r) {
+      g.fillStyle = 'rgba(255,255,255,.75)';
+      g.fillRect(-0.5 * r, -0.3 * r, r, 0.85 * r);
+      for (let k = 0; k < 4; k++) g.fillRect((-0.5 + k * 0.28) * r, -0.46 * r, 0.16 * r, 0.18 * r);
+      g.fillStyle = 'rgba(120,100,200,.75)';
+      g.beginPath(); g.moveTo(-0.14 * r, 0.55 * r); g.lineTo(-0.14 * r, 0.2 * r); g.arc(0, 0.2 * r, 0.14 * r, Math.PI, 0); g.lineTo(0.14 * r, 0.55 * r); g.closePath(); g.fill();
+    },
+    // Kule bayrağı: direk ve dalgalanan flama
+    flag(g, r, now) {
+      pennant(g, r, now, 0.45);
     },
   };
 

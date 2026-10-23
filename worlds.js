@@ -13,6 +13,23 @@
             '#ff9f1c', '#f72585', '#90be6d', '#4895ef', '#f4a261'],
     fixed: '#5d6488',
     bar: '#c3cada',
+    // 2.6 şeker renkleri (çilek, nane, limon) ve renkli halkalı bölümde renksiz halkalar: onlara karışmayan
+    // lavanta, karamel, gök mavisi
+    paints: ['#ff6fc0', '#4fdcb0', '#ffd34a'],
+    plain: ['#a48be0', '#d39a62', '#7fa8e8'],
+    // 2.6 cırcır pirinç; cırcırlı bölümde renksizler sarısız: turkuaz, kiremit, lacivert taşı
+    ratchet: '#f0b44a',
+    desert: ['#3fc8c0', '#e07a52', '#6f8cf0'],
+    // 2.6 istiridye lila-gri, inci sedef
+    shell: '#a99bc4',
+    pearl: '#f4efe6',
+    // zincirli ikizler deniz yeşili, zincir pirinç; zincirli bölümde renksizler mercan, gece mavisi, lila
+    twin: '#2dd4bf',
+    chain: '#d8b46a',
+    reef: ['#ff8a7a', '#5b8def', '#c792ea'],
+    // rüzgâr halka gök mavisi; rüzgârlı bölümde renksizler gün batımı pembesi, altın, lila
+    sky: '#7fd0ff',
+    dusk: ['#ff9ec7', '#ffd36b', '#b9a2ff'],
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)
@@ -101,6 +118,27 @@
       theme: { top: '#1a0d2a', bottom: '#09040f', accent: '#e07cff',
                glows: [['#c45cff', 0.20], ['#4cc9f0', 0.10], ['#ff6fb5', 0.08]],
                board: { kind: 'tilsim', tint: '#d0a8ff', alpha: 0.11 }, air: 'buyu' } },
+    // 2.6: yeni dünyalar (kapı 41-50). Tahta dokusu, parçacık ve ortam sesi dünya görünümü görevine kadar eski dünyalardan ödünç
+    { id: 'seker', name: 'Şeker Diyarı', title: 'Şekerci',
+      intro: 'Renk Bombası kurtulunca kendi rengindeki bütün halkalar da uçar.',
+      theme: { top: '#2a1228', bottom: '#12070f', accent: '#ff7ac8',
+               glows: [['#ff6fc0', 0.16], ['#7cf0d0', 0.08], ['#ffd34a', 0.08]],
+               board: { kind: 'seker', tint: '#f0a8d8', alpha: 0.10 }, air: 'seker' } },
+    { id: 'piramit', name: 'Piramit', title: 'Arkeolog',
+      intro: 'Cırcırlı halkalar yalnız tek yöne döner. Fazla çevirirsen geri dönemezsin.',
+      theme: { top: '#21180c', bottom: '#0e0a04', accent: '#f0b44a',
+               glows: [['#f0b44a', 0.11], ['#ff7a45', 0.07], ['#4cc9f0', 0.05]],
+               board: { kind: 'piramit', tint: '#c8a870', alpha: 0.08 }, air: 'piramit' } },
+    { id: 'mercan', name: 'Mercan Resifi', title: 'Dalgıç',
+      intro: 'İstiridye açılınca içinden inci halka çıkar. Zincirli ikizler ancak birlikte kurtulur.',
+      theme: { top: '#0b2230', bottom: '#040f16', accent: '#ff8a7a',
+               glows: [['#ff8a7a', 0.12], ['#2dd4bf', 0.12], ['#4c7cf0', 0.08]],
+               board: { kind: 'mercan', tint: '#8fd0d8', alpha: 0.10 }, air: 'mercan' } },
+    { id: 'bulut', name: 'Bulut Krallığı', title: 'Bulut Bekçisi',
+      intro: 'Rüzgâr halkalar kurtulunca komşularını, taş halkaları bile, çeyrek tur çevirir.',
+      theme: { top: '#121a35', bottom: '#080c1c', accent: '#9fd8ff',
+               glows: [['#9fd8ff', 0.10], ['#ffc0e0', 0.07], ['#ffd36b', 0.06]],
+               board: { kind: 'bulut', tint: '#b8cce4', alpha: 0.07 }, air: 'bulut' } },
   ];
 
   // Kapı n (1'den başlar): adı ve dünyası
@@ -145,6 +183,16 @@
     { name: 'Çark Evi', world: 'degirmen' },
     { name: 'Ayna Salonu', world: 'buyu' },
     { name: 'Portal', world: 'buyu' },
+    { name: 'Şekerleme Dükkânı', world: 'seker' },
+    { name: 'Lolipop Bahçesi', world: 'seker' },
+    { name: 'Çikolata Nehri', world: 'seker' },
+    { name: 'Kum Tepeleri', world: 'piramit' },
+    { name: 'Firavun Odası', world: 'piramit' },
+    { name: 'Sığ Sular', world: 'mercan' },
+    { name: 'İstiridye Yatağı', world: 'mercan' },
+    { name: 'Batık Gemi', world: 'mercan' },
+    { name: 'Gökkuşağı Köprüsü', world: 'bulut' },
+    { name: 'Bulut Sarayı', world: 'bulut' },
   ];
 
   // Unvanlar: bitirilen kapı sayısına göre. Dünya bitince o dünyanın unvanı gelir;

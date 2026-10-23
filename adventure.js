@@ -47,7 +47,7 @@
     const J = o.journey || root.RingJourney || { STOPS: {} };
     const tr = o.tr || (s => s);
     const reduced = () => (o.reduced ? o.reduced() : false);
-    const snd = o.sound || { tone() {}, noise() {} };
+    const snd = o.sound || { tone() {}, noise() {}, bang() {} };
     const N = D.count, GS = D.gateSize;
     const L = layout(N, GS), H = L.H, NODES = L.nodes, PTS = L.pts, GATE_Y = L.gateY;
     const gateOf = n => Math.floor((n - 1) / GS) + 1;
@@ -1795,6 +1795,23 @@
         g.fillStyle = '#3a2a8a'; g.beginPath(); g.moveTo(-10, -12); g.lineTo(2, -44); g.lineTo(10, -12); g.closePath(); g.fill(); g.fillStyle = '#ffd34a'; star(-1, -26, 2.4); star(4, -18, 1.8);
         g.fillStyle = '#8a643a'; g.save(); g.translate(16, -14); g.rotate(-0.6); g.fillRect(-1, -16, 2, 16); g.restore(); if (on) light(22, -26, 8, 'rgba(255,230,150,.9)');
       },
+      // 2.6: lolipop ağacı (Şeker Diyarı) ve piramit (Piramit)
+      lolipop(on, t) {
+        g.fillStyle = '#f4efe6'; g.fillRect(-1.5, -30, 3, 30);
+        g.fillStyle = '#ff6fc0'; g.beginPath(); g.arc(0, -36, 11, 0, TAU); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.beginPath();
+        for (let a = 0; a < 3 * TAU; a += 0.3) { const r = a / (3 * TAU) * 10; g.lineTo(Math.cos(a + t / 900) * r, -36 + Math.sin(a + t / 900) * r); }
+        g.stroke();
+        if (on) light(0, -36, 16, 'rgba(255,111,192,.5)');
+      },
+      piramit(on, t) {
+        g.fillStyle = '#c8a870'; g.beginPath(); g.moveTo(-24, 0); g.lineTo(0, -34); g.lineTo(24, 0); g.closePath(); g.fill();
+        g.fillStyle = '#a8885a'; g.beginPath(); g.moveTo(0, -34); g.lineTo(24, 0); g.lineTo(6, 0); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(60,40,10,.45)'; g.lineWidth = 1;
+        for (const y of [-8, -16, -24]) { const w = 24 * (1 + y / 34); g.beginPath(); g.moveTo(-w, y); g.lineTo(w, y); g.stroke(); }
+        g.fillStyle = '#ffd36b'; g.beginPath(); g.moveTo(-4, -29); g.lineTo(0, -34); g.lineTo(4, -29); g.closePath(); g.fill();
+        if (on) light(0, -32, 14, 'rgba(255,211,107,.7)');
+      },
       gokkusagi(on, t) { ['#ff6b6b', '#ffb347', '#ffd34a', '#5cc27f', '#4cc9f0', '#b388ff'].forEach((c, i) => { g.strokeStyle = c; g.lineWidth = 2.6; g.beginPath(); g.arc(0, 0, 24 - i * 2.8, Math.PI, 0); g.stroke(); }); },
       portal(on, t) { portalRing(-10, -22, 9, '#4cc9f0', t); portalRing(10, -22, 9, '#ff6fb5', t + 300); },
       hali(on, t) {
@@ -1985,6 +2002,10 @@
       rasathane: ['smallDome', 'scope', 'globe', 'rock', 'constel', 'scope'],
       degirmen: ['tree', 'smallMill', 'hay', 'flowers', 'fence', 'bush'],
       buyu: ['crystalD', 'books', 'rune', 'smallPortal', 'crystalD', 'books'],
+      seker: ['balloons', 'flowers', 'mushroom', 'lamp', 'balloons', 'stall'],
+      piramit: ['rock', 'column', 'statue', 'rock', 'torchPost', 'column'],
+      mercan: ['buoy', 'rock', 'gull', 'buoy', 'smallLight', 'rock'],
+      bulut: ['balloons', 'mote', 'smallMill', 'balloons', 'glowLamp', 'mote'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {
@@ -2958,7 +2979,7 @@
       const st = STATIONS[n], nd = NODES[n];
       const smoke = (x, y, c, cnt) => { if (!reduced()) for (let j = 0; j < cnt; j++) { const a = Math.random() * TAU, sp = 0.6 + Math.random() * 1.8; S.fx.push({ k: 'puff', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5, life: 1, r: 4 + Math.random() * 4, c }); } };
       if (mode === 'rocket') { snd.noise(0.9, 0.22, 500, 2600); snd.tone(220, 0.8, 'sawtooth', 0.03, 880); smoke(nd.x, nd.y, '230,215,240', 16); }
-      else if (mode === 'cannon') { snd.noise(0.35, 0.3, 1800, 200); snd.tone(140, 0.25, 'sine', 0.15, 60); if (!reduced()) confetti(st.x, st.y - 20, 24); smoke(st.x, st.y - 10, '240,230,245', 8); }
+      else if (mode === 'cannon') { snd.bang(); if (!reduced()) confetti(st.x, st.y - 20, 24); smoke(st.x, st.y - 10, '240,230,245', 8); }
       else if (mode === 'bounce') { snd.tone(150, 0.2, 'sine', 0.16, 70); snd.tone(260, 0.4, 'sine', 0.08, 780, 0.5); }
       else if (mode === 'boat') { snd.noise(1.1, 0.12, 900, 300); snd.tone(392, 0.4, 'sine', 0.05, 330); }
       else if (mode === 'cart') { snd.noise(0.9, 0.14, 1800, 600); for (let i = 0; i < 4; i++) snd.tone(180, 0.05, 'square', 0.03, null, i * 0.12); }
@@ -2976,14 +2997,14 @@
       if (reduced()) return;
       const nd = NODES[n];
       for (const s of [-1, 1]) for (let i = 0; i < 22; i++) { const a = -Math.PI / 2 + s * (0.35 + Math.random() * 0.5), sp = 4 + Math.random() * 5; S.fx.push({ k: 'conf', x: nd.x + s * 30, y: nd.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: 0, vr: (Math.random() - 0.5) * 0.3, c: ['#ffc94a', '#ff6b6b', '#2dd4bf', '#4cc9f0', '#b388ff'][i % 5] }); }
-      [0, 260, 520].forEach((d, i) => setTimeout(() => { S.fireworks.push({ x: nd.x + (i - 1) * 70, y: nd.y - 170 - (i % 2) * 40, t0: performance.now(), c: ['#ffc94a', '#4cc9f0', '#ff6b6b'][i] }); snd.tone(1200 + i * 250, 0.25, 'triangle', 0.04); snd.noise(0.3, 0.1, 3000, 800); }, d));
+      [0, 260, 520].forEach((d, i) => setTimeout(() => { S.fireworks.push({ x: nd.x + (i - 1) * 70, y: nd.y - 170 - (i % 2) * 40, t0: performance.now(), c: ['#ffc94a', '#4cc9f0', '#ff6b6b'][i] }); snd.bang(i); }, d));
       [523, 659, 784, 1047].forEach((f, i) => snd.tone(f, 0.35, 'triangle', 0.05, null, i * 0.08));
     }
     // Kapı açılışı: kanatlar açılır, ışık hüzmeleri, fişekler; ardından sis kalkar
     function openGate(gt) {
       const now = performance.now();
       S.opening[gt] = now; S.wow = now;
-      snd.noise(0.6, 0.35, 2200, 140); snd.tone(90, 0.4, 'sine', 0.2, 40);
+      snd.bang(1);
       if (!reduced()) {
         confetti(W / 2, GATE_Y[gt] - 40, 90);
         for (let i = 0; i < 6; i++) setTimeout(() => S.fireworks.push({ x: 60 + Math.random() * (W - 120), y: GATE_Y[gt] - 220 - Math.random() * 120, t0: performance.now(), c: ['#ffd34a', '#ff6fb5', '#4cc9f0', '#ff7a45'][i % 4] }), i * 180);
@@ -3046,7 +3067,7 @@
     }
     function burstJar(stars, max) {
       const now = performance.now(), x = 34, y = sc.scrollTop / k + 44;
-      snd.noise(0.3, 0.25, 4000, 1500); [1319, 1568, 2093, 2637].forEach((f, i) => snd.tone(f, 0.12, 'triangle', 0.06, null, 0.15 + i * 0.07));
+      snd.bang(1);
       if (reduced()) return;
       S.jarBurst = { t0: now, stars, max };
       for (let i = 0; i < 14; i++) { const a = Math.random() * TAU, sp = 2 + Math.random() * 3; S.fx.push({ k: 'shard', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 3 }); }
@@ -3075,25 +3096,58 @@
       fog(now, top, bot);
       return banners;
     }
-    // Dilim: sahnenin TILE birimlik yatay şeridi. FRAMES animasyon karesi önceden boyanır, kaydırırken sırayla
-    // oynar (objeler kaydırırken de hareket eder); en çok 6 dilim bellekte, 1,5x çözünürlükte (bellek az kalsın)
-    const TILE = 480, FRAMES = 3, FRAME_MS = 140, TILES = new Map();
+    // Dilim: sahnenin TILE birimlik yatay şeridi, resim olarak saklanır. FRAMES animasyon karesi önceden boyanıp WebP
+    // resmine çevrilir ve kaydırma kabının (#map) içine konur: kaydırırken resimleri tarayıcı kendisi kaydırır (JS
+    // çizimini beklemez, takılmaz), üst canvas'a yalnız kahraman ve efektler çizilir; kareler sırayla görünür (objeler
+    // kaydırırken de hareket eder). Görünür bölgeden en uzak dilimler atılır (en çok KEEP dilim, 1,5x çözünürlük)
+    const TILE = 480, FRAMES = 3, FRAME_MS = 140, KEEP = 10, TILES = new Map();
+    const PICS = document.createElement('div');
+    PICS.className = 'map-pics'; sc.prepend(PICS);
     let tileKey = '', imgWait = false;
-    function tile(i, f, dpr) {
+    function drop(i) {
+      const t = TILES.get(i);
+      if (!t) return;
+      t.el.remove(); t.urls.forEach(u => URL.revokeObjectURL(u)); TILES.delete(i);
+    }
+    function tile(i, f, dpr, mid) {
       let t = TILES.get(i);
-      if (!t) { t = { t0: performance.now(), frames: [] }; TILES.set(i, t); if (TILES.size > 6) TILES.delete(TILES.keys().next().value); }
-      if (t.frames[f]) return t.frames[f];
+      if (!t) {
+        t = { t0: performance.now(), frames: [], urls: [], shown: -1, dirty: false, el: document.createElement('div') };
+        t.el.style.top = i * TILE * k + 'px'; t.el.style.height = (TILE + 4) * k + 'px';
+        PICS.appendChild(t.el); TILES.set(i, t);
+        while (TILES.size > KEEP) drop([...TILES.keys()].reduce((a, b) => (Math.abs(b - mid) > Math.abs(a - mid) ? b : a)));
+      }
+      if (t.frames[f]) return;
       // dilim alttan 4 birim taşar: komşusuyla üst üste biner, birleşim yerinde çizgi kalmaz
       const d = Math.min(dpr, 1.5), c = document.createElement('canvas'); c.width = Math.ceil(cv.width / dpr * d); c.height = Math.ceil((TILE + 4) * k * d);
       const main = g, at = t.t0 + f * FRAME_MS; g = c.getContext('2d'); imgWait = false;
       g.setTransform(d * k, 0, 0, d * k, 0, -i * TILE * d * k);
       for (const st of scene(at, i * TILE, (i + 1) * TILE + 4)) nameBanner(st, at);
       g = main;
-      if (!imgWait) t.frames[f] = c; // şekil resmi henüz yüklenmediyse saklanmaz
-      return c;
+      if (imgWait) t.dirty = true; // şekil resmi henüz yüklenmemişti: dururken yeniden boyanır
+      c.style.visibility = 'hidden'; t.frames[f] = c; t.shown = -1; t.el.appendChild(c);
+      // önce canvas'ın kendisi durur; WebP resmi çözülünce yerini alır (canvas belleği boşalır)
+      c.toBlob(b => {
+        if (!b || TILES.get(i) !== t) return;
+        const img = new Image(), u = URL.createObjectURL(b);
+        t.urls.push(u); img.src = u;
+        img.decode().then(() => {
+          if (TILES.get(i) !== t || t.frames[f] !== c) return;
+          img.style.visibility = c.style.visibility; t.el.replaceChild(img, c); t.frames[f] = img; c.width = 0;
+        }, () => {});
+      }, 'image/webp', 0.92);
     }
-    // kaydırırken gösterilecek kare: sıradaki hazırsa o, değilse hazır olan ilk kare (yeni boyama kaydırmayı kesmesin)
-    const frameOf = (i, now, dpr) => { const t = TILES.get(i), f = Math.floor(now / FRAME_MS) % FRAMES; return (t && (t.frames[f] || t.frames.find(Boolean))) || tile(i, 0, dpr); };
+    // kaydırırken görünen kare: sıradaki hazırsa o, değilse hazır olan ilk kare (yeni boyama kaydırmayı kesmesin)
+    function showFrames(now, first, last, dpr) {
+      const f = Math.floor(now / FRAME_MS) % FRAMES, mid = (first + last) >> 1;
+      for (let i = first; i <= last; i++) {
+        if (!TILES.has(i)) tile(i, 0, dpr, mid);
+        const t = TILES.get(i);
+        if (!t) continue;
+        const j = t.frames[f] ? f : t.frames.findIndex(Boolean);
+        if (j !== t.shown) { t.frames.forEach((e, q) => { if (e) e.style.visibility = q === j ? '' : 'hidden'; }); t.shown = j; }
+      }
+    }
     let fullT = 0; // son canlı çizim: dururken animasyonlar saniyede 20 kare (telefon boşta yorulmasın, ilk kaydırma takılmasın)
     function draw(now) {
       FRONT = D.frontier(); OPEN.length = 0;
@@ -3108,15 +3162,15 @@
         sc.scrollTop += (want - sc.scrollTop) * (reduced() ? 1 : 0.1);
       }
       const camY = sc.scrollTop / k, top = camY, bot = camY + vh;
-      // Kaydırılırken (kahraman yürümüyorsa) sahne her karede boyanmaz: önceden boyanmış dilimler kopyalanır,
-      // telefonda harita parmağı akıcı izler; durunca canlı (animasyonlu) çizime dönülür
+      // Kaydırılırken (kahraman yürümüyor, kapı açılmıyorsa) sahne çizilmez: alttaki dilim resimleri görünür,
+      // tarayıcı onları parmakla birlikte kaydırır; canvas'ta yalnız kahraman kalır. Durunca canlı çizime dönülür
       const key = FRONT + ':' + cv.width + ':' + k + ':' + Object.keys(S.opening).length;
-      if (key !== tileKey) { TILES.clear(); tileKey = key; }
+      if (key !== tileKey) { [...TILES.keys()].forEach(drop); tileKey = key; }
       const first = Math.floor(top / TILE), last = Math.floor(bot / TILE);
       g.setTransform(1, 0, 0, 1, 0, 0);
-      if (now - moveT < 150 && !S.hop && !S.follow) {
+      if (now - moveT < 150 && !S.hop && !S.follow && !Object.keys(S.opening).length) {
+        showFrames(now, first, last, dpr);
         g.clearRect(0, 0, cv.width, cv.height);
-        for (let i = first; i <= last; i++) { const c = frameOf(i, now, dpr), sc2 = dpr / Math.min(dpr, 1.5); g.drawImage(c, 0, Math.round((i * TILE - top) * k * dpr), c.width * sc2, c.height * sc2); }
         g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
         hero(now);
       } else {
@@ -3126,10 +3180,14 @@
         hero(now);
         for (const st of banners) nameBanner(st, now);
         // dururken görünen bölgenin ve komşularının dilim kareleri hazırlanır (karede en çok bir kare)
+        // (yukarı ve aşağı ikişer dilim: hızlı kaydırmada da resim hazır olsun)
         if (now - moveT > 500) {
-          const miss = [];
-          for (let i = Math.max(0, first - 1); i <= last + 1; i++) for (let f = 0; f < FRAMES; f++) if (!(TILES.get(i) || { frames: [] }).frames[f]) miss.push([i, f]);
-          if (miss.length) { tile(miss[0][0], miss[0][1], dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); }
+          const miss = [], lo = Math.max(0, first - 2), hi = Math.min(Math.floor(H / TILE), last + 2);
+          for (let i = lo; i <= hi; i++) {
+            if (TILES.get(i) && TILES.get(i).dirty) drop(i);
+            for (let f = 0; f < FRAMES; f++) if (!(TILES.get(i) || { frames: [] }).frames[f]) miss.push([i, f]);
+          }
+          if (miss.length) { tile(miss[0][0], miss[0][1], dpr, (first + last) >> 1); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); }
         }
       }
       effects(now, top);
@@ -3141,6 +3199,7 @@
     // Düzen piksel cinsinden (DOM düğmeleri ve kaydırma için)
     function measure(width) {
       k = width / W; S.k = k;
+      PICS.style.height = H * k + 'px';
       return {
         k, height: H * k,
         node: n => ({ x: NODES[n].x * k, y: NODES[n].y * k }),
@@ -3149,8 +3208,9 @@
         bonus: b => { const p = bonusAt(b); return { x: p.x * k, y: (p.y - 16) * k }; },
       };
     }
-    // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır
-    const stopFollow = () => { S.follow = false; }; // yürüyüş sürerken de: parmak haritayı geri çekmesin
+    // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır; parmak değdiği anda resimlere geçilir
+    // (kaydırmanın ilk karesinde canlı çizim geride kalmasın)
+    const stopFollow = () => { S.follow = false; moveT = performance.now(); }; // yürüyüş sürerken de: parmak haritayı geri çekmesin
     sc.addEventListener('wheel', stopFollow, { passive: true });
     sc.addEventListener('touchstart', stopFollow, { passive: true });
 

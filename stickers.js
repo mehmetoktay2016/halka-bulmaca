@@ -130,6 +130,35 @@
         <path d="M33 66Q50 60 67 66" stroke="${c.hi}" stroke-width="5" fill="none"/>
         <path d="M56 30l2 5 5 .6-3.8 3.4 1 5-4.2-2.6-4.2 2.6 1-5L49 35.6l5-.6Z" fill="${c.hi}"/>`,
     },
+    // 2.6: yeni dünyalar
+    seker: {
+      name: 'Lolipop',
+      art: c => `<rect x="46" y="58" width="8" height="34" rx="3" fill="${c.hi}" stroke="${c.ink}" stroke-width="2.5"/>
+        <circle cx="50" cy="38" r="26" fill="${c.hi}" stroke="${c.ink}" stroke-width="4"/>
+        <path d="M50 38m-4 0a4 4 0 1 1 8 0a10 10 0 1 1 -20 0a16 16 0 1 1 32 0a22 22 0 0 1 -6 15" fill="none" stroke="${c.ink}" stroke-width="4" stroke-linecap="round"/>
+        <path d="M42 60q8 6 16 0" fill="none" stroke="${c.ink}" stroke-width="3" stroke-linecap="round"/>`,
+    },
+    piramit: {
+      name: 'Piramit',
+      art: c => `<circle cx="72" cy="26" r="11" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>
+        <path d="M50 18L88 84H12Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M38 40H62M28 57H72M19 72H81M50 40V57M40 57V72M60 57V72M32 72V84M68 72V84" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M44 84V74Q50 68 56 74V84" fill="${c.ink}"/>`,
+    },
+    mercan: {
+      name: 'Deniz Kabuğu',
+      art: c => `<path d="M50 82L20 44Q22 18 50 14Q78 18 80 44Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M50 82L30 24M50 82L40 16M50 82V14M50 82L60 16M50 82L70 24" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M38 80H62L58 90H42Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>
+        <circle cx="74" cy="72" r="6" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>`,
+    },
+    bulut: {
+      name: 'Sıcak Hava Balonu',
+      art: c => `<path d="M50 12C30 12 20 28 20 42C20 58 36 66 42 74H58C64 66 80 58 80 42C80 28 70 12 50 12Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M50 12C42 22 40 50 44 74M50 12C58 22 60 50 56 74" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M43 74L42 80M57 74L58 80" stroke="${c.ink}" stroke-width="3"/>
+        <rect x="40" y="80" width="20" height="12" rx="2" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5"/>`,
+    },
   };
   const PIECES = 5;
 

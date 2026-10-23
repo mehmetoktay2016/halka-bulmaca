@@ -14,8 +14,8 @@ const zero = {
   bestChain: 0, chains: 0, comebacks: 0, shapes: 0, shapesTotal: 10, coinsTotal: 0, bulbsBought: 0, hintsUsed: 0, st: {},
 };
 
-test('45 rozet, kimlikler tekil ve kebab-case', () => {
-  assert.strictEqual(B.BADGES.length, 45);
+test('53 rozet, kimlikler tekil ve kebab-case', () => {
+  assert.strictEqual(B.BADGES.length, 53);
   assert.ok(B.BADGES.every(b => B.ICONS[b.icon] && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(b.id)));
   const ids = B.BADGES.map(b => b.id);
   assert.strictEqual(new Set(ids).size, ids.length);

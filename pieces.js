@@ -49,11 +49,23 @@
     // Kapı 31-40 finalleri: tanıtım bölümü yok, ilk finalde kart açılır
     { id: 'boss', intro: null, name: 'Dev Halka',
       text: 'Zırhlı gövde dönmez. Değdiği her halka kurtuldukça bir plaka kırılır; zırh bitince parçalanır ve yanındakilere yol açar.' },
+    // 2.6 parçaları (kapı 41-50)
+    { id: 'cbomb', intro: 1016, name: 'Renk Bombası',
+      text: 'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.' },
+    { id: 'ratchet', intro: 1017, name: 'Cırcır halka',
+      text: 'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.' },
+    { id: 'pearl', intro: 1018, name: 'İnci halka',
+      text: 'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.' },
+    { id: 'chain', intro: 1019, name: 'Zincirli ikizler',
+      text: 'Zincirle bağlı iki halka ancak aynı anda serbest kalınca birlikte uçar. Biri hazırsa eşini bekler; bomba birini uçurursa zincir kopar.' },
+    { id: 'gust', intro: 1021, name: 'Rüzgâr halka',
+      text: 'Girdap rozetli halka kurtulunca değdiği her halkayı, senin çeviremediğin taş halkaları bile, rüzgâr yönünde çeyrek tur çevirir. Taşın boşluğu nereye gelecek, önceden düşün.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
-    'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı'];
+    'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'rüzgâr taşı çevirdi'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -77,6 +89,8 @@
     g.shadowBlur = 0;
     g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 2.5;
     g.beginPath(); g.arc(x - 1.5, y - 1.5, r, from, to); g.stroke();
+    // çilek deseni (renk bombasının rengi)
+    if (o.dots) { g.fillStyle = 'rgba(255,255,255,.88)'; for (let a = from + 0.2; a < to; a += 26 / r) { g.beginPath(); g.arc(...at(x, y, r, a), 2.6, 0, TAU); g.fill(); } }
     g.restore();
   }
   function openPoint(g, x, y, a = 1) {
@@ -212,6 +226,20 @@
     g.fillStyle = sg; g.beginPath(); g.arc(x + 15, y - 17, 8 * f, 0, TAU); g.fill();
     g.restore();
   }
+  // Renk bombası rozeti: iki ucu bükülmüş sarılı çilek şekeri (noktalı), hafifçe nefes alır
+  function candyBadge(g, x, y, t) {
+    g.save();
+    g.translate(x, y); g.scale(1 + 0.07 * Math.sin(t / 260), 1 + 0.07 * Math.sin(t / 260)); g.rotate(-0.35);
+    for (const d of [-1, 1]) {
+      g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.moveTo(d * 8, 0); g.lineTo(d * 22, -9); g.lineTo(d * 22, 9); g.closePath(); g.fill();
+      g.fillStyle = '#ff6fc0'; g.beginPath(); g.moveTo(d * 9, 0); g.lineTo(d * 19.5, -6.5); g.quadraticCurveTo(d * 17, 0, d * 19.5, 6.5); g.closePath(); g.fill();
+    }
+    badgeBase(g, 0, 0, '#ff6fc0', 'rgba(255,255,255,.6)');
+    g.rotate(0.35);
+    g.fillStyle = 'rgba(10,8,20,.78)';
+    for (const [dx, dy] of [[-4, -3], [4, -3], [0, 4]]) { g.beginPath(); g.arc(dx, dy, 2.2, 0, TAU); g.fill(); }
+    g.restore();
+  }
   function star(g, x, y, t) {
     g.save();
     g.translate(x, y); g.rotate(t / 900);
@@ -240,12 +268,12 @@
     g.restore();
   }
   // Dönerek uçan halka (patlamayla vurulan)
-  function spinFly(g, x, y, r, ang, color, t, dx, dy) {
+  function spinFly(g, x, y, r, ang, color, t, dx, dy, o = {}) {
     if (t >= 1) return;
     const e = t * t;
     g.save();
     g.translate(x + dx * 170 * e, y + dy * 170 * e);
-    ring(g, 0, 0, r, ang + 2.5 * e, color, { alpha: 1 - t });
+    ring(g, 0, 0, r, ang + 2.5 * e, color, { ...o, alpha: 1 - t });
     g.restore();
   }
   function heatColor(base, h) {
@@ -653,6 +681,141 @@
       finger(g, A[0] - 24, A[1] + 30, t > 500 && t < 750, t > 300 && t < 900 ? 1 : 0);
       finger(g, Cn[0] + 24, Cn[1] + 30, t > 1500 && t < 1750, t > 1300 && t < 1900 ? 1 : 0);
       label(g, tx('zırh bitti!'), 130, 150, fuse ? 1 : 0);
+    } },
+    // 2.6: renk bombası kurtulur, uzaktaki kilitli çilek halkaya şerit uzanır ve o da uçar; ortağı serbest kalır
+    cbomb: { ms: 4600, draw(g, t) {
+      const B = [62, 96], Lv = [112, 136], P = [178, 74], S = [210, 126], r = 36, pink = '#ff6fc0';
+      const e = io(seg(t, 400, 1200)), bAng = 200 * DEG - e * 150 * DEG, fly = seg(t, 1350, 1800);
+      const beam = seg(t, 1500, 1740), hit = seg(t, 1800, 2450), sFly = seg(t, 2550, 3000);
+      if (fly === 0) ring(g, Lv[0], Lv[1], 30, 230 * DEG, C.violet); else flyRing(g, Lv[0], Lv[1], 30, 230 * DEG, C.violet, fly, 0.3, 1);
+      if (sFly === 0) ring(g, S[0], S[1], 32, 120 * DEG, C.sky); else flyRing(g, S[0], S[1], 32, 120 * DEG, C.sky, sFly, 1, 0.4);
+      if (hit === 0) ring(g, P[0], P[1], 34, 300 * DEG, pink, { dots: true, glow: beam === 1 });
+      else spinFly(g, P[0], P[1], 34, 300 * DEG, pink, hit, 0.6, -1, { dots: true });
+      if (fly === 0) {
+        ring(g, B[0], B[1], r, bAng, pink, { dots: true });
+        candyBadge(g, ...at(B[0], B[1], r, bAng + Math.PI), t);
+      } else flyRing(g, B[0], B[1], r, bAng, pink, fly, -1, -0.6);
+      if (t > 1100 && fly < 0.3) openPoint(g, 92, 115);
+      if (beam > 0 && t < 2100) {
+        // şerit: bombanın yerinden çilek halkaya, ucunda parıltı
+        const hx = B[0] + (P[0] - B[0]) * beam, hy = B[1] + (P[1] - B[1]) * beam;
+        g.save(); g.globalAlpha *= 1 - seg(t, 1850, 2100); g.lineCap = 'round';
+        for (const [w, c] of [[9, 'rgba(10,8,20,.55)'], [5.5, pink], [2, '#fff']]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(hx, hy); g.stroke(); }
+        g.restore();
+      }
+      dragFinger(g, B[0], B[1], r, bAng, t - 300, 1000);
+      label(g, tx('aynı renk de uçar'), 130, 178, seg(t, 2000, 2300));
+    } },
+    // 2.6: cırcır saat yönünde bir tık ilerler, ters çevrilince mandal takılır, sonra bir tık daha
+    ratchet: { ms: 5000, draw(g, t) {
+      const x = 130, y = 94, r = 52, brass = '#f0b44a';
+      const c1 = seg(t, 500, 800), c2 = seg(t, 3200, 3500), deny = t > 1700 && t < 2500;
+      const ang = -90 * DEG + (c1 > 0 ? back(c1) : 0) * 90 * DEG + (c2 > 0 ? back(c2) : 0) * 90 * DEG + (deny ? 0.04 * Math.sin(t / 22) : 0);
+      const pos = (c1 > 0.5 ? 1 : 0) + (c2 > 0.5 ? 1 : 0);
+      for (let k = 0; k < 4; k++) {
+        const a = -Math.PI / 2 + k * Math.PI / 2, [px, py] = at(x, y, r + 22, a);
+        if (k === pos + 1 && !deny && (t < 300 || (t > 1000 && t < 3000) || t > 3700)) {
+          g.save(); g.translate(px, py); g.rotate(a + Math.PI / 2);
+          g.fillStyle = '#ffe6a8'; g.beginPath(); g.moveTo(8, 0); g.lineTo(-5, -7); g.lineTo(-2, 0); g.lineTo(-5, 7); g.closePath(); g.fill(); g.restore();
+          continue;
+        }
+        g.fillStyle = k === pos ? '#ffd36b' : 'rgba(255,255,255,.4)';
+        g.beginPath(); g.arc(px, py, k === pos ? 5 : 3, 0, TAU); g.fill();
+      }
+      // testere dişleri: dik yüz dönüş yönünde
+      g.save(); g.fillStyle = brass;
+      for (let th = ang + GAP + 0.1; th < ang + TAU - GAP - 0.3; th += 0.3) {
+        g.beginPath(); g.moveTo(...at(x, y, r + 4, th)); g.lineTo(...at(x, y, r + 10, th + 0.3)); g.lineTo(...at(x, y, r + 4, th + 0.3)); g.closePath(); g.fill();
+      }
+      g.restore();
+      ring(g, x, y, r, ang, brass);
+      // rozet: pirinç disk, saat yönü ok; takılınca kızarır
+      const [bx, by] = at(x, y, r, ang + Math.PI);
+      g.save(); g.translate(bx + (deny ? 2.5 * Math.sin(t / 18) : 0), by);
+      g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.arc(0, 2, 14, 0, TAU); g.fill();
+      g.fillStyle = deny ? '#e64a32' : brass; g.beginPath(); g.arc(0, 0, 12, 0, TAU); g.fill();
+      g.strokeStyle = '#3a2500'; g.fillStyle = '#3a2500'; g.lineWidth = 2.4; g.lineCap = 'round';
+      g.beginPath(); g.arc(0, 0, 6, -2.4, 0.75); g.stroke();
+      const [hx, hy] = at(0, 0, 6, 0.75), ta = 0.75 + Math.PI / 2;
+      g.beginPath(); g.moveTo(...at(hx, hy, 4, ta)); g.lineTo(...at(hx, hy, 3.6, ta + 2.4)); g.lineTo(...at(hx, hy, 3.6, ta - 2.4)); g.closePath(); g.fill();
+      g.restore();
+      dragFinger(g, x, y, r, ang, t - 300, 700);
+      // ters yöne çeken parmak
+      dragFinger(g, x, y, r, ang + (t > 1600 ? -0.25 * seg(t, 1600, 1900) : 0), t - 1500, 1100);
+      dragFinger(g, x, y, r, ang, t - 3000, 700);
+      label(g, tx('tık'), x, y, (c1 > 0 && t < 1300) || (c2 > 0 && t < 4100) ? 1 : 0);
+      label(g, tx('geri dönmez'), x, y, deny ? 1 : 0);
+    } },
+    // 2.6: önce yandaki halka gider, sonra istiridye; kapaklar ayrılır, inci belirir ve hemen uçar
+    pearl: { ms: 4800, draw(g, t) {
+      const O = [120, 96], N = [196, 96], r = 50, shell = '#a99bc4', pearl = '#f4efe6';
+      const n1 = io(seg(t, 400, 1100)), nFly = seg(t, 1250, 1700), s1 = io(seg(t, 1900, 2600)), sFly = seg(t, 2750, 3150);
+      const born = seg(t, 2800, 3200), pFly = seg(t, 3450, 3900);
+      if (nFly === 0) ring(g, N[0], N[1], 40, 250 * DEG + n1 * 110 * DEG, C.teal); else flyRing(g, N[0], N[1], 40, 0, C.teal, nFly, 1, -0.2);
+      if (born === 0) {
+        g.save(); g.setLineDash([4, 6]); g.strokeStyle = 'rgba(244,239,230,.35)'; g.lineWidth = 2.5;
+        g.beginPath(); g.arc(O[0], O[1], 28, 0, TAU); g.stroke(); g.restore();
+        g.save(); g.shadowColor = '#fff'; g.shadowBlur = 12; g.fillStyle = pearl; g.beginPath(); g.arc(O[0], O[1], 9, 0, TAU); g.fill(); g.restore();
+      } else if (pFly === 0) ring(g, O[0], O[1], 28 * (0.3 + 0.7 * born), 90 * DEG, pearl, { glow: born < 1 });
+      else flyRing(g, O[0], O[1], 28, 90 * DEG, pearl, pFly, -1, -0.4);
+      if (sFly === 0) {
+        g.save(); g.fillStyle = shell;
+        const ang = 160 * DEG + s1 * 200 * DEG;
+        for (let a = ang + GAP + 0.1; a < ang + TAU - GAP - 0.2; a += 0.28) { g.beginPath(); g.arc(...at(O[0], O[1], r + 6, a + 0.14), 4.5, 0, TAU); g.fill(); }
+        g.restore();
+        ring(g, O[0], O[1], r, ang, shell);
+      } else if (sFly < 1) {
+        g.save(); g.globalAlpha *= 1 - sFly; g.fillStyle = shell;
+        for (const d of [-1, 1]) { g.beginPath(); g.ellipse(O[0] + d * 30 * sFly, O[1] + 40 * sFly * sFly, 26, 18, d * sFly, 0, TAU); g.fill(); }
+        g.restore();
+      }
+      dragFinger(g, N[0], N[1], 40, 250 * DEG + n1 * 110 * DEG, t - 300, 900);
+      dragFinger(g, O[0], O[1], r, 160 * DEG + s1 * 200 * DEG, t - 1800, 900);
+      label(g, tx('inci belirdi'), 130, 178, seg(t, 2900, 3150) * (t < 3700 ? 1 : 0));
+    } },
+    // 2.6: soldaki ikiz serbest kalır ama bekler (zincir gerilir), sağdaki de açılınca ikisi birlikte uçar
+    chain: { ms: 4800, draw(g, t) {
+      const A = [72, 92], B = [188, 92], r = 40, twin = '#2dd4bf';
+      const a1 = io(seg(t, 400, 1100)), b1 = io(seg(t, 2100, 2800)), fly = seg(t, 2950, 3500);
+      const aAng = 200 * DEG - a1 * 160 * DEG, bAng = 330 * DEG + b1 * 190 * DEG;
+      const wait = t > 1150 && t < 2900, pull = wait ? 4 + 2 * Math.sin(t / 160) : 0;
+      const dx = fly * fly * 0, ex = fly * fly;
+      if (fly < 1) {
+        // zincir: yandan sarkan baklalar, beklerken gerilip sarı yanar
+        const x0 = A[0] + pull + r * 0.5, x1 = B[0] - r * 0.5, y0 = A[1] - r * 0.87 - 140 * ex, sag = wait ? 4 : 16;
+        g.save(); g.globalAlpha *= 1 - fly; g.lineWidth = 2.4; g.strokeStyle = wait ? '#ffe9a8' : '#d8b46a';
+        for (let k = 0; k < 7; k++) {
+          const u = (k + 0.5) / 7, x = x0 + (x1 - x0) * u, y = y0 - 4 * sag * u * (1 - u);
+          g.beginPath(); g.ellipse(x, y, 6, k % 2 ? 2 : 3.4, 0, 0, TAU); g.stroke();
+        }
+        g.restore();
+      }
+      if (fly === 0) {
+        ring(g, A[0] + pull, A[1], r, aAng, twin, { glow: wait });
+        ring(g, B[0], B[1], r, bAng, twin);
+      } else { flyRing(g, A[0], A[1], r, aAng, twin, fly, 0, -1); flyRing(g, B[0], B[1], r, bAng, twin, fly, 0, -1); }
+      if (t < 2950) { ring(g, A[0], 150, 26, 90 * DEG, C.red, { alpha: a1 > 0.9 ? Math.max(0, 1 - seg(t, 1150, 1500)) : 1 }); ring(g, B[0], 150, 26, 90 * DEG, C.sky, { alpha: b1 > 0.9 ? Math.max(0, 1 - seg(t, 2850, 3100)) : 1 }); }
+      dragFinger(g, A[0], A[1], r, aAng, t - 300, 900);
+      dragFinger(g, B[0], B[1], r, bAng, t - 2000, 900);
+      label(g, tx('eşini bekliyor'), 130, 178, wait ? 1 : 0);
+      label(g, tx('birlikte!'), 130, 178, seg(t, 3000, 3200) * (t < 4300 ? 1 : 0));
+    } },
+    // 2.6: rüzgâr halka kurtulur, yanındaki taş halkayı çeyrek tur çevirir; taşın boşluğu açılır ve o da uçar
+    gust: { ms: 4600, draw(g, t) {
+      const G = [78, 96], Sx = [176, 96], r = 42;
+      const e = io(seg(t, 400, 1100)), fly = seg(t, 1250, 1700), turn = seg(t, 1450, 2100), sFly = seg(t, 2500, 2950);
+      const sAng = 90 * DEG + (turn > 0 ? back(turn) : 0) * 90 * DEG;
+      if (sFly === 0) ring(g, Sx[0], Sx[1], r, sAng, C.fixed); else flyRing(g, Sx[0], Sx[1], r, sAng, C.fixed, sFly, 1, -0.3);
+      if (fly === 0) ring(g, G[0], G[1], 36, 160 * DEG - e * 140 * DEG, '#7fd0ff'); else flyRing(g, G[0], G[1], 36, 20 * DEG, '#7fd0ff', fly, -1, -0.3);
+      if (turn > 0 && turn < 1) {
+        g.save(); g.strokeStyle = 'rgba(232,246,255,.8)'; g.lineWidth = 2; g.lineCap = 'round';
+        for (let k = 0; k < 4; k++) { const y = 80 + k * 10, x = 110 + turn * 50 + k * 6; g.beginPath(); g.moveTo(x - 20, y); g.lineTo(x, y); g.stroke(); }
+        g.restore();
+      }
+      if (fly === 0) { g.save(); g.fillStyle = '#e8f6ff'; g.beginPath(); g.arc(G[0] - 30, G[1] - 26, 11, 0, TAU); g.fill(); g.strokeStyle = '#3b7bb8'; g.lineWidth = 2; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(G[0] - 30, G[1] - 26, 6, k * 2.1, k * 2.1 + 1.4); g.stroke(); } g.restore(); }
+      if (t > 1100 && fly < 0.3) openPoint(g, 120, 96);
+      dragFinger(g, G[0], G[1], 36, 160 * DEG - e * 140 * DEG, t - 300, 900);
+      label(g, tx('rüzgâr taşı çevirdi'), 130, 178, seg(t, 1600, 1900) * (t < 3300 ? 1 : 0));
     } },
   };
 

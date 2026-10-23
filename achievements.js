@@ -27,6 +27,9 @@
     // 2.5: kapı 31-40
     { id: 'buyu-esigi', group: 'Yolculuk', name: 'Büyünün Eşiği', desc: '35 kapıyı bitir', tier: 'gumus', icon: 'kapi', goal: 35, value: c => c.gatesDone },
     { id: 'anka-yuvasi', group: 'Yolculuk', name: "Anka'nın Yuvası", desc: '40 kapının hepsini bitir', tier: 'altin', icon: 'anka', goal: 40, value: c => c.gatesDone },
+    // 2.6: kapı 41-50
+    { id: 'kum-yolu', group: 'Yolculuk', name: 'Kum Yolu', desc: '45 kapıyı bitir', tier: 'gumus', icon: 'kapi', goal: 45, value: c => c.gatesDone },
+    { id: 'gokyuzu-sarayi', group: 'Yolculuk', name: 'Gökyüzü Sarayı', desc: '50 kapının hepsini bitir', tier: 'altin', icon: 'bulut', goal: 50, value: c => c.gatesDone },
     // Yıldız
     { id: 'yildiz-50', group: 'Yıldız', name: 'Yıldız Toplayıcı', desc: '50 yıldız topla', tier: 'bronz', icon: 'yildiz', goal: 50, value: c => c.stars },
     { id: 'yildiz-150', group: 'Yıldız', name: 'Yıldız Avcısı', desc: '150 yıldız topla', tier: 'gumus', icon: 'yildiz', goal: 150, value: c => c.stars },
@@ -34,6 +37,7 @@
     { id: 'yildiz-600', group: 'Yıldız', name: 'Samanyolu', desc: '600 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 600, value: c => c.stars },
     { id: 'yildiz-900', group: 'Yıldız', name: 'Takımyıldız', desc: '900 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 900, value: c => c.stars },
     { id: 'yildiz-1200', group: 'Yıldız', name: 'Galaksi', desc: '1200 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 1200, value: c => c.stars },
+    { id: 'yildiz-1500', group: 'Yıldız', name: 'Evren', desc: '1500 yıldız topla', tier: 'altin', icon: 'yildiz', goal: 1500, value: c => c.stars },
     { id: 'kusursuz', group: 'Yıldız', name: 'Kusursuz', desc: '10 bölümü 3 yıldızla bitir', tier: 'bronz', icon: 'uc-yildiz', goal: 10, value: c => c.perfect },
     { id: 'altin-kapi', group: 'Yıldız', name: 'Altın Kapı', desc: 'Bir kapının bütün bölümlerini 3 yıldızla bitir', tier: 'gumus', icon: 'kapi-altin', goal: 1, value: c => c.goldGates },
     { id: 'altin-yol', group: 'Yıldız', name: 'Altın Yol', desc: '5 altın kapı', tier: 'altin', icon: 'kapi-altin', goal: 5, value: c => c.goldGates },
@@ -49,6 +53,12 @@
     { id: 'buz-kiran', group: 'Parçalar', name: 'Buz Kıran', desc: '20 buz kabuğu kır', tier: 'bronz', icon: 'buz', goal: 20, value: c => c.st.iceCracks },
     { id: 'kazan-ustasi', group: 'Parçalar', name: 'Kazan Ustası', desc: '10 kazan patlat', tier: 'gumus', icon: 'kazan', goal: 10, value: c => c.st.boilers },
     { id: 'isinlanan', group: 'Parçalar', name: 'Işınlanan', desc: '10 kez portaldan geç', tier: 'gumus', icon: 'portal', goal: 10, value: c => c.st.teleports },
+    // 2.6 parçaları
+    { id: 'renk-ustasi', group: 'Parçalar', name: 'Renk Ustası', desc: '10 renk patlaması yap', tier: 'bronz', icon: 'seker', goal: 10, value: c => c.st.paints },
+    { id: 'circirci', group: 'Parçalar', name: 'Cırcırcı', desc: '50 kez cırcır çevir', tier: 'bronz', icon: 'disli', goal: 50, value: c => c.st.ratchets },
+    { id: 'inci-avcisi', group: 'Parçalar', name: 'İnci Avcısı', desc: '10 inci çıkar', tier: 'gumus', icon: 'inci', goal: 10, value: c => c.st.pearls },
+    { id: 'ikizler', group: 'Parçalar', name: 'İkizler', desc: 'Zincirli ikizleri 10 kez birlikte uçur', tier: 'gumus', icon: 'zincir', goal: 10, value: c => c.st.twins },
+    { id: 'ruzgargulu', group: 'Parçalar', name: 'Rüzgârgülü', desc: '10 kez rüzgâr estir', tier: 'bronz', icon: 'ruzgar', goal: 10, value: c => c.st.gusts },
     { id: 'dev-avcisi', group: 'Anlar', name: 'Dev Avcısı', desc: 'İlk Dev Halkayı yen', tier: 'bronz', icon: 'dev', goal: 1, value: c => c.st.bosses },
     { id: 'devlerin-korkusu', group: 'Anlar', name: 'Devlerin Korkusu', desc: '10 Dev Halka yen', tier: 'altin', icon: 'dev', goal: 10, value: c => c.st.bosses },
     { id: 'yagmur-cocugu', group: 'Anlar', name: 'Yağmur Çocuğu', desc: 'İlk Altın Yağmurunu bitir', tier: 'bronz', icon: 'yagmur', goal: 1, value: c => c.st.rains },
@@ -97,6 +107,11 @@
     alev: '<path d="M12 21c-3.5 0-6-2.5-6-5.8 0-3.7 3.5-5.2 4-9.2 2.5 1.5 3 3.5 2.8 5.2 1-.5 1.7-1.5 2-2.7 1.8 1.6 3.2 3.9 3.2 6.7 0 3.3-2.5 5.8-6 5.8z"/>',
     'kum-saati': '<path d="M6.5 3h11M6.5 21h11M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9M10 18.5h4"/>',
     ampul: '<path d="M9 17.5h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
+    // 2.6: sarılı şeker, istiridyede inci, rüzgâr çizgileri, bulut
+    seker: '<circle cx="12" cy="12" r="4.5"/><path d="M7.5 12L3 8.5v7zM16.5 12L21 8.5v7z"/>',
+    inci: '<path d="M3.5 13.5c2-5 15-5 17 0-2 4-15 4-17 0z"/><circle cx="12" cy="10.5" r="2.5"/>',
+    ruzgar: '<path d="M3 9h11a3 3 0 1 0-3-3M3 13h15a3 3 0 1 1-3 3M3 17h7"/>',
+    bulut: '<path d="M7 18.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 9.2a4.5 4.5 0 0 1 .5 9.3z"/>',
   };
 
   const goalOf = (b, ctx) => (typeof b.goal === 'function' ? b.goal(ctx) : b.goal);

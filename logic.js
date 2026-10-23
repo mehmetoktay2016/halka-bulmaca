@@ -72,7 +72,7 @@
         return { ...r, x: T.x + dx * c - dy * s, y: T.y + dx * s + dy * c };
       });
       const v = buildPlain({ ...def, rings });
-      Object.assign(v, { table: { ...T, k }, tableIdx: t, variants });
+      Object.assign(v, { table: { ...T, k }, tableIdx: t, vIdx: t, variants });
       variants.push(v);
     }
     return variants[0];
@@ -107,6 +107,9 @@
       gaps: (r.gaps || [0]).map(g => g * DEG),
       // Tıklı halka: yalnızca başlangıç açısından step'in katları kadar döner (derece; 360'ı tam bölmeli)
       step: r.step ? r.step * DEG : 0,
+      // Cırcır halka (ratchet: 1 saat yönü, -1 ters; tıklı halkada): yalnız o yöne ve her hamlede tek tık döner.
+      // Geri gitmek turu tamamlamayı ister. Dönüşü hep oyuncudan gelir (yay hedefi ya da motor olamaz).
+      ratchet: r.ratchet ? Math.sign(r.ratchet) : 0,
       // Anahtarlı kilit: lockedBy numaralı halka tahtadan çıkana kadar bu halka dönmez
       lockedBy: r.lockedBy == null ? -1 : r.lockedBy,
       // Yaylı halka (kick: [hedef, derece]): tahtadan çıkarken hedef halkayı o kadar döndürür
@@ -141,6 +144,20 @@
       // Dev Halka (boss: n, 1-6): zırhlıdır, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça zırhından
       // bir plaka kırılır; n plaka kırılınca bir sonraki dalgada parçalanıp kendiliğinden çıkar (patlamaz).
       boss: r.boss || 0,
+      // Şeker rengi (paint: 0-2, yoksa -1): halkanın renk grubu. Renk bombası (cbomb: true, renkli halkada)
+      // tahtadan çıkınca kendi rengindeki bütün halkalar bağlarına bakılmadan bir sonraki dalgada uçar.
+      paint: r.paint == null ? -1 : r.paint,
+      cbomb: !!r.cbomb,
+      // İnci halka (pearl: k): k numaralı istiridye halkasının içinde saklıdır. İstiridye tahtadayken inci yok sayılır
+      // (kesişmez, dönmez, kurtulmaz, patlamalar onu vurmaz); istiridye çıkınca belirir ve normal bir halka olur
+      pearl: r.pearl == null ? -1 : r.pearl,
+      // Zincirli ikiz (chain: n): aynı numarayı taşıyan iki halka zincirlidir; ancak ikisi aynı anda serbestken birlikte
+      // uçarlar. Patlamanın zorla uçurduğu zincirliyi zincir tutmaz (zincir kopar, eşi tek başına kurtulabilir)
+      chain: r.chain == null ? -1 : r.chain,
+      // Rüzgâr halka (gust: derece, artı saat yönü): tahtadan çıkınca değdiği her halkayı bu kadar döndürür; oyuncunun
+      // çeviremediği sabit (taş) halkaları da. Yaylı halkanın tekmesi gibi hamle sayılmaz. Tıklı komşu ancak dönüş tık
+      // adımının katıysa döner
+      gust: r.gust ? r.gust * DEG : 0,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -177,6 +194,35 @@
       (portalRings[r.portal] = portalRings[r.portal] || []).push(i);
     }
     for (const [n, list] of Object.entries(portalRings)) if (list.length !== 2) throw new Error(`Portal ${n}: tam iki halkada olmalı`);
+    const painted = [[], [], []];
+    for (const [i, r] of def.rings.entries()) {
+      if (r.paint == null) {
+        if (r.cbomb) throw new Error(`Halka ${i}: renk bombasının rengi yok`);
+        continue;
+      }
+      // Sabit ve şalterli halkanın kendi rengi var; renk bombası rozeti öbür rozetlerle aynı yere düşerdi
+      if (r.type || r.fixed || r.side != null || ![0, 1, 2].includes(r.paint)) throw new Error(`Halka ${i}: şeker rengi 0-2, sabit ya da şalterli olmayan halkada olur`);
+      if (r.cbomb && (r.bomb || r.kick || r.ice || r.motor || r.boiler || r.boss || r.portal != null)) throw new Error(`Halka ${i}: renk bombası başka parçayla birleşemez`);
+      painted[r.paint].push(i);
+    }
+    for (const [i, r] of def.rings.entries()) if (r.cbomb && painted[r.paint].length < 2) throw new Error(`Halka ${i}: renk bombasının renginde başka halka yok`);
+    const chained = {};
+    for (const [i, r] of def.rings.entries()) {
+      if (r.chain == null) continue;
+      // Portal ve inci de iki halkalık bağlar; birleşince hangisinin geçerli olduğu belirsiz kalırdı
+      if (r.type || r.portal != null || r.pearl != null || def.rings.some(o => o.pearl === i)) throw new Error(`Halka ${i}: zincir portal, inci ya da istiridyeyle birleşemez`);
+      (chained[r.chain] = chained[r.chain] || []).push(i);
+    }
+    for (const [n, list] of Object.entries(chained)) if (list.length !== 2) throw new Error(`Zincir ${n}: tam iki halkada olmalı`);
+    for (const [i, r] of def.rings.entries()) {
+      if (r.pearl == null) continue;
+      const k = def.rings[r.pearl];
+      // İstiridye düz bir halka, kendisi inci değil; inci komşu sayısına bağlı ya da başka halkayı taşıyan parça olamaz
+      if (!k || r.pearl === i || k.type || k.pearl != null || k.fixed) throw new Error(`Halka ${i}: incinin istiridyesi geçersiz`);
+      if (r.type || r.motor || r.portal != null || r.ice || r.boiler || r.boss || r.lockedBy != null || def.rings.some(o => o.kick && o.kick[0] === i)) {
+        throw new Error(`Halka ${i}: inci başka parçayla birleşemez`);
+      }
+    }
     for (const [i, r] of def.rings.entries()) {
       if (!r.motor) continue;
       if (r.type || 360 % Math.abs(r.motor)) throw new Error(`Halka ${i}: motor adımı 360'ı tam bölmeli`);
@@ -187,6 +233,7 @@
     }
     for (const [i, r] of def.rings.entries()) {
       if (r.step && (360 % r.step || r.step <= 0)) throw new Error(`Halka ${i}: tık adımı 360'ı tam bölmeli`);
+      if (r.ratchet && (r.type || !r.step || r.fixed || r.motor)) throw new Error(`Halka ${i}: cırcır yalnızca tıklı, sabit ve motorlu olmayan halkada olur`);
     }
     const n = rings.length;
     const links = [];
@@ -272,13 +319,23 @@
     for (const r of rings) {
       if (!r.kick) continue;
       const t = rings[r.kick.target];
-      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
+      if (!t || t === r || t.kind !== 'ring' || !rotatable[t.id] || t.lockedBy >= 0 || t.ice || t.motor || t.boss || t.ratchet) throw new Error(`Halka ${r.id}: yayın hedefi geçersiz`);
       if (!r.kick.turn) throw new Error(`Halka ${r.id}: yayın tekmesi sıfır olamaz`);
       for (const k of group[t.id]) {
         const st = rings[k].step;
         if (st && Math.abs(r.kick.turn * factor[k] / factor[t.id] / st % 1) > 1e-9) throw new Error(`Halka ${r.id}: tekme tık adımına uymuyor`);
       }
       kickedBy[t.id].push(r.id);
+    }
+    // Rüzgârın dönebilen komşuları (tekmesi gibi): tekme alabilecek halkalar
+    const gustTargets = rings.map(r => (!r.gust ? [] : [...new Set(ringLinks[r.id].map(li => (links[li].a === r.id ? links[li].b : links[li].a)))]
+      .filter(o => { const t = rings[o]; return t.kind === 'ring' && !(t.lockedBy >= 0) && !t.ice && !t.motor && !t.boss && group[o].length === 1 && (!t.step || Math.abs(r.gust / t.step % 1) < 1e-9); })));
+    for (const r of rings) {
+      if (!r.gust) continue;
+      const d = def.rings[r.id];
+      if (d.type || d.kick || d.bomb || d.cbomb || d.boiler || d.motor || d.portal != null || d.pearl != null || d.chain != null || d.ice || 360 % Math.abs(d.gust)) throw new Error(`Halka ${r.id}: rüzgâr halka başka parçayla birleşemez, adımı 360'ı bölmeli`);
+      if (!gustTargets[r.id].length) throw new Error(`Halka ${r.id}: rüzgârın döndürebileceği komşu yok`);
+      for (const o of gustTargets[r.id]) kickedBy[o].push(r.id);
     }
 
     // Buz halkanın ve kazanın komşuları (çerçeve hiç çıkmadığı için sayılmaz)
@@ -289,9 +346,13 @@
     for (const r of rings) if (r.boss && iceNbrs[r.id].length < r.boss) throw new Error(`Halka ${r.id}: dev halkanın zırhını kıracak kadar komşusu yok`);
     // Dev halka eşli olamaz: eşi dönünce zırhlı halka da dönerdi
     for (const r of rings) if (r.boss && group[r.id].length > 1) throw new Error(`Halka ${r.id}: dev halka eşli olamaz`);
+    // İnci eşli olamaz: istiridye tahtadayken eşi dönünce görünmeyen inci de dönerdi
+    for (const r of rings) if (r.pearl >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: inci eşli olamaz`);
 
     return {
-      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, gustTargets, iceNbrs,
+      // Her şeker renginin halkaları
+      painted,
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
       full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
@@ -306,6 +367,10 @@
       boilers: rings.filter(r => r.boiler).map(r => r.id),
       bosses: rings.filter(r => r.boss).map(r => r.id),
       motors: rings.filter(r => r.motor).map(r => r.id),
+      // İncinin istiridyesi (inci olmayanda -1)
+      shellOf: rings.map(r => (r.kind === 'ring' ? r.pearl : -1)),
+      // Zincirli eşi (yoksa -1)
+      chainMate: rings.map(r => (!(r.chain >= 0) ? -1 : rings.findIndex(o => o !== r && o.chain === r.chain))),
       // Portal ikizi (yoksa -1)
       twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
     };
@@ -346,11 +411,14 @@
     return Math.max(0, n - gone);
   }
 
+  // İnci halka istiridyesi tahtadayken görünmez (yok sayılır)
+  const hidden = (L, i, mask) => L.shellOf[i] >= 0 && !(mask & (1 << L.shellOf[i]));
+
   // Halka i şu an döndürülebilir mi? Sabit değil, buzu erimiş, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
-    if (!L.rotatable[i]) return false;
+    if (!L.rotatable[i] || hidden(L, i, mask)) return false;
     if (L.rings[i].motor) return false;
     if (iceLeft(L, i, mask) || armorLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
@@ -382,7 +450,7 @@
     for (const li of L.ringLinks[i]) {
       const k = L.links[li];
       const other = k.a === i ? k.b : k.a;
-      if (mask & (1 << other)) continue;
+      if (mask & (1 << other) || hidden(L, other, mask)) continue;
       if (!linkOpen(L, k, angles, ph)) return false;
     }
     return true;
@@ -394,6 +462,7 @@
   // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
   // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
+  // Renk bombasının patlaması { from, hits, paint } (hits: o renkte tahtada kalanlar).
   // Dalgada çıkan portalın ikizi tahtadaysa ışınlanır: portals[w] = [{ from, to }]; ikiz sonraki dalgada uçar.
   // Dalgadan sonra basıncı dolan kazanlar ve zırhı biten dev halkalar: fuses[w] = [halka]; sonraki dalgada çıkarlar
   // (kazan patlar, dev halka yalnızca parçalanır).
@@ -402,10 +471,17 @@
     const waves = [], kicks = [], tokens = [], blasts = [], portals = [], fuses = [];
     let hit = 0; // patlamanın vurduğu ya da portalla ışınlanan, sonraki dalgada zorla uçacak parçalar
     for (;;) {
+      let free = 0;
+      for (let i = 0; i < L.rings.length; i++) {
+        if (mask & (1 << i) || L.rings[i].kind === 'frame' || hidden(L, i, mask)) continue;
+        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) free |= 1 << i;
+      }
+      // Zincirli halka eşi de serbestken (ya da eşi gitmişken) uçar; patlamanın vurduğunu zincir tutmaz
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (mask & (1 << i) || L.rings[i].kind === 'frame') continue;
-        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) wave.push(i);
+        if (!(free & (1 << i))) continue;
+        const m = L.chainMate[i];
+        if (m < 0 || hit & (1 << i) || mask & (1 << m) || free & (1 << m)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
@@ -415,6 +491,14 @@
         if (!k || (mask & (1 << k.target))) continue;
         angles = rotate(L, angles, k.target, k.turn);
         ks.push({ from: i, target: k.target, turn: k.turn });
+      }
+      // Rüzgâr: çıkan rüzgâr halkası tahtada kalan dönebilir komşularının hepsini döndürür
+      for (const i of wave) {
+        for (const o of L.gustTargets[i]) {
+          if (mask & (1 << o) || hidden(L, o, mask)) continue;
+          angles = rotate(L, angles, o, L.rings[i].gust);
+          ks.push({ from: i, target: o, turn: L.rings[i].gust, gust: true });
+        }
       }
       const ts = [];
       for (const i of wave) {
@@ -426,15 +510,17 @@
       const bs = [];
       hit = 0;
       for (const i of wave) {
-        if (!L.rings[i].bomb && !L.rings[i].boiler) continue;
+        const r = L.rings[i];
+        if (!r.bomb && !r.boiler && !r.cbomb) continue;
+        // Bomba ve kazan kesiştiklerini, renk bombası kendi rengindekileri vurur
+        const near = r.cbomb ? L.painted[r.paint] : L.ringLinks[i].map(li => (L.links[li].a === i ? L.links[li].b : L.links[li].a));
         const hits = [];
-        for (const li of L.ringLinks[i]) {
-          const k = L.links[li], o = k.a === i ? k.b : k.a;
-          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame') continue;
+        for (const o of near) {
+          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame' || hidden(L, o, mask)) continue;
           hit |= 1 << o;
           hits.push(o);
         }
-        if (hits.length) bs.push({ from: i, hits });
+        if (hits.length) bs.push(r.cbomb ? { from: i, hits, paint: r.paint } : { from: i, hits });
       }
       const ps = [];
       for (const i of wave) {
@@ -499,12 +585,14 @@
   // Tıklı halkada hedef en yakın tık yerine çekilir; boşluk orada kesişimi açmıyorsa hedef sayılmaz.
   function candidates(L, angles, mask, i, ph) {
     const ring = L.rings[i];
+    // Cırcırın tek hamlesi: yönünde bir tık
+    if (ring.ratchet) return [norm(angles[i] + ring.ratchet * ring.step)];
     const out = [];
-    const pendingKicks = L.kickedBy[i].filter(s => !(mask & (1 << s))).map(s => L.rings[s].kick.turn);
+    const pendingKicks = L.kickedBy[i].filter(s => !(mask & (1 << s))).map(s => (L.rings[s].kick ? L.rings[s].kick.turn : L.rings[s].gust));
     for (const li of L.ringLinks[i]) {
       const k = L.links[li];
       const other = k.a === i ? k.b : k.a;
-      if (mask & (1 << other)) continue;
+      if (mask & (1 << other) || hidden(L, other, mask)) continue;
       for (const p of k.pts) {
         if (pointOpen(L, k, p, angles, ph)) continue;
         const angI = k.a === i ? p.angA : p.angB;
@@ -556,14 +644,14 @@
       if ((node.mask & (1 << i)) || !canRotate(L, i, node.mask, node.left, node.sw)) continue;
       const spent = spend(L, node.left, i);
       for (const target of candidates(L, node.angles, node.mask, i, ph2)) {
-        const delta = signedDelta(node.angles[i], target);
+        const delta = L.rings[i].ratchet ? L.rings[i].ratchet * L.rings[i].step : signedDelta(node.angles[i], target);
         const c = afterMove(L, rotate(L, node.angles, i, delta), node.mask, spent, ph2);
         if (emit({ L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw, ph: ph2 }, { ring: i, target, delta })) return true;
       }
     }
     return false;
   }
-  const keyOf = s => (s.L.table ? s.L.tableIdx + '@' : '') + stateKey(s.L, s.angles, s.mask, s.left, s.sw, s.ph);
+  const keyOf = s => (s.L.variants ? s.L.vIdx + '@' : '') + stateKey(s.L, s.angles, s.mask, s.left, s.sw, s.ph);
 
   // Arama başlangıcı: verilmeyen jeton, şalter ve nabız başlangıçtaki haliyle; serbest olanlar çıkar
   function startState(L, angles, mask, left, sw, ph) {
@@ -607,7 +695,7 @@
   function closedLinks(L, angles, mask, ph) {
     let c = 0;
     for (const k of L.links) {
-      if ((mask & (1 << k.a)) || (mask & (1 << k.b))) continue;
+      if ((mask & (1 << k.a)) || (mask & (1 << k.b)) || hidden(L, k.a, mask) || hidden(L, k.b, mask)) continue;
       if (!linkOpen(L, k, angles, ph)) c++;
     }
     return c;
@@ -672,7 +760,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft, pressureLeft, armorLeft,
+    buildLevel, hidden, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

@@ -1,0 +1,646 @@
+<title>Renk Bombası Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Tek koyu görünüm, oyunun Şeker Diyarı dünyası: dar sütun, üstte bölüm seçimi, ortada tahta, altta hamle ve düğmeler */
+:root {
+  --bg: #12070f; --panel: #2a1426; --line: #4a2442; --fg: #fff0f7; --muted: #d4a9c4;
+  --accent: #ff7ac8; --gold: #ffd34a; --gold-ink: #3d2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(70% 45% at 15% 0%, rgba(255, 111, 192, .18), transparent 70%), radial-gradient(50% 35% at 100% 30%, rgba(124, 240, 208, .08), transparent 70%), linear-gradient(180deg, #2a1228, var(--bg)); background-color: var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+header { display: grid; gap: 2px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: 800 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.tabs button.done::after { content: " ✓"; }
+.tip { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.tip b { color: var(--fg); }
+.board { position: relative; width: 100%; aspect-ratio: 400 / 520; border-radius: 22px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count { flex: 1; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-family: var(--display); font-size: 22px; }
+.bar button { font: 800 15px var(--body); border-radius: 14px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.bar button.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.win { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: rgba(18, 7, 15, .72); backdrop-filter: blur(3px); }
+.win h2 { margin: 0; font-family: var(--display); font-size: 38px; color: var(--gold); }
+.win p { margin: 0; color: var(--muted); }
+.win button { justify-self: center; font: 800 16px var(--body); border-radius: 14px; padding: 10px 20px; border: 0; background: var(--gold); color: var(--gold-ink); cursor: pointer; }
+.legend { display: grid; gap: 6px; font-size: 14px; color: var(--muted); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.legend b { color: var(--fg); }
+.legend i { font-style: normal; font-weight: 800; }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Şeker Diyarı · prototip</span>
+    <h1>Renk Bombası</h1>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <p class="tip" id="tip"></p>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Oyun tahtası"></canvas>
+    <div class="win" id="win" hidden>
+      <h2 id="winTitle">Kusursuz!</h2>
+      <p id="winText"></p>
+      <button id="next" type="button">Sonraki bölüm</button>
+    </div>
+  </div>
+  <div class="bar">
+    <span class="count">Hamle <b id="moves">0</b> · en iyi <span id="par">1</span></span>
+    <button id="reset" type="button">Baştan</button>
+    <button id="hint" class="primary" type="button">İpucu</button>
+  </div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<script src="../logic.js"></script>
+<script>
+(function () {
+  'use strict';
+  const Logic = window.RingLogic;
+  const { TAU, DEG, GAP_HALF } = Logic;
+  const W = 400, H = 520, STROKE = 13;
+  // Renksiz halkalar şeker renklerine karışmayan lavanta, karamel ve gök mavisi
+  const COLORS = ['#a48be0', '#d39a62', '#7fa8e8'];
+  // Şeker renkleri ve renk körlüğü için desenleri: çilek noktalı, nane çizgili, limon yıldızlı
+  const PAINTS = [
+    { color: '#ff6fc0', name: 'çilek', pattern: 'dot' },
+    { color: '#4fdcb0', name: 'nane', pattern: 'stripe' },
+    { color: '#ffd34a', name: 'limon', pattern: 'star' },
+  ];
+
+  // R3 deneme bölümleri (çözücüyle seçildi; renksiz hamle sayısı parantezde)
+  const grid = [[120, 190], [210, 190], [300, 190], [120, 290], [210, 290], [300, 290], [165, 380], [255, 380]];
+  const LEVELS = [
+    { name: 'İlk renk bombası', tip: 'Sarılı şeker bir <b>renk bombası</b>. Onu kurtar: kendi rengindeki bütün halkalar, nerede olursa olsun, onunla uçar.',
+      rings: [{ x: 110, y: 200, r: 62, a: 285, paint: 0, cbomb: true }, { x: 70, y: 300, r: 58, a: 240 }, { x: 160, y: 300, r: 58, a: 15 },
+        { x: 300, y: 170, r: 56, a: 210, paint: 0 }, { x: 300, y: 260, r: 56, a: 285 }, { x: 300, y: 350, r: 56, a: 120, paint: 0 }] }, // (4)
+    { name: 'Büyük temizlik', tip: 'Dört limon halka. Renk bombasını <b>ilk</b> kurtarırsan gerisi kendiliğinden çözülür.',
+      rings: [{ x: 200, y: 280, r: 62, a: 90 }, { x: 115, y: 230, r: 58, a: 15, paint: 2 }, { x: 285, y: 230, r: 58, a: 150, paint: 2, cbomb: true }, { x: 125, y: 345, r: 58, a: 105 },
+        { x: 275, y: 345, r: 58, a: 15, paint: 2 }, { x: 200, y: 160, r: 56, a: 45, paint: 2 }, { x: 200, y: 400, r: 56, a: 210 }] }, // (5)
+    { name: 'İki renk', tip: 'Çilek ve nane: <b>iki</b> renk bombası. Hangisi önce gitmeli?',
+      rings: [{ paint: 0, cbomb: true }, {}, { paint: 1 }, { paint: 1 }, {}, { paint: 1, cbomb: true }, { paint: 0 }, { paint: 0 }]
+        .map((p, i) => ({ x: grid[i][0], y: grid[i][1], r: 58, a: [210, 105, 315, 240, 300, 315, 180, 0][i], ...p })) }, // (6)
+    { name: 'Gökkuşağı zinciri', tip: 'Çilek bombası uzaktaki <b>fitilli bombayı</b> uçurur, o patlayınca nane bombası da gider.',
+      rings: [{ paint: 0, cbomb: true }, {}, { paint: 1, cbomb: true }, { paint: 1 }, {}, { paint: 0, bomb: true }, { paint: 1 }, { paint: 0 }]
+        .map((p, i) => ({ x: grid[i][0], y: grid[i][1], r: 58, a: [300, 300, 180, 270, 255, 60, 105, 225][i], ...p })) }, // (5)
+  ];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const done = new Set();
+  let S = null;
+  $('legend').innerHTML =
+    '<span><b>Sarılı şeker rozeti olan halka renk bombasıdır.</b> Kurtulunca kendi rengindeki bütün halkalar, başka halkalara kilitli olsalar bile, onunla uçar.</span>' +
+    `<span>Renkler desenle de ayrılır: <i style="color:${PAINTS[0].color}">● çilek noktalı</i>, <i style="color:${PAINTS[1].color}">╱ nane çizgili</i>, <i style="color:${PAINTS[2].color}">✦ limon yıldızlı</i>. Bombanın rengindeki halkalarda bir parıltı döner.</span>` +
+    '<span>Fitilli bomba dokunduğu halkaları uçurur; renk bombasına dokunursa o da patlar. Halkayı parmakla sürükleyerek döndür.</span>';
+
+  function centered(rings) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of rings) { x0 = Math.min(x0, r.x - r.r); x1 = Math.max(x1, r.x + r.r); y0 = Math.min(y0, r.y - r.r); y1 = Math.max(y1, r.y + r.r); }
+    const dx = W / 2 - (x0 + x1) / 2, dy = H / 2 - (y0 + y1) / 2;
+    return rings.map(r => ({ ...r, x: r.x + dx, y: r.y + dy }));
+  }
+
+  function load(k) {
+    const L = Logic.buildLevel({ rings: centered(LEVELS[k].rings) });
+    const sol = Logic.solve(L, L.startAngles, 0, 200000);
+    S = { k, L, angles: L.startAngles.slice(), mask: 0, moves: 0, par: sol ? sol.moves : '?', busy: false,
+      fly: {}, hidden: 0, drag: null, praise: null, booms: [], pops: [], beams: [], flash: {}, shake: null, hintRing: -1, badgeAt: {} };
+    $('tip').innerHTML = LEVELS[k].tip;
+    $('par').textContent = S.par;
+    $('moves').textContent = 0;
+    $('win').hidden = true;
+    renderTabs();
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = LEVELS.map((l, i) =>
+      `<button type="button" data-k="${i}" aria-pressed="${i === S.k}" class="${done.has(i) ? 'done' : ''}">${i + 1}. ${l.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => { b.onclick = () => load(+b.dataset.k); });
+  }
+
+  // ---- ses: fitilli bomba (sönen gürültü + bas), renk bombası (şeker patlaması + yükselen çınlamalar) ----
+  let AC = null;
+  const audio = () => (AC = AC || new (window.AudioContext || window.webkitAudioContext)());
+  function noise(t, len, from, to, vol) {
+    const buf = AC.createBuffer(1, Math.floor(AC.sampleRate * len), AC.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+    const n = AC.createBufferSource(); n.buffer = buf;
+    const f = AC.createBiquadFilter(); f.type = 'lowpass';
+    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + len);
+    const g = AC.createGain(); g.gain.setValueAtTime(vol, t);
+    n.connect(f).connect(g).connect(AC.destination); n.start(t);
+  }
+  function tone(t, freq, len, vol, type) {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + len + 0.02);
+  }
+  function boom(big) {
+    try {
+      const t = audio().currentTime;
+      noise(t, big ? 0.9 : 0.6, 2400, 180, big ? 0.9 : 0.6);
+      const o = AC.createOscillator(), og = AC.createGain();
+      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.45);
+      og.gain.setValueAtTime(0.7, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(og).connect(AC.destination); o.start(t); o.stop(t + 0.5);
+    } catch (e) { /* ses yoksa sessiz */ }
+  }
+  // Majör pentatonik, her vurulan halka bir basamak yukarı
+  const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
+  function candyPop(hits, paint) {
+    try {
+      const t = audio().currentTime, base = [523.25, 587.33, 659.25][paint];
+      noise(t, 0.18, 5000, 900, 0.35);
+      tone(t, base / 2, 0.25, 0.35, 'triangle');
+      for (let k = 0; k < hits; k++) {
+        const f = base * Math.pow(2, PENTA[Math.min(k, PENTA.length - 1)] / 12), at = t + 0.2 + k * 0.07;
+        tone(at, f, 0.35, 0.22); tone(at, f * 2, 0.2, 0.06);
+      }
+    } catch (e) { /* ses yoksa sessiz */ }
+  }
+
+  // ---- çizim ----
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const w = cv.clientWidth;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * H / W * dpr);
+  }
+  const present = i => !(S.hidden & (1 << i));
+  const live = i => present(i) && !S.fly[i];
+  const colorOf = i => (S.L.rings[i].paint >= 0 ? PAINTS[S.L.rings[i].paint].color : COLORS[i % COLORS.length]);
+
+  function pose(i, now) {
+    const r = S.L.rings[i];
+    const f = S.fly[i];
+    if (!f) return { x: r.x, y: r.y, alpha: 1, grow: 1, spin: 0 };
+    const t = Math.min(Math.max((now - f.t0) / f.ms, 0), 1), e = t * t;
+    return { x: r.x + f.dx * f.dist * e, y: r.y + f.dy * f.dist * e, alpha: 1 - t, grow: 1 + 0.18 * t, spin: f.spin * e };
+  }
+
+  function arcs(ring, angle, x, y, color, width) {
+    const gaps = ring.gaps.map(g => Logic.norm(angle + g)).sort((a, b) => a - b);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    for (let k = 0; k < gaps.length; k++) {
+      const from = gaps[k] + GAP_HALF, to = (k + 1 < gaps.length ? gaps[k + 1] : gaps[0] + TAU) - GAP_HALF;
+      ctx.beginPath(); ctx.arc(x, y, ring.r, from, to); ctx.stroke();
+    }
+  }
+
+  // Küçük 4 köşeli parıltı (limon deseni, kıvılcımlar)
+  function sparkle(x, y, s, rot) {
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const rr = k % 2 ? s * 0.32 : s, a = rot + k * Math.PI / 4;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Şeker deseni halkayla birlikte döner; boşlukların üstüne düşmez
+  function pattern(ring, angle, x, y, paint) {
+    const kind = PAINTS[paint].pattern, step = 30 / ring.r, n = Math.floor(TAU / step);
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (let k = 0; k < n; k++) {
+      const th = angle + (k + 0.5) * TAU / n;
+      if (ring.gaps.some(g => Logic.angDist(angle + g, th) < GAP_HALF + 6 / ring.r)) continue;
+      const c = Math.cos(th), s = Math.sin(th), px = x + c * ring.r, py = y + s * ring.r;
+      if (kind === 'dot') { ctx.beginPath(); ctx.arc(px, py, 3, 0, TAU); ctx.fill(); }
+      else if (kind === 'stripe') {
+        const d = 5 / ring.r;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(th - d) * (ring.r - 5), y + Math.sin(th - d) * (ring.r - 5));
+        ctx.lineTo(x + Math.cos(th + d) * (ring.r + 5), y + Math.sin(th + d) * (ring.r + 5));
+        ctx.stroke();
+      } else sparkle(px, py, 4.6, th);
+    }
+    ctx.restore();
+  }
+
+  // Rozetin yeri: halkanın en boş noktası (başka halkalardan ve boşluktan uzak)
+  function badgeSpot(s) {
+    const r = S.L.rings[s];
+    let best = 0, bestD = -1;
+    for (let k = 0; k < 36; k++) {
+      const th = k * 10 * DEG, x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r;
+      let d = Infinity;
+      S.L.rings.forEach((o, i) => { if (i !== s && present(i)) d = Math.min(d, Math.abs(Math.hypot(x - o.x, y - o.y) - o.r)); });
+      for (const g of r.gaps) d = Math.min(d, Logic.angDist(S.angles[s] + g, th) * r.r);
+      if (y - 26 < 0 || y + 18 > H || x - 26 < 0 || x + 26 > W) d = -1;
+      if (d > bestD) { bestD = d; best = th; }
+    }
+    return best;
+  }
+  function badgePos(s) {
+    const r = S.L.rings[s];
+    const key = s + ':' + S.hidden + ':' + Math.round(S.angles[s] / DEG / 10);
+    if (S.badgeAt[key] == null) S.badgeAt[key] = badgeSpot(s);
+    const th = S.badgeAt[key];
+    return { x: r.x + Math.cos(th) * r.r, y: r.y + Math.sin(th) * r.r };
+  }
+
+  function bombBadge(s, now) {
+    const { x, y } = badgePos(s);
+    ctx.save();
+    ctx.fillStyle = 'rgba(18,7,15,.9)'; ctx.beginPath(); ctx.arc(x, y + 2, 16, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(x - 5, y - 5, 1, x, y, 14);
+    g.addColorStop(0, '#6a6470'); g.addColorStop(1, '#1b1820');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 13, 0, TAU); ctx.fill();
+    ctx.strokeStyle = colorOf(s); ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#3a3640'; ctx.fillRect(x + 4, y - 15, 7, 5);
+    ctx.strokeStyle = '#d9b48a'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + 8, y - 15); ctx.quadraticCurveTo(x + 12, y - 23, x + 17, y - 21); ctx.stroke();
+    const fl = REDUCED ? 1 : 0.75 + 0.35 * Math.sin(now / 55) * Math.sin(now / 83);
+    const sx = x + 17, sy = y - 21;
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 9 * fl);
+    sg.addColorStop(0, '#fff'); sg.addColorStop(.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 9 * fl, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // Renk bombası rozeti: iki ucu bükülmüş sarılı şeker; ortasında rengin deseni, hafifçe nefes alır
+  function candyBadge(s, now) {
+    const { x, y } = badgePos(s), p = PAINTS[S.L.rings[s].paint];
+    const beat = REDUCED ? 1 : 1 + 0.07 * Math.sin(now / 260);
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(beat, beat); ctx.rotate(-0.35);
+    // ambalajın bükülmüş uçları
+    for (const d of [-1, 1]) {
+      ctx.fillStyle = 'rgba(18,7,15,.9)';
+      ctx.beginPath(); ctx.moveTo(d * 9, 0); ctx.lineTo(d * 25, -10); ctx.lineTo(d * 25, 10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.moveTo(d * 10, 0); ctx.lineTo(d * 22, -7.5); ctx.quadraticCurveTo(d * 19, 0, d * 22, 7.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      ctx.beginPath(); ctx.moveTo(d * 10, 0); ctx.lineTo(d * 22, -7.5); ctx.lineTo(d * 19, -2); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(18,7,15,.9)'; ctx.beginPath(); ctx.arc(0, 1, 14.5, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(-4, -5, 1, 0, 0, 13);
+    g.addColorStop(0, '#fff'); g.addColorStop(.25, p.color); g.addColorStop(1, p.color);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 12.5, 0, TAU); ctx.fill();
+    // ortadaki desen: renk körleri için
+    ctx.rotate(0.35);
+    ctx.fillStyle = 'rgba(18,7,15,.78)'; ctx.strokeStyle = 'rgba(18,7,15,.78)'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    if (p.pattern === 'dot') { for (const [dx, dy] of [[-4, -3], [4, -3], [0, 4]]) { ctx.beginPath(); ctx.arc(dx, dy, 2.3, 0, TAU); ctx.fill(); } }
+    else if (p.pattern === 'stripe') { for (const d of [-5, 0, 5]) { ctx.beginPath(); ctx.moveTo(d - 3, 6); ctx.lineTo(d + 3, -6); ctx.stroke(); } }
+    else sparkle(0, 0, 8, 0);
+    ctx.restore();
+  }
+
+  // Fitilli bombanın dokunduğu yerler: turuncu kıvılcım yıldızları (patlamanın kimi vuracağını gösterir)
+  function fusePoints(now) {
+    const L = S.L;
+    for (const link of L.links) {
+      const b = L.rings[link.a].bomb ? link.a : L.rings[link.b].bomb ? link.b : -1;
+      if (b < 0 || !live(link.a) || !live(link.b)) continue;
+      for (const p of link.pts) {
+        const pulse = REDUCED ? 1 : 0.8 + 0.25 * Math.sin(now / 160 + p.x);
+        ctx.save();
+        ctx.translate(p.x, p.y); ctx.rotate(REDUCED ? 0 : now / 900);
+        ctx.fillStyle = '#ff7a45'; ctx.strokeStyle = 'rgba(18,7,15,.9)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const rr = (k % 2 ? 3.2 : 8) * pulse, a = k * Math.PI / 5;
+          ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  // Tahtada renk bombası olan renkler (o renkteki halkalarda parıltı döner)
+  function armedPaints() {
+    const out = new Set();
+    S.L.rings.forEach((r, i) => { if (r.cbomb && live(i)) out.add(r.paint); });
+    return out;
+  }
+
+  function draw(now) {
+    const dpr = cv.width / W;
+    let sx = 0, sy = 0;
+    if (S.shake) {
+      const t = (now - S.shake.t0) / S.shake.ms;
+      if (t >= 1) S.shake = null;
+      else if (!REDUCED) { const amp = S.shake.amp * (1 - t); sx = (Math.random() * 2 - 1) * amp; sy = (Math.random() * 2 - 1) * amp; }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(dpr, 0, 0, dpr, sx * dpr, sy * dpr);
+    const L = S.L;
+    for (const link of L.links) {
+      if (!live(link.a) || !live(link.b)) continue;
+      for (const p of link.pts) {
+        if (!Logic.pointOpen(L, link, p, S.angles)) continue;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, TAU); ctx.fill();
+      }
+    }
+    const armed = armedPaints();
+    for (let i = 0; i < L.rings.length; i++) {
+      if (!present(i)) continue;
+      const r = L.rings[i], P = pose(i, now), color = colorOf(i);
+      const fl = S.flash[i] && now >= S.flash[i] ? Math.max(0, 1 - (now - S.flash[i]) / 260) : 0;
+      const ang = S.angles[i] + P.spin;
+      ctx.save();
+      ctx.globalAlpha = P.alpha;
+      ctx.translate(P.x, P.y); ctx.scale(P.grow, P.grow); ctx.translate(-P.x, -P.y);
+      const active = (S.drag && S.drag.ring === i) || S.hintRing === i;
+      arcs(r, ang, P.x + 2, P.y + 4, 'rgba(0,0,0,.42)', STROKE + 6);
+      if (active) { ctx.shadowColor = color; ctx.shadowBlur = 20; }
+      arcs(r, ang, P.x, P.y, color, STROKE);
+      ctx.shadowBlur = 0;
+      arcs(r, ang, P.x - 1.2, P.y - 1.6, 'rgba(255,255,255,.28)', 3);
+      if (r.paint >= 0) pattern(r, ang, P.x, P.y, r.paint);
+      // Bombanın rengindeki halkalarda dönen parıltı: "bunlar onunla gidecek"
+      // (açık kesişimin yuvarlak ışığına benzemesin diye halka boyunca kayan ince bir şerit; boşlukta görünmez)
+      if (r.paint >= 0 && armed.has(r.paint) && !S.fly[i]) {
+        const th = REDUCED ? ang + Math.PI : now / 520 + i * 1.3, len = 0.55;
+        if (!r.gaps.some(g => Logic.angDist(ang + g, th) < GAP_HALF + len / 2)) {
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = STROKE - 2;
+          ctx.beginPath(); ctx.arc(P.x, P.y, r.r, th - len / 2, th + len / 2); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(P.x, P.y, r.r, th - len / 3, th + len / 3); ctx.stroke();
+        }
+      }
+      if (fl > 0) { ctx.globalAlpha = P.alpha * fl; arcs(r, ang, P.x, P.y, '#fff', STROKE + 4); }
+      ctx.restore();
+    }
+    fusePoints(now);
+    for (let i = 0; i < L.rings.length; i++) {
+      if (!live(i)) continue;
+      if (L.rings[i].bomb) bombBadge(i, now);
+      if (L.rings[i].cbomb) candyBadge(i, now);
+    }
+    // Renk bombasının ışınları: bombadan aynı renkteki halkalara uzanan şeker şeritleri
+    S.beams = S.beams.filter(b => now - b.t0 < 700);
+    for (const b of S.beams) {
+      const t = (now - b.t0) / 700, head = Math.min(1, Math.max(0, (now - b.t0) / 240)), e = 1 - Math.pow(1 - head, 3);
+      const hx = b.x0 + (b.x1 - b.x0) * e, hy = b.y0 + (b.y1 - b.y0) * e;
+      const mx = (b.x0 + b.x1) / 2 + b.bend * (b.y1 - b.y0), my = (b.y0 + b.y1) / 2 - b.bend * (b.x1 - b.x0);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, 2.2 * (1 - t));
+      ctx.lineCap = 'round';
+      for (const [w, c] of [[11, 'rgba(18,7,15,.55)'], [7, b.c], [2.5, '#fff']]) {
+        ctx.strokeStyle = c; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(b.x0, b.y0);
+        // eğri boyunca baştan başın olduğu yere kadar
+        for (let k = 1; k <= 16; k++) {
+          const u = e * k / 16;
+          ctx.lineTo((1 - u) * (1 - u) * b.x0 + 2 * u * (1 - u) * mx + u * u * b.x1, (1 - u) * (1 - u) * b.y0 + 2 * u * (1 - u) * my + u * u * b.y1);
+        }
+        ctx.stroke();
+      }
+      if (head < 1) {
+        const u = e, px = (1 - u) * (1 - u) * b.x0 + 2 * u * (1 - u) * mx + u * u * b.x1, py = (1 - u) * (1 - u) * b.y0 + 2 * u * (1 - u) * my + u * u * b.y1;
+        ctx.fillStyle = '#fff'; sparkle(px, py, 11, now / 90);
+      }
+      ctx.restore();
+    }
+    // fitilli patlamalar: beyaz parlama, şok dalgası, kor parçaları
+    S.booms = S.booms.filter(b => now - b.t0 < 900);
+    for (const b of S.booms) {
+      const t = Math.max(0, (now - b.t0) / 900);
+      ctx.save();
+      if (t < .25) {
+        const fg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 1.6);
+        fg.addColorStop(0, `rgba(255,255,240,${1 - t / .25})`); fg.addColorStop(.4, `rgba(255,211,74,${.8 * (1 - t / .25)})`); fg.addColorStop(1, 'rgba(255,90,61,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.6, 0, TAU); ctx.fill();
+      }
+      const e = 1 - Math.pow(1 - t, 3);
+      ctx.strokeStyle = `rgba(255,170,90,${1 - t})`; ctx.lineWidth = 10 * (1 - t) + 1;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (0.4 + 2.2 * e), 0, TAU); ctx.stroke();
+      for (const p of b.bits) {
+        const d = p.v * e * b.r * 2.4;
+        ctx.fillStyle = p.c; ctx.globalAlpha = 1 - t;
+        ctx.beginPath(); ctx.arc(b.x + Math.cos(p.a) * d, b.y + Math.sin(p.a) * d + 40 * t * t, p.s * (1 - t * .6), 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+    // şeker patlamaları: renkli halka dalgası ve serpinti (çubuk şeker kırıntıları)
+    S.pops = S.pops.filter(b => now - b.t0 < 1000);
+    for (const b of S.pops) {
+      const t = Math.max(0, (now - b.t0) / 1000), e = 1 - Math.pow(1 - t, 3);
+      if (now < b.t0) continue;
+      ctx.save();
+      if (t < .2) {
+        const fg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+        fg.addColorStop(0, `rgba(255,255,255,${1 - t / .2})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = b.c; ctx.lineWidth = 6 * (1 - t) + 1;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (0.3 + 1.2 * e), 0, TAU); ctx.stroke();
+      ctx.lineCap = 'round';
+      for (const p of b.bits) {
+        const d = p.v * e * b.r * 1.9, px = b.x + Math.cos(p.a) * d, py = b.y + Math.sin(p.a) * d + 50 * t * t;
+        ctx.strokeStyle = p.c; ctx.lineWidth = 3.4;
+        ctx.beginPath(); ctx.moveTo(px - Math.cos(p.a + p.r * t) * 4, py - Math.sin(p.a + p.r * t) * 4); ctx.lineTo(px + Math.cos(p.a + p.r * t) * 4, py + Math.sin(p.a + p.r * t) * 4); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (S.praise) {
+      const t = (now - S.praise.t0) / 1600;
+      if (t >= 1) S.praise = null;
+      else {
+        ctx.save();
+        ctx.globalAlpha = t < .12 ? t / .12 : 1 - Math.max(0, (t - .6) / .4);
+        ctx.font = '800 44px "Baloo 2", "Nunito", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(18,7,15,.85)'; ctx.lineJoin = 'round';
+        const y = 72 - 14 * t, sc = 1 + .18 * Math.sin(Math.min(t, .3) / .3 * Math.PI);
+        ctx.translate(W / 2, y); ctx.scale(sc, sc);
+        ctx.strokeText(S.praise.text, 0, 0);
+        ctx.fillStyle = S.praise.color || '#ffd34a'; ctx.fillText(S.praise.text, 0, 0);
+        if (S.praise.sub) {
+          ctx.font = '800 19px "Nunito", sans-serif'; ctx.lineWidth = 6;
+          ctx.strokeText(S.praise.sub, 0, 30); ctx.fillStyle = '#ffd0ea'; ctx.fillText(S.praise.sub, 0, 30);
+        }
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  // ---- hareket ----
+  const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+
+  function tween(from, to, ms, ease) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const step = () => {
+        const t = REDUCED ? 1 : Math.min((performance.now() - t0) / ms, 1), e = ease(t);
+        S.angles = from.map((a, i) => a + Logic.signedDelta(a, to[i]) * e);
+        if (t < 1) requestAnimationFrame(step); else { S.angles = to.slice(); res(); }
+      };
+      step();
+    });
+  }
+
+  // Halka uçar: patlamayla vurulan, onu vurandan uzağa daha hızlı ve dönerek gider
+  function launch(i, now, from) {
+    const r = S.L.rings[i];
+    const dx = r.x - (from ? from.x : W / 2), dy = r.y - (from ? from.y : H / 2);
+    const d = Math.hypot(dx, dy) || 1;
+    S.fly[i] = from ? { t0: now, dx: dx / d, dy: dy / d - .15, ms: 620, dist: 560, spin: (Math.random() < .5 ? -1 : 1) * 2.5 }
+                    : { t0: now, dx: dx / d, dy: dy / d - .25, ms: 520, dist: 460, spin: 0 };
+    S.mask |= 1 << i;
+  }
+
+  const BEAM_MS = 240;
+  async function settle() {
+    const L = S.L, st = S; // bölüm değişirse eski animasyon yeni bölüme yazmasın
+    const c = Logic.cascade(L, S.angles, S.mask);
+    if (!c.waves.length) return;
+    S.busy = true;
+    let freed = 0, bangs = 0, pops = 0, popHits = 0, popPaint = -1;
+    const blastFrom = {}; // vurulan halka -> onu vuranın konumu
+    for (let k = 0; k < c.waves.length; k++) {
+      const now = performance.now();
+      for (const i of c.waves[k]) { launch(i, now, blastFrom[i]); freed++; }
+      if (!c.blasts[k].length) { await sleep(200); if (S !== st) return; continue; }
+      // bomba kalkarken rozetin yeri alınır (uçunca rozet çizilmez)
+      const from = {};
+      for (const b of c.blasts[k]) from[b.from] = L.rings[b.from].cbomb ? badgePos(b.from) : L.rings[b.from];
+      await sleep(170); if (S !== st) return;
+      const t0 = performance.now();
+      let fuse = false;
+      for (const b of c.blasts[k]) {
+        const r = L.rings[b.from], o = from[b.from];
+        if (b.paint == null) {
+          fuse = true; bangs++;
+          S.booms.push({ x: r.x, y: r.y, r: r.r, t0, bits: Array.from({ length: 22 }, () => ({ a: Math.random() * TAU, v: .5 + Math.random() * .7, s: 2 + Math.random() * 3.5, c: ['#ffd34a', '#ff7a45', '#fff', '#ff5a3d'][Math.floor(Math.random() * 4)] })) });
+          for (const h of b.hits) { S.flash[h] = t0; blastFrom[h] = r; }
+          continue;
+        }
+        // Renk bombası: şeker patlar, aynı renkteki her halkaya bir şerit uzanır; şerit varınca halka parlar
+        pops++; popHits += b.hits.length; popPaint = b.paint;
+        const pc = PAINTS[b.paint].color, bits = () => Array.from({ length: 18 }, () => ({ a: Math.random() * TAU, v: .4 + Math.random() * .8, r: (Math.random() * 2 - 1) * 8, c: [pc, '#fff', pc][Math.floor(Math.random() * 3)] }));
+        S.pops.push({ x: o.x, y: o.y, r: 60, c: pc, t0, bits: bits() });
+        b.hits.forEach((h, n) => {
+          const R = L.rings[h];
+          S.beams.push({ x0: o.x, y0: o.y, x1: R.x, y1: R.y, c: pc, t0: t0 + n * 40, bend: (n % 2 ? -1 : 1) * 0.18 });
+          S.flash[h] = t0 + n * 40 + BEAM_MS;
+          S.pops.push({ x: R.x, y: R.y, r: R.r * 0.9, c: pc, t0: t0 + n * 40 + BEAM_MS, bits: bits() });
+          blastFrom[h] = o;
+        });
+        candyPop(b.hits.length, b.paint);
+      }
+      const n = bangs + pops;
+      S.shake = { t0, ms: 300 + 120 * n, amp: (fuse ? 7 : 4) + 3 * Math.min(n, 3) };
+      if (fuse) boom(bangs > 1);
+      // vurulanlar parlar, sonra uçar (renk bombasında şeritlerin varması beklenir)
+      await sleep(c.blasts[k].some(b => b.paint != null) ? BEAM_MS + 40 * (Math.max(...c.blasts[k].map(b => b.hits.length)) - 1) + 150 : 140);
+      if (S !== st) return;
+    }
+    await sleep(520); if (S !== st) return;
+    for (const i of Object.keys(S.fly)) { S.hidden |= 1 << i; delete S.fly[i]; }
+    S.angles = c.angles.slice();
+    S.mask = c.mask;
+    const now = performance.now();
+    if (bangs + pops >= 2) S.praise = { text: 'Zincirleme!', sub: `${bangs + pops} patlama · ${freed} halka`, t0: now };
+    else if (pops) S.praise = { text: 'Renk patlaması!', sub: `${popHits} ${PAINTS[popPaint].name} halka birden`, color: PAINTS[popPaint].color, t0: now };
+    else if (freed >= 5) S.praise = { text: 'Büyük patlama!', sub: `${freed} halka birden`, t0: now };
+    else if (freed >= 2) S.praise = { text: freed >= 4 ? 'Muhteşem!' : freed === 3 ? 'Harika!' : 'Süper!', t0: now };
+    S.busy = false;
+    if (S.mask === L.full) win();
+  }
+
+  function win() {
+    done.add(S.k);
+    renderTabs();
+    const perfect = S.moves <= S.par;
+    $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
+    $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
+    $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
+    const k = S.k;
+    setTimeout(() => { if (S.k === k && S.mask === S.L.full) $('win').hidden = false; }, 1100);
+  }
+
+  // Bırakınca boşluk bir kesişime yakınsa oraya oturur
+  function snap(i) {
+    const L = S.L, ring = L.rings[i];
+    let best = null, bd = 14 * DEG;
+    for (const li of L.ringLinks[i]) {
+      const k = L.links[li], o = k.a === i ? k.b : k.a;
+      if (S.mask & (1 << o)) continue;
+      for (const p of k.pts) {
+        const ang = k.a === i ? p.angA : p.angB;
+        for (const g of ring.gaps) {
+          const t = Logic.norm(ang - g), d = Logic.angDist(t, S.angles[i]);
+          if (d < bd) { bd = d; best = t; }
+        }
+      }
+    }
+    if (best != null) S.angles = Logic.rotate(L, S.angles, i, Logic.signedDelta(S.angles[i], best));
+  }
+
+  const toBoard = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height }; };
+  cv.addEventListener('pointerdown', e => {
+    if (S.busy || !$('win').hidden) return;
+    const p = toBoard(e);
+    let pick = -1, bd = 28;
+    S.L.rings.forEach((r, i) => {
+      if (S.mask & (1 << i)) return;
+      const d = Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      if (d < bd) { bd = d; pick = i; }
+    });
+    if (pick < 0) return;
+    const r = S.L.rings[pick];
+    S.drag = { ring: pick, last: Math.atan2(p.y - r.y, p.x - r.x), total: 0, base: S.angles.slice() };
+    S.hintRing = -1;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.drag) return;
+    const p = toBoard(e), r = S.L.rings[S.drag.ring];
+    const a = Math.atan2(p.y - r.y, p.x - r.x);
+    S.drag.total += Logic.signedDelta(S.drag.last, a);
+    S.drag.last = a;
+    S.angles = Logic.rotate(S.L, S.drag.base, S.drag.ring, S.drag.total);
+  });
+  const release = () => {
+    if (!S.drag) return;
+    const d = S.drag; S.drag = null;
+    if (Math.abs(d.total) < 3 * DEG) { S.angles = d.base; return; }
+    snap(d.ring);
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  $('reset').onclick = () => { if (!S.busy) load(S.k); };
+  $('next').onclick = () => load((S.k + 1) % LEVELS.length);
+  $('hint').onclick = async () => {
+    if (S.busy || S.mask === S.L.full) return;
+    const sol = Logic.solve(S.L, S.angles, S.mask, 200000);
+    if (!sol || !sol.first) return;
+    S.busy = true; S.hintRing = sol.first.ring;
+    await tween(S.angles, Logic.rotate(S.L, S.angles, sol.first.ring, sol.first.delta), 650, t => 1 - Math.pow(1 - t, 3));
+    S.hintRing = -1; S.busy = false;
+    S.moves++; $('moves').textContent = S.moves;
+    settle();
+  };
+
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  load(0);
+  requestAnimationFrame(draw);
+  window.__proto = { get S() { return S; }, load, hint: () => $('hint').onclick() };
+})();
+</script>

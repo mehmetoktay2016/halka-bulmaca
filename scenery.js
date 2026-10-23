@@ -372,6 +372,109 @@
       g.fillStyle = rgba(c, a * 0.8);
       for (let k = 0; k < 30; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R(), 0, TAU); g.fill(); }
     },
+    // Şeker Diyarı (2.6): şeker ambalajı gibi çapraz şeritler, üstüne dağılmış serpinti ve küçük şeker topları
+    seker(g, w, h, c, a, R) {
+      g.save();
+      g.translate(w / 2, h / 2); g.rotate(-Math.PI / 4);
+      const D = Math.hypot(w, h);
+      g.fillStyle = rgba(c, a * 0.55);
+      for (let x = -D / 2; x < D / 2; x += 56) g.fillRect(x, -D / 2, 22, D);
+      g.fillStyle = rgba(c, a * 0.3);
+      for (let x = -D / 2 + 30; x < D / 2; x += 56) g.fillRect(x, -D / 2, 5, D);
+      g.restore();
+      g.lineCap = 'round'; g.lineWidth = 3; g.strokeStyle = rgba(c, a);
+      for (let k = 0; k < (w * h) / 2600; k++) {
+        const x = R() * w, y = R() * h, ang = R() * TAU;
+        g.beginPath(); g.moveTo(x - Math.cos(ang) * 4, y - Math.sin(ang) * 4); g.lineTo(x + Math.cos(ang) * 4, y + Math.sin(ang) * 4); g.stroke();
+      }
+      g.fillStyle = rgba(c, a * 0.8);
+      for (let k = 0; k < 14; k++) { g.beginPath(); g.arc(R() * w, R() * h, 3 + R() * 4, 0, TAU); g.fill(); }
+    },
+    // Piramit (2.6): şaşırtmalı kumtaşı bloklar, derzlerde kum; bazı bloklarda oyma hiyeroglif (göz, ankh, su, kuş)
+    piramit(g, w, h, c, a, R) {
+      const bh = 46, bw = 92;
+      g.strokeStyle = rgba(c, a * 0.9); g.lineWidth = 2;
+      for (let y = 0, row = 0; y < h + bh; y += bh, row++) {
+        g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+        for (let x = (row % 2) * bw / 2; x < w + bw; x += bw) {
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + bh); g.stroke();
+          // blok yüzeyinde aşınma lekesi
+          g.fillStyle = rgba(c, a * 0.25);
+          g.beginPath(); g.ellipse(x + bw * (0.3 + R() * 0.4), y + bh * (0.3 + R() * 0.4), 6 + R() * 12, 3 + R() * 6, 0, 0, TAU); g.fill();
+          if (R() > 0.22) continue;
+          const cx = x + bw / 2, cy = y + bh / 2, kind = Math.floor(R() * 4);
+          g.save(); g.strokeStyle = rgba(c, a * 1.4); g.lineWidth = 2.2; g.lineCap = 'round';
+          g.beginPath();
+          if (kind === 0) { // göz
+            g.ellipse(cx, cy, 11, 5, 0, 0, TAU); g.moveTo(cx + 3, cy); g.arc(cx, cy, 3, 0, TAU);
+            g.moveTo(cx - 4, cy + 5); g.lineTo(cx - 7, cy + 12);
+          } else if (kind === 1) { // ankh
+            g.ellipse(cx, cy - 8, 4, 6, 0, 0, TAU); g.moveTo(cx, cy - 2); g.lineTo(cx, cy + 14); g.moveTo(cx - 8, cy + 2); g.lineTo(cx + 8, cy + 2);
+          } else if (kind === 2) { // su
+            for (const dy of [-5, 3]) { g.moveTo(cx - 14, cy + dy); for (let k = 1; k <= 7; k++) g.lineTo(cx - 14 + k * 4, cy + dy + (k % 2 ? -3 : 0)); }
+          } else { // kuş
+            g.moveTo(cx - 10, cy + 8); g.quadraticCurveTo(cx - 4, cy - 4, cx + 6, cy - 6); g.lineTo(cx + 11, cy - 3);
+            g.moveTo(cx - 2, cy); g.lineTo(cx - 2, cy + 12); g.moveTo(cx + 3, cy - 2); g.lineTo(cx + 3, cy + 12);
+          }
+          g.stroke(); g.restore();
+        }
+      }
+      g.fillStyle = rgba(c, a * 0.7);
+      for (let k = 0; k < (w * h) / 1800; k++) g.fillRect(R() * w, R() * h, 1.2, 1.2);
+    },
+    // Mercan Resifi (2.6): su altından süzülen ışık ağı (dalgalı hücreler), yer yer dallanan mercan ve küçük deniz kabukları
+    mercan(g, w, h, c, a, R) {
+      g.strokeStyle = rgba(c, a * 0.9); g.lineWidth = 1.6; g.lineCap = 'round';
+      // ışık ağı: kaydırılmış ızgaranın köşeleri arasında hafif kıvrık çizgiler
+      const cell = 46, pts = [];
+      for (let y = -cell, j = 0; y < h + cell; y += cell, j++) {
+        const row = [];
+        for (let x = -cell; x < w + cell; x += cell) row.push([x + (j % 2) * cell / 2 + (R() - 0.5) * 18, y + (R() - 0.5) * 18]);
+        pts.push(row);
+      }
+      const bend = (p, q) => { g.moveTo(p[0], p[1]); g.quadraticCurveTo((p[0] + q[0]) / 2 + (R() - 0.5) * 14, (p[1] + q[1]) / 2 + (R() - 0.5) * 14, q[0], q[1]); };
+      g.beginPath();
+      pts.forEach((row, j) => row.forEach((p, k) => {
+        if (row[k + 1]) bend(p, row[k + 1]);
+        const nx = pts[j + 1];
+        if (nx) bend(p, nx[k + (j % 2)] || nx[k]);
+      }));
+      g.stroke();
+      // mercan dalları: kökten çatallanan kalın çizgiler
+      const branch = (x, y, ang, len, wd, depth) => {
+        const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+        g.lineWidth = wd; g.beginPath(); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke();
+        if (depth > 0) for (const d of [-0.5, 0.45]) branch(x2, y2, ang + d + (R() - 0.5) * 0.3, len * 0.72, wd * 0.7, depth - 1);
+        else { g.beginPath(); g.arc(x2, y2, wd * 0.8, 0, TAU); g.fill(); }
+      };
+      g.strokeStyle = rgba(c, a * 1.3); g.fillStyle = rgba(c, a * 1.3);
+      for (let k = 0; k < 4; k++) branch(R() * w, h * (0.5 + R() * 0.5), -Math.PI / 2 + (R() - 0.5) * 0.6, 22 + R() * 14, 5, 3);
+      // deniz kabukları: yelpaze biçimli küçük taraklar
+      for (let k = 0; k < 7; k++) {
+        const x = R() * w, y = R() * h, s = 6 + R() * 5, rot = R() * TAU;
+        g.save(); g.translate(x, y); g.rotate(rot);
+        g.fillStyle = rgba(c, a); g.beginPath(); g.moveTo(0, s * 0.6); g.arc(0, 0, s, Math.PI * 1.1, Math.PI * 1.9); g.closePath(); g.fill();
+        g.strokeStyle = rgba(c, a * 1.4); g.lineWidth = 1;
+        for (let r = -2; r <= 2; r++) { g.beginPath(); g.moveTo(0, s * 0.6); g.lineTo(Math.cos(-Math.PI / 2 + r * 0.32) * s, Math.sin(-Math.PI / 2 + r * 0.32) * s); g.stroke(); }
+        g.restore();
+      }
+    },
+    // Bulut Krallığı (2.6): üst üste binen yumuşak bulut kümeleri ve yıldız serpintisi
+    bulut(g, w, h, c, a, R) {
+      for (let k = 0; k < 7; k++) {
+        const x = R() * w, y = R() * h, s = 26 + R() * 30;
+        g.fillStyle = rgba(c, a * 0.8);
+        for (const [dx, dy, f] of [[0, 0, 1], [-0.9, 0.25, 0.7], [0.9, 0.2, 0.75], [-0.4, -0.45, 0.65], [0.45, -0.35, 0.6]]) {
+          g.beginPath(); g.arc(x + dx * s, y + dy * s, s * f, 0, TAU); g.fill();
+        }
+      }
+      g.fillStyle = rgba(c, a * 1.6);
+      for (let k = 0; k < (w * h) / 5000; k++) {
+        const x = R() * w, y = R() * h, s = 1 + R() * 2.2;
+        g.beginPath(); g.moveTo(x, y - s * 2); g.lineTo(x + s * 0.5, y); g.lineTo(x, y + s * 2); g.lineTo(x - s * 0.5, y); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(x - s * 2, y); g.lineTo(x, y + s * 0.5); g.lineTo(x + s * 2, y); g.lineTo(x, y - s * 0.5); g.closePath(); g.fill();
+      }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -729,6 +832,95 @@
         const x = p.x0 + Math.cos(p.y / 30 + p.ph) * p.R;
         g.globalAlpha = 0.5; g.fillStyle = acc; g.shadowColor = acc; g.shadowBlur = 8;
         g.beginPath(); g.arc(x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Şeker Diyarı (2.6): dönerek düşen renkli serpinti; arada yukarı süzülen sarılı şeker
+    seker: {
+      count: 24,
+      make: (w, h, fresh) => (rand() < 0.04 && !fresh
+        ? { candy: true, x: rand() * w, y: h + 30, v: 14 + rand() * 10, ph: rand() * TAU, c: ['#ff6fc0', '#4fdcb0', '#ffd34a'][Math.floor(rand() * 3)] }
+        : { x: rand() * w, y: fresh ? rand() * h : -10, vy: 14 + rand() * 18, ph: rand() * TAU, spin: 1 + rand() * 2.5,
+            c: ['#ff6fc0', '#4fdcb0', '#ffd34a', '#ffffff', '#b388ff'][Math.floor(rand() * 5)] }),
+      step: (p, dt, w, h) => {
+        if (p.candy) { p.y -= p.v * dt; p.x += Math.sin(p.y / 45 + p.ph) * 10 * dt; return p.y > -40; }
+        p.y += p.vy * dt; p.x += Math.sin(p.y / 30 + p.ph) * 12 * dt; return p.y < h + 10;
+      },
+      draw: (g, p, now) => {
+        g.translate(p.x, p.y);
+        if (p.candy) {
+          g.globalAlpha = 0.3; g.rotate(Math.sin(now / 900 + p.ph) * 0.4); g.fillStyle = p.c;
+          for (const d of [-1, 1]) { g.beginPath(); g.moveTo(d * 7, 0); g.lineTo(d * 17, -7); g.lineTo(d * 17, 7); g.closePath(); g.fill(); }
+          g.beginPath(); g.arc(0, 0, 9, 0, TAU); g.fill();
+          return;
+        }
+        g.globalAlpha = 0.5; g.rotate(now / 1000 * p.spin + p.ph);
+        g.strokeStyle = p.c; g.lineWidth = 3; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(-4, 0); g.lineTo(4, 0); g.stroke();
+      },
+    },
+    // Piramit (2.6): rüzgârla yana savrulan kum taneleri; arada güneşte parlayan altın toz
+    piramit: {
+      count: 36,
+      make: (w, h, fresh) => ({ x: fresh ? rand() * w : -10, y: rand() * h, vx: 30 + rand() * 40, ph: rand() * TAU, r: 1.1 + rand() * 1.6,
+        gold: rand() < 0.08, c: ['#e8c88a', '#d9b070', '#f3dcae'][Math.floor(rand() * 3)] }),
+      step: (p, dt, w) => { p.x += p.vx * dt; p.y += Math.sin(p.x / 40 + p.ph) * 14 * dt; return p.x < w + 10; },
+      draw: (g, p, now) => {
+        if (p.gold) {
+          g.globalAlpha = 0.35 + 0.35 * Math.sin(now / 180 + p.ph); g.fillStyle = '#ffe08a';
+          g.translate(p.x, p.y); g.rotate(now / 700 + p.ph);
+          g.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? 1 : 3.5, a = k * Math.PI / 4; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill();
+          return;
+        }
+        g.globalAlpha = 0.6; g.fillStyle = p.c;
+        g.beginPath(); g.ellipse(p.x, p.y, p.r * 2.6, p.r * 1.1, 0, 0, TAU); g.fill();
+      },
+    },
+    // Mercan Resifi (2.6): sallanarak yükselen kabarcıklar; arada yandan geçen küçük balık sürüsü
+    mercan: {
+      count: 26,
+      make: (w, h, fresh) => (rand() < 0.05 && !fresh
+        ? { fish: true, x: -30, y: h * (0.15 + rand() * 0.7), v: 30 + rand() * 25, ph: rand() * TAU, n: 3 + Math.floor(rand() * 3), c: ['#ff8a7a', '#ffcf7a', '#2dd4bf'][Math.floor(rand() * 3)] }
+        : { x: rand() * w, y: fresh ? rand() * h : h + 10, vy: 16 + rand() * 22, ph: rand() * TAU, r: 1.5 + rand() * 3.5 }),
+      step: (p, dt, w) => {
+        if (p.fish) { p.x += p.v * dt; return p.x < w + 60; }
+        p.y -= p.vy * dt; p.x += Math.sin(p.y / 22 + p.ph) * 10 * dt; return p.y > -10;
+      },
+      draw: (g, p, now) => {
+        if (p.fish) {
+          g.globalAlpha = 0.28; g.fillStyle = p.c;
+          for (let k = 0; k < p.n; k++) {
+            const x = p.x - k * 16, y = p.y + Math.sin(now / 300 + k + p.ph) * 5 + (k % 2) * 8, wag = Math.sin(now / 90 + k) * 2;
+            g.beginPath(); g.ellipse(x, y, 7, 3.5, 0, 0, TAU); g.fill();
+            g.beginPath(); g.moveTo(x - 6, y); g.lineTo(x - 12, y - 4 + wag); g.lineTo(x - 12, y + 4 + wag); g.closePath(); g.fill();
+          }
+          return;
+        }
+        g.globalAlpha = 0.4; g.strokeStyle = '#bff3ff'; g.lineWidth = 1.2;
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.stroke();
+        g.fillStyle = '#ffffff'; g.beginPath(); g.arc(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.3, 0, TAU); g.fill();
+      },
+    },
+    // Bulut Krallığı (2.6): yavaşça süzülen bulut tutamları; arada çapraz kayan yıldız
+    bulut: {
+      count: 14,
+      make: (w, h, fresh) => (rand() < 0.06 && !fresh
+        ? { star: true, x: rand() * w * 0.6, y: -10, vx: 160 + rand() * 80, vy: 110 + rand() * 50 }
+        : { x: fresh ? rand() * w : -60, y: rand() * h, vx: 6 + rand() * 10, s: 10 + rand() * 18, ph: rand() * TAU }),
+      step: (p, dt, w, h) => {
+        if (p.star) { p.x += p.vx * dt; p.y += p.vy * dt; return p.x < w + 40 && p.y < h + 40; }
+        p.x += p.vx * dt; return p.x < w + 60;
+      },
+      draw: (g, p, now) => {
+        if (p.star) {
+          const len = 40, d = Math.hypot(p.vx, p.vy), ux = p.vx / d, uy = p.vy / d;
+          const gr = g.createLinearGradient(p.x - ux * len, p.y - uy * len, p.x, p.y);
+          gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,246,214,.8)');
+          g.strokeStyle = gr; g.lineWidth = 2; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(p.x - ux * len, p.y - uy * len); g.lineTo(p.x, p.y); g.stroke();
+          return;
+        }
+        g.globalAlpha = 0.1 + 0.04 * Math.sin(now / 1500 + p.ph); g.fillStyle = '#eef4ff';
+        for (const [dx, dy, f] of [[0, 0, 1], [-0.9, 0.2, 0.7], [0.9, 0.2, 0.7]]) { g.beginPath(); g.arc(p.x + dx * p.s, p.y + dy * p.s, p.s * f, 0, TAU); g.fill(); }
       },
     },
   };
