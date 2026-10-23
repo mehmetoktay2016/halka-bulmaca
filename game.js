@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft, hidden } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft, hidden, isFree } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -241,6 +241,12 @@
         for (let k = 0; k < 4; k++) tone(300 + Math.random() * 300, 0.08, 'sine', 0.04, 900 + Math.random() * 600, k * 0.05);
         tone(1200, 0.04, 'triangle', 0.04, null, 0.05);
         for (const [d, f] of [[0.18, 1046.5], [0.26, 1318.5], [0.34, 1568], [0.42, 2093]]) { tone(f, 1.2, 'sine', 0.045, null, d); tone(f * 2.01, 0.6, 'sine', 0.012, null, d); }
+      },
+      // Zincir gerilir: metal şıngırtı; ikizler birlikte uçar: uzun şıngırtı ve iki nota birden
+      chain: () => { for (let k = 0; k < 3; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); tone(f * 1.5, 0.12, 'sine', 0.018, null, k * 0.045); } },
+      twins: () => {
+        for (let k = 0; k < 6; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); }
+        for (const f of [659.25, 830.6]) { tone(f, 0.6, 'triangle', 0.07, null, 0.08); tone(f * 2, 0.3, 'sine', 0.02, null, 0.08); }
       },
       gear: () => {
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
@@ -1204,7 +1210,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [],
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [], chainCut: {}, chainSide: {}, chainTold: false,
       flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
@@ -1464,6 +1470,7 @@
           dx = ux * s; dy = uy * s;
         } else {
           if (blastFrom[i] != null) { const B = S.L.rings[blastFrom[i]]; dx = r.x - B.x; dy = r.y - B.y; }
+          else if (wave.includes(S.L.chainMate[i])) { const M = S.L.rings[S.L.chainMate[i]]; dx = (r.x + M.x) / 2 - BOARD.w / 2; dy = (r.y + M.y) / 2 - BOARD.h / 2; }
           const len = Math.hypot(dx, dy);
           if (len < 1) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
         }
@@ -1484,6 +1491,20 @@
         setTimeout(() => { S.shellHalves.push({ ring: s, t0: performance.now() }); Sound.pearl(); }, at[w] + 60);
       }
     });
+    // Zincirli ikizler birlikte uçar; biri zorla tek başına giderse zincir kopar
+    let twinned = -1;
+    waves.forEach((wave, w) => {
+      for (const i of wave) {
+        const m = S.L.chainMate[i];
+        if (m < 0 || S.mask & (1 << m)) continue;
+        if (wave.includes(m)) { if (i < m) { twinned = i; setTimeout(() => Sound.twins(), at[w]); } continue; }
+        S.chainCut[Math.min(i, m)] = now + at[w];
+      }
+    });
+    if (!waves.length && S.L.chainMate.some((m, i) => waiting(i))) {
+      Sound.chain();
+      if (!S.chainTold) { S.chainTold = true; showTip(tr('Zincirli halka eşini bekliyor: eşini de serbest bırak')); }
+    }
     // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
     waves.forEach((wave, w) => {
       for (const k of wave) {
@@ -1507,9 +1528,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : twinned >= 0 ? 'twins' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'twins' ? twinned : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -2146,6 +2167,7 @@
     paint: { text: 'Renk patlaması!', colors: ['#fff0f7', '#ff6fc0'] },
     pearl: { text: 'İnci belirdi!', colors: ['#ffffff', '#d8cfe6'] },
     catch: { text: 'İnci avcısı!', colors: ['#ffffff', '#ffcf7a'] },
+    twins: { text: 'İkizler birlikte!', colors: ['#d9fff6', '#2dd4bf'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -4156,6 +4178,63 @@
     }
   }
 
+  // ---- Zincirli ikizler çizimi (2.6) ----
+  // Serbest olup eşini bekleyen zincirli halka (zincir gerilip sarı yanar, halka eşine çekilir ve parlar)
+  const waiting = i => {
+    const m = S.L.chainMate[i];
+    return m >= 0 && present(i) && present(m) && !S.fly[i] && !S.drag && !S.auto && isFree(S.L, i, S.angles, S.mask, S.ph);
+  };
+  // Zincirin yanı: iki halkanın yan tarafından (üst üste binen kısımdan uzakta) bağlanır, ortası öbür halkalardan uzak
+  // düşen tarafa sarkar (bölüm başında bir kez seçilir)
+  function chainSide(a, b) {
+    if (S.chainSide[a]) return S.chainSide[a];
+    const A = S.L.rings[a], B = S.L.rings[b], d = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+    const nx = -(B.y - A.y) / d, ny = (B.x - A.x) / d, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, off = (A.r + B.r) / 2 + 24;
+    const room = s => Math.min(...S.L.rings.map((r, i) => (i === a || i === b || r.kind !== 'ring' ? Infinity : Math.abs(Math.hypot(mx + nx * s * off - r.x, my + ny * s * off - r.y) - r.r))));
+    return (S.chainSide[a] = room(1) >= room(-1) ? 1 : -1);
+  }
+  // Zincir: pirinç baklalar halkalarla birlikte uçar; kopunca baklalar saçılır
+  function drawChains(visible, now) {
+    S.L.chainMate.forEach((b, a) => {
+      if (b < a || !visible[a] || !visible[b]) return;
+      const cut = S.chainCut[a];
+      const A = ringPose(a, now), B = ringPose(b, now), Ra = S.L.rings[a], Rb = S.L.rings[b];
+      const d = Math.hypot(B.cx - A.cx, B.cy - A.cy) || 1, ux = (B.cx - A.cx) / d, uy = (B.cy - A.cy) / d, s = chainSide(a, b);
+      const nx = -uy * s, ny = ux * s, sn = 0.866;
+      const x0 = A.cx + (ux * 0.5 + nx * sn) * Ra.r, y0 = A.cy + (uy * 0.5 + ny * sn) * Ra.r;
+      const x1 = B.cx + (-ux * 0.5 + nx * sn) * Rb.r, y1 = B.cy + (-uy * 0.5 + ny * sn) * Rb.r;
+      const span = Math.hypot(x1 - x0, y1 - y0), taut = waiting(a) || waiting(b);
+      const sag = taut ? 6 : Math.min(36, 12 + span * 0.15), n = Math.max(3, Math.round(span / 13));
+      const at = u => [(1 - u) * x0 + u * x1 + nx * 4 * sag * u * (1 - u), (1 - u) * y0 + u * y1 + ny * 4 * sag * u * (1 - u)];
+      const glow = taut ? 0.6 + 0.4 * Math.sin(now / 140) : 0, color = taut ? `rgb(255,${210 + 30 * glow},${110 + 60 * glow})` : W.PIECE_COLORS.chain;
+      ctx.save();
+      if (cut != null && now >= cut) {
+        // kopan zincir: baklalar yerçekimiyle saçılıp söner
+        const t = (now - cut) / 800;
+        if (t >= 1) { ctx.restore(); return; }
+        ctx.globalAlpha = 1 - t;
+      } else ctx.globalAlpha = Math.min(A.alpha, B.alpha);
+      const t = cut != null && now >= cut ? (now - cut) / 800 : 0;
+      for (let k = 0; k < n; k++) {
+        const u = (k + 0.5) / n, [px, py] = at(u), [qx, qy] = at(Math.min(1, u + 0.5 / n));
+        ctx.save();
+        ctx.translate(px + (t ? Math.cos(k * 2.4) * 90 * t : 0), py + (t ? (Math.sin(k * 1.7) - 0.6) * 60 * t + 120 * t * t : 0));
+        ctx.rotate(Math.atan2(qy - py, qx - px) + t * 6 * (k % 2 ? 1 : -1));
+        const ry = k % 2 ? 2.2 : 3.6;
+        ctx.strokeStyle = 'rgba(4,15,22,.75)'; ctx.lineWidth = 5.5;
+        ctx.beginPath(); ctx.ellipse(0, 0, 6.5, ry, 0, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = color; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.ellipse(0, 0, 6.5, ry, 0, 0, TAU); ctx.stroke();
+        ctx.restore();
+      }
+      if (!t) for (const [x, y] of [[x0, y0], [x1, y1]]) {
+        ctx.fillStyle = 'rgba(4,15,22,.8)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+        ctx.fillStyle = taut ? '#ffe9a8' : W.PIECE_COLORS.chain; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    });
+  }
+
   // ---- Buz halka çizimi (2.5) ----
   // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
   function iceShown(i, now) {
@@ -4257,6 +4336,9 @@
     if (S.L.painted.some(p => p.length)) return W.PIECE_COLORS.plain[i % W.PIECE_COLORS.plain.length];
     if (S.L.rings[i].ratchet) return W.PIECE_COLORS.ratchet;
     if (S.L.rings[i].pearl >= 0) return W.PIECE_COLORS.pearl;
+    if (S.L.chainMate[i] >= 0) return W.PIECE_COLORS.twin;
+    // zincirli bölümde renksizler ikizlerin deniz yeşiline karışmayan mercan, gece mavisi, lila
+    if (S.L.chainMate.some(m => m >= 0)) return S.def.rings[i].color || W.PIECE_COLORS.reef[i % W.PIECE_COLORS.reef.length];
     if (isShell(i)) return W.PIECE_COLORS.shell;
     // cırcırlı bölümde renksizler pirinçle karışmayan turkuaz, kiremit, lacivert taşı
     if (S.L.rings.some(r => r.ratchet)) return S.def.rings[i].color || W.PIECE_COLORS.desert[i % W.PIECE_COLORS.desert.length];
@@ -4308,6 +4390,11 @@
       alpha = 1 - t;
       grow = 1 + 0.15 * t;
       spin = (f.spin || 0) * e;
+    }
+    // Zincirli halka serbestken eşini bekler: eşine doğru hafifçe çekilir
+    if (!f && waiting(i)) {
+      const M = S.L.rings[S.L.chainMate[i]], d = Math.hypot(M.x - cx, M.y - cy) || 1, pull = REDUCED ? 3 : 3 + 2 * Math.sin(now / 160);
+      cx += (M.x - cx) / d * pull; cy += (M.y - cy) / d * pull;
     }
     // Gerilim: son parçalar hafifçe titrer
     if (!f && S.tension >= 0.65 && !REDUCED) { cx += Math.sin(now / 45 + i * 1.7) * 0.9 * S.tension; cy += Math.cos(now / 53 + i) * 0.6 * S.tension; }
@@ -4386,8 +4473,8 @@
     const color = heat ? heatColor(ringColor(i), heat) : ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
     const active = mover >= 0 && S.L.group[mover].includes(i);
-    if (active) {
-      ctx.shadowColor = color;
+    if (active || waiting(i)) {
+      ctx.shadowColor = active ? color : '#ffe9a8';
       ctx.shadowBlur = 18;
     }
     if (ring.step) drawStepDots(i, cx, cy, now);
@@ -5007,6 +5094,7 @@
         drawMotors(now);
         drawRatchets(now);
         if (S.shellHalves.length) drawShellHalves(now);
+        drawChains(visible, now);
         drawPortals(now);
         drawBoilers(now);
         drawTokens(now);

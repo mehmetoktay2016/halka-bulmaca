@@ -56,12 +56,14 @@
       text: 'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.' },
     { id: 'pearl', intro: 1018, name: 'İnci halka',
       text: 'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.' },
+    { id: 'chain', intro: 1019, name: 'Zincirli ikizler',
+      text: 'Zincirle bağlı iki halka ancak aynı anda serbest kalınca birlikte uçar. Biri hazırsa eşini bekler; bomba birini uçurursa zincir kopar.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar', 'geri dönmez', 'inci belirdi'];
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -768,6 +770,33 @@
       dragFinger(g, N[0], N[1], 40, 250 * DEG + n1 * 110 * DEG, t - 300, 900);
       dragFinger(g, O[0], O[1], r, 160 * DEG + s1 * 200 * DEG, t - 1800, 900);
       label(g, tx('inci belirdi'), 130, 178, seg(t, 2900, 3150) * (t < 3700 ? 1 : 0));
+    } },
+    // 2.6: soldaki ikiz serbest kalır ama bekler (zincir gerilir), sağdaki de açılınca ikisi birlikte uçar
+    chain: { ms: 4800, draw(g, t) {
+      const A = [72, 92], B = [188, 92], r = 40, twin = '#2dd4bf';
+      const a1 = io(seg(t, 400, 1100)), b1 = io(seg(t, 2100, 2800)), fly = seg(t, 2950, 3500);
+      const aAng = 200 * DEG - a1 * 160 * DEG, bAng = 330 * DEG + b1 * 190 * DEG;
+      const wait = t > 1150 && t < 2900, pull = wait ? 4 + 2 * Math.sin(t / 160) : 0;
+      const dx = fly * fly * 0, ex = fly * fly;
+      if (fly < 1) {
+        // zincir: yandan sarkan baklalar, beklerken gerilip sarı yanar
+        const x0 = A[0] + pull + r * 0.5, x1 = B[0] - r * 0.5, y0 = A[1] - r * 0.87 - 140 * ex, sag = wait ? 4 : 16;
+        g.save(); g.globalAlpha *= 1 - fly; g.lineWidth = 2.4; g.strokeStyle = wait ? '#ffe9a8' : '#d8b46a';
+        for (let k = 0; k < 7; k++) {
+          const u = (k + 0.5) / 7, x = x0 + (x1 - x0) * u, y = y0 - 4 * sag * u * (1 - u);
+          g.beginPath(); g.ellipse(x, y, 6, k % 2 ? 2 : 3.4, 0, 0, TAU); g.stroke();
+        }
+        g.restore();
+      }
+      if (fly === 0) {
+        ring(g, A[0] + pull, A[1], r, aAng, twin, { glow: wait });
+        ring(g, B[0], B[1], r, bAng, twin);
+      } else { flyRing(g, A[0], A[1], r, aAng, twin, fly, 0, -1); flyRing(g, B[0], B[1], r, bAng, twin, fly, 0, -1); }
+      if (t < 2950) { ring(g, A[0], 150, 26, 90 * DEG, C.red, { alpha: a1 > 0.9 ? Math.max(0, 1 - seg(t, 1150, 1500)) : 1 }); ring(g, B[0], 150, 26, 90 * DEG, C.sky, { alpha: b1 > 0.9 ? Math.max(0, 1 - seg(t, 2850, 3100)) : 1 }); }
+      dragFinger(g, A[0], A[1], r, aAng, t - 300, 900);
+      dragFinger(g, B[0], B[1], r, bAng, t - 2000, 900);
+      label(g, tx('eşini bekliyor'), 130, 178, wait ? 1 : 0);
+      label(g, tx('birlikte!'), 130, 178, seg(t, 3000, 3200) * (t < 4300 ? 1 : 0));
     } },
   };
 

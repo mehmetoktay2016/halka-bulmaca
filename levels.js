@@ -1495,7 +1495,9 @@
       // cırcır: fazla çevirmek turu baştan ister; hangi kesişimin önce geleceğini saymak gerekir
       0.8 * n(r => r.ratchet) +
       // inci: saklıyken kimseyi tutmaz (bölümü kısaltır); düşündüren istiridyeyi ne zaman açacağın
-      0.8 * n(r => r.pearl != null);
+      0.8 * n(r => r.pearl != null) +
+      // zincir: iki halkayı aynı ana hazırlamak gerekir
+      0.5 * n(r => r.chain != null);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1651,6 +1653,10 @@
     // (prototipin "İlk inci"si)
     1018: { title: 'İnci halka', world: 'mercan', tip: 'Dalgalı kenarlı halka istiridyedir. Kurtulunca içindeki inci halka belirir, onu da kurtar',
       rings: [{ x: 200, y: 260, r: 70, a: 135 }, { x: 200, y: 260, r: 40, a: 105, pearl: 0 }, { x: 285, y: 260, r: 58, a: 270 }, { x: 140, y: 320, r: 58, a: 105 }, { x: 150, y: 165, r: 56, a: 300 }] },
+    // Zincir tanıtımı (1019, 2.6): üstteki iki halka zincirli, ortadaki köprü ikisini de keser. Zincirsiz 2 hamle
+    // (soldaki erken gidip yol açar), zincirle 3
+    1019: { title: 'Zincirli ikizler', world: 'mercan', tip: 'Zincirli iki halka ancak birlikte kurtulur: biri serbest kalınca eşini bekler',
+      rings: [{ x: 110, y: 200, r: 60, a: 240, chain: 1 }, { x: 110, y: 300, r: 56, a: 225 }, { x: 200, y: 250, r: 56, a: 345 }, { x: 290, y: 200, r: 60, a: 105, chain: 1 }, { x: 290, y: 300, r: 56, a: 345 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
@@ -1658,7 +1664,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined, chain: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1666,7 +1672,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018, chain: 1019 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1690,6 +1696,7 @@
     if (def.rings.some(r => r.cbomb)) f.push('cbomb');
     if (def.rings.some(r => r.ratchet)) f.push('ratchet');
     if (def.rings.some(r => r.pearl != null)) f.push('pearl');
+    if (def.rings.some(r => r.chain != null)) f.push('chain');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -1712,7 +1719,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 33: 1015, 34: 1012, 36: 1013, 39: 1014, 41: 1016, 44: 1017, 46: 1018 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 33: 1015, 34: 1012, 36: 1013, 39: 1014, 41: 1016, 44: 1017, 46: 1018, 47: 1019 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
@@ -2428,6 +2435,7 @@
     if (f === 'ratchet') out.rings.forEach(r => delete r.ratchet);
     // incisiz hâli: inci baştan görünür
     if (f === 'pearl') out.rings.forEach(r => delete r.pearl);
+    if (f === 'chain') out.rings.forEach(r => delete r.chain);
     return out;
   }
   function mattersAll(def, feats) {
@@ -2439,8 +2447,8 @@
       // Buz çoğu zaman hamle sayısını değil sırayı değiştirir: buzsuz hâlin çözümü bir yerde donmuş halkayı
       // çeviriyorsa buz o yolu kapatmıştır, işe yarıyor sayılır
       if (s && s.moves <= def.par && f === 'ice' && iceBlocksPlain(def, P)) continue;
-      // Cırcır bölümü kolaylaştırmaz, zorlaştırır: cırcırsız hâli daha kısa çözülüyorsa işe yarıyor
-      if (f === 'ratchet') { if (s && s.moves < def.par) continue; return false; }
+      // Cırcır ve zincir bölümü kolaylaştırmaz, zorlaştırır: onlarsız hâli daha kısa çözülüyorsa işe yarıyor
+      if (f === 'ratchet' || f === 'chain') { if (s && s.moves < def.par) continue; return false; }
       if (s && s.moves <= def.par) return false;
     }
     return true;

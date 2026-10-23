@@ -23,6 +23,10 @@
     // 2.6 istiridye lila-gri, inci sedef
     shell: '#a99bc4',
     pearl: '#f4efe6',
+    // zincirli ikizler deniz yeşili, zincir pirinç; zincirli bölümde renksizler mercan, gece mavisi, lila
+    twin: '#2dd4bf',
+    chain: '#d8b46a',
+    reef: ['#ff8a7a', '#5b8def', '#c792ea'],
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)
