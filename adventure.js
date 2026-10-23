@@ -1795,6 +1795,23 @@
         g.fillStyle = '#3a2a8a'; g.beginPath(); g.moveTo(-10, -12); g.lineTo(2, -44); g.lineTo(10, -12); g.closePath(); g.fill(); g.fillStyle = '#ffd34a'; star(-1, -26, 2.4); star(4, -18, 1.8);
         g.fillStyle = '#8a643a'; g.save(); g.translate(16, -14); g.rotate(-0.6); g.fillRect(-1, -16, 2, 16); g.restore(); if (on) light(22, -26, 8, 'rgba(255,230,150,.9)');
       },
+      // 2.6: lolipop ağacı (Şeker Diyarı) ve piramit (Piramit)
+      lolipop(on, t) {
+        g.fillStyle = '#f4efe6'; g.fillRect(-1.5, -30, 3, 30);
+        g.fillStyle = '#ff6fc0'; g.beginPath(); g.arc(0, -36, 11, 0, TAU); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.beginPath();
+        for (let a = 0; a < 3 * TAU; a += 0.3) { const r = a / (3 * TAU) * 10; g.lineTo(Math.cos(a + t / 900) * r, -36 + Math.sin(a + t / 900) * r); }
+        g.stroke();
+        if (on) light(0, -36, 16, 'rgba(255,111,192,.5)');
+      },
+      piramit(on, t) {
+        g.fillStyle = '#c8a870'; g.beginPath(); g.moveTo(-24, 0); g.lineTo(0, -34); g.lineTo(24, 0); g.closePath(); g.fill();
+        g.fillStyle = '#a8885a'; g.beginPath(); g.moveTo(0, -34); g.lineTo(24, 0); g.lineTo(6, 0); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(60,40,10,.45)'; g.lineWidth = 1;
+        for (const y of [-8, -16, -24]) { const w = 24 * (1 + y / 34); g.beginPath(); g.moveTo(-w, y); g.lineTo(w, y); g.stroke(); }
+        g.fillStyle = '#ffd36b'; g.beginPath(); g.moveTo(-4, -29); g.lineTo(0, -34); g.lineTo(4, -29); g.closePath(); g.fill();
+        if (on) light(0, -32, 14, 'rgba(255,211,107,.7)');
+      },
       gokkusagi(on, t) { ['#ff6b6b', '#ffb347', '#ffd34a', '#5cc27f', '#4cc9f0', '#b388ff'].forEach((c, i) => { g.strokeStyle = c; g.lineWidth = 2.6; g.beginPath(); g.arc(0, 0, 24 - i * 2.8, Math.PI, 0); g.stroke(); }); },
       portal(on, t) { portalRing(-10, -22, 9, '#4cc9f0', t); portalRing(10, -22, 9, '#ff6fb5', t + 300); },
       hali(on, t) {
@@ -1985,6 +2002,10 @@
       rasathane: ['smallDome', 'scope', 'globe', 'rock', 'constel', 'scope'],
       degirmen: ['tree', 'smallMill', 'hay', 'flowers', 'fence', 'bush'],
       buyu: ['crystalD', 'books', 'rune', 'smallPortal', 'crystalD', 'books'],
+      seker: ['balloons', 'flowers', 'mushroom', 'lamp', 'balloons', 'stall'],
+      piramit: ['rock', 'column', 'statue', 'rock', 'torchPost', 'column'],
+      mercan: ['buoy', 'rock', 'gull', 'buoy', 'smallLight', 'rock'],
+      bulut: ['balloons', 'mote', 'smallMill', 'balloons', 'glowLamp', 'mote'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {

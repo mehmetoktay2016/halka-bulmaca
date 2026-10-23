@@ -1,4 +1,4 @@
-// Halka'nın Yolculuğu: senaryo, her dünyanın sahnesi, her kapının yapısı ve 400 durağın adı.
+// Halka'nın Yolculuğu: senaryo, her dünyanın sahnesi, her kapının yapısı ve 500 durağın adı.
 // Harita (adventure.js) bu dosyadan çizer. Kapının 5. ve 10. durağı şekil bölümüdür (kurtarılan dost):
 // orada ad şeklin kendi adıdır, burada yalnız yolculuk biçimi yazılır.
 // Durak: [ad, istasyon çizimi, yolculuk]. Yolculuk: o duraktan bir sonrakine Halka'yı ne taşır.
@@ -22,7 +22,10 @@
       { from: 301, to: 400, name: 'Üçüncü Perde: Anka\'nın Ateşi', text: 'Yıldız haritası son bir düğümü gösterir: ' +
         'Büyü Kulesi\'nde uyuyan Anka Kuşu. Halka fişeklerle göğü aydınlatır, buzulu aşar, değirmenleri döndürür ' +
         've Anka\'yı özgür bırakır. Anka\'nın ateşi bütün dünyalara ışık taşır ve haritada o güne dek görünmeyen ' +
-        'yeni yolları aydınlatır. Yolculuk sürüyor.' },
+        'yeni yolları aydınlatır.' },
+      { from: 401, to: 500, name: 'Dördüncü Perde: Gökyüzü Sarayı', text: 'Anka\'nın ışığıyla açılan yollar dört yeni diyara ' +
+        'uzanır. Halka şekerlerin, kumların, mercanların ve bulutların arasındaki düğümleri çözer; sonunda bulutların ' +
+        'üstündeki sarayda bütün dostlarıyla buluşur. Yolculuk sürüyor.' },
     ],
   };
 
@@ -60,6 +63,14 @@
       scene: 'Sulak çayırlar, su arkları, yel değirmenleri, ambarlar, buğday ve ayçiçeği tarlaları.' },
     buyu: { story: 'Son durak: Büyü Kulesi. Anka Kuşu ikiz portalların arasında uyuyor.',
       scene: 'Mor sis, yüzen kitaplar, aynalar, kristaller, rün taşları ve portallar.' },
+    seker: { story: 'Anka\'nın ışığı bir şeker diyarına düşer. Renkli şekerler halkalara yapışmış; aynı renkler birlikte patlar.',
+      scene: 'Lolipop ağaçları, pamuk şeker bulutları, çikolata nehri, kurabiye evler; yol şeker karolardan.' },
+    piramit: { story: 'Şekerlerin ötesinde kum tepeleri. Piramidin dişli kapıları yalnız tek yöne döner.',
+      scene: 'Kum tepeleri, vahalar, dikilitaşlar, hiyeroglifli duvarlar ve piramidin altın tepesi; yol kumtaşı.' },
+    mercan: { story: 'Piramidin gizli kanalı denize açılır. İstiridyeler incilerini saklıyor, ikizler zincire vurulmuş.',
+      scene: 'Mercan bahçeleri, istiridyeler, yunuslar, batık bir gemi ve hazine sandıkları; yol deniz kabuğu.' },
+    bulut: { story: 'Batık gemideki harita bulutların üstünü gösterir. Rüzgâr taş halkaları bile çeviriyor; Halka gökyüzü sarayına yükselir.',
+      scene: 'Bulut adaları, balonlar, rüzgâr gülleri, gökkuşağı köprüsü ve bulut sarayı; yol bulut taşları.' },
   };
 
   // Kapının yapısı (haritada kapının kendisi) ve hikâyedeki anı
@@ -104,6 +115,16 @@
     38: { gate: 'Çark evinin ambar kapısı', story: 'Hasat zamanı; Ayçiçeği güneşe döner.' },
     39: { gate: 'Ayna salonunun kristal kapısı', story: 'İkiz portallar yan yana.' },
     40: { gate: 'Anka\'nın portalı', story: 'Son düğüm çözülür; Anka Kuşu kanatlanır.' },
+    41: { gate: 'Şekerleme dükkânının çizgili tentesi', story: 'Kavanozlardaki şekerler halkalara yapışmış.' },
+    42: { gate: 'Lolipop kemeri', story: 'Bahçede aynı renk şekerler birlikte patlar.' },
+    43: { gate: 'Çikolata şelalesinin köprüsü', story: 'Şeker Diyarı\'nın son düğümü çözülür.' },
+    44: { gate: 'Kum tepesindeki taş kemer', story: 'Dişli kapılar yalnız tek yöne döner.' },
+    45: { gate: 'Piramidin altın kapısı', story: 'Firavunun odasından denize açılan gizli kanal.' },
+    46: { gate: 'Mercan kemeri', story: 'İstiridyeler incilerini saklıyor.' },
+    47: { gate: 'Dev istiridye kapağı', story: 'Zincirli ikizler birlikte özgür kalır.' },
+    48: { gate: 'Batık geminin pruvası', story: 'Gemideki harita bulutların üstünü gösterir.' },
+    49: { gate: 'Gökkuşağı köprüsünün kemeri', story: 'Rüzgâr taş halkaları çeviriyor.' },
+    50: { gate: 'Bulut sarayının kapısı', story: 'Yolculuğun beşinci yüzü: bütün dostlar sarayda buluşur.' },
   };
 
   // Durak: [ad, çizim, yolculuk]; 5. ve 10. durak şekil bölümü: [null, 'sekil', yolculuk]
@@ -246,6 +267,40 @@
     40: [S('İkiz Portal', 'portal', 'isinlanma'), S('Mor Sis', 'bulutsu', 'balon'), S('Uçan Halı', 'hali', 'ucurtma'),
       S('Büyü Kitaplığı', 'kutuphane', 'isinlanma'), F('ucurtma'), S('Yıldız Çemberi', 'cember', 'isinlanma'), S('Kül Yuvası', 'kul', 'fener'),
       S('Ateş Kuyusu', 'ateskuyusu', 'roket'), S('Anka\'nın Tüneği', 'tunek', 'kus'), F('kus')],
+    // ---- Şeker Diyarı ----
+    41: [S('Şekerci Vitrini', 'vitrin', 'ziplama'), S('Pamuk Şeker', 'pamuk', 'balon'), S('Karamel Kazanı', 'kazan', 'kayma'),
+      S('Şeker Kavanozu', 'sepet', 'ziplama'), F('ziplama'), S('Lolipop Ağacı', 'lolipop', 'kayma'), S('Muz Şekeri', 'muz', 'ziplama'),
+      S('Fincan Dönmesi', 'fincan', 'tekerlek'), S('Kurabiye Fırını', 'firin', 'ziplama'), F('balon')],
+    42: [S('Lolipop Yolu', 'lolipop', 'kayma'), S('Şeker Çiçekleri', 'cicek', 'ziplama'), S('Nane Çeşmesi', 'cesme', 'kayma'),
+      S('Şeker Mantarlar', 'mantar', 'ziplama'), F('kayma'), S('Krema Tepesi', 'tepe', 'kizak'), S('Şeker Salıncağı', 'salincak', 'ziplama'),
+      S('Pasta Pazarı', 'pazar', 'tekerlek'), S('Şeker Atlıkarınca', 'carouselSt', 'tekerlek'), F('ucurtma')],
+    43: [S('Çikolata Şelalesi', 'selale', 'tekne'), S('Kakao İskelesi', 'iskele', 'tekne'), S('Fındık Köprüsü', 'kopru', 'tekerlek'),
+      S('Şeker Değirmeni', 'tasdegirmen', 'tekerlek'), F('tekne'), S('Sakız Balonu', 'balloonStand', 'balon'), S('Şekerleme Treni', 'hiztreni', 'vagon'),
+      S('Müzik Kutusu', 'muzikkutusu', 'ziplama'), S('Şeker Sarayı', 'palace', 'kus'), F('kus')],
+    // ---- Piramit ----
+    44: [S('Kervan Yolu', 'patika', 'tekerlek'), S('Vaha', 'pinar', 'kayma'), S('Çöl Akasyası', 'akasya', 'ziplama'),
+      S('Kum Saati', 'kumsaati', 'kayma'), F('tekerlek'), S('Dikilitaş', 'sutun', 'ziplama'), S('Kum Kalesi', 'kumkale', 'kayma'),
+      S('Çöl Kuyusu', 'kuyu', 'ziplama'), S('Büyük Piramit', 'piramit', 'teleferik'), F('vagon')],
+    45: [S('Meşaleli Dehliz', 'mesale', 'vagon'), S('Hiyeroglif Duvarı', 'pano', 'ziplama'), S('Gizli Geçit', 'gizli', 'kayma'),
+      S('Firavun Heykeli', 'heykel', 'ziplama'), F('vagon'), S('Hazine Odası', 'hazine', 'tekerlek'), S('Altın Kapı', 'altinkapi', 'ziplama'),
+      S('Firavunun Tahtı', 'taht', 'isinlanma'), S('Piramidin Tepesi', 'piramit', 'kus'), F('tekne')],
+    // ---- Mercan Resifi ----
+    46: [S('Beyaz Kumsal', 'kumsal', 'tekne'), S('Şamandıra', 'samandira', 'tekne'), S('Yelkenli', 'yelkenli', 'tekne'),
+      S('Dalgakıran', 'dalgakiran', 'kayma'), F('tekne'), S('Martı Kayası', 'marti', 'kus'), S('Yunus Koyu', 'yunuskoyu', 'tekne'),
+      S('Sualtı Kapısı', 'sualti', 'tekne'), S('Mercan Bahçesi', 'mercan', 'tekne'), F('tekne')],
+    47: [S('Mercan Kayalığı', 'mercan', 'tekne'), S('Deniz Mağarası', 'denizmagara', 'tekne'), S('İnci Avcısı', 'agtamir', 'tekne'),
+      S('Kayıkhane', 'kayikhane', 'tekne'), F('tekne'), S('Balina Koyu', 'balinakoyu', 'tekne'), S('Sualtı Bahçesi', 'sualti', 'tekne'),
+      S('Midye Kayası', 'tas', 'ziplama'), S('İstiridye Yatağı', 'mercan', 'tekne'), F('tekne')],
+    48: [S('Batık Gemi', 'batik', 'tekne'), S('Paslı Çapa', 'zincir', 'tekne'), S('Hazine Sandığı', 'hazine', 'tekne'),
+      S('Kaptan Köşkü', 'kulube', 'tekne'), F('tekne'), S('Rom Fıçıları', 'fici', 'tekne'), S('Resif Feneri', 'lighthouseSt', 'tekne'),
+      S('Mercan Kalesi', 'kumkale', 'tekne'), S('Yüzeye Çıkış', 'samandira', 'balon'), F('balon')],
+    // ---- Bulut Krallığı ----
+    49: [S('Balon İstasyonu', 'balloonStand', 'balon'), S('Bulut Tarlası', 'bulutsu', 'ucurtma'), S('Rüzgâr Gülü', 'ruzgargulu', 'ucurtma'),
+      S('Uçan Fener', 'ucanfener', 'balon'), F('balon'), S('Rüzgâr Türbini', 'ruzgarturbini', 'ucurtma'), S('Gökkuşağı Köprüsü', 'gokkusagi', 'kayma'),
+      S('Kuş Yuvası', 'yuva', 'kus'), S('Bulut Kulesi', 'tower', 'teleferik'), F('kus')],
+    50: [S('Kristal Bahçe', 'crystal', 'isinlanma'), S('Yıldız Çemberi', 'cember', 'ucurtma'), S('Güneş Saati', 'gunessaati', 'balon'),
+      S('Bulut Merdiveni', 'merdiven', 'ziplama'), F('ucurtma'), S('Gök Küre', 'gokkure', 'balon'), S('Saray Bahçesi', 'cicek', 'kus'),
+      S('Taht Salonu', 'taht', 'isinlanma'), S('Bulut Sarayı', 'palace', 'kus'), F('kus')],
   };
 
   const api = { STORY, WORLDS, GATES, STOPS };
