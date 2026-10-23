@@ -47,7 +47,7 @@
     const J = o.journey || root.RingJourney || { STOPS: {} };
     const tr = o.tr || (s => s);
     const reduced = () => (o.reduced ? o.reduced() : false);
-    const snd = o.sound || { tone() {}, noise() {} };
+    const snd = o.sound || { tone() {}, noise() {}, bang() {} };
     const N = D.count, GS = D.gateSize;
     const L = layout(N, GS), H = L.H, NODES = L.nodes, PTS = L.pts, GATE_Y = L.gateY;
     const gateOf = n => Math.floor((n - 1) / GS) + 1;
@@ -2958,7 +2958,7 @@
       const st = STATIONS[n], nd = NODES[n];
       const smoke = (x, y, c, cnt) => { if (!reduced()) for (let j = 0; j < cnt; j++) { const a = Math.random() * TAU, sp = 0.6 + Math.random() * 1.8; S.fx.push({ k: 'puff', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5, life: 1, r: 4 + Math.random() * 4, c }); } };
       if (mode === 'rocket') { snd.noise(0.9, 0.22, 500, 2600); snd.tone(220, 0.8, 'sawtooth', 0.03, 880); smoke(nd.x, nd.y, '230,215,240', 16); }
-      else if (mode === 'cannon') { snd.noise(0.35, 0.3, 1800, 200); snd.tone(140, 0.25, 'sine', 0.15, 60); if (!reduced()) confetti(st.x, st.y - 20, 24); smoke(st.x, st.y - 10, '240,230,245', 8); }
+      else if (mode === 'cannon') { snd.bang(); if (!reduced()) confetti(st.x, st.y - 20, 24); smoke(st.x, st.y - 10, '240,230,245', 8); }
       else if (mode === 'bounce') { snd.tone(150, 0.2, 'sine', 0.16, 70); snd.tone(260, 0.4, 'sine', 0.08, 780, 0.5); }
       else if (mode === 'boat') { snd.noise(1.1, 0.12, 900, 300); snd.tone(392, 0.4, 'sine', 0.05, 330); }
       else if (mode === 'cart') { snd.noise(0.9, 0.14, 1800, 600); for (let i = 0; i < 4; i++) snd.tone(180, 0.05, 'square', 0.03, null, i * 0.12); }
@@ -2976,14 +2976,14 @@
       if (reduced()) return;
       const nd = NODES[n];
       for (const s of [-1, 1]) for (let i = 0; i < 22; i++) { const a = -Math.PI / 2 + s * (0.35 + Math.random() * 0.5), sp = 4 + Math.random() * 5; S.fx.push({ k: 'conf', x: nd.x + s * 30, y: nd.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: 0, vr: (Math.random() - 0.5) * 0.3, c: ['#ffc94a', '#ff6b6b', '#2dd4bf', '#4cc9f0', '#b388ff'][i % 5] }); }
-      [0, 260, 520].forEach((d, i) => setTimeout(() => { S.fireworks.push({ x: nd.x + (i - 1) * 70, y: nd.y - 170 - (i % 2) * 40, t0: performance.now(), c: ['#ffc94a', '#4cc9f0', '#ff6b6b'][i] }); snd.tone(1200 + i * 250, 0.25, 'triangle', 0.04); snd.noise(0.3, 0.1, 3000, 800); }, d));
+      [0, 260, 520].forEach((d, i) => setTimeout(() => { S.fireworks.push({ x: nd.x + (i - 1) * 70, y: nd.y - 170 - (i % 2) * 40, t0: performance.now(), c: ['#ffc94a', '#4cc9f0', '#ff6b6b'][i] }); snd.bang(i); }, d));
       [523, 659, 784, 1047].forEach((f, i) => snd.tone(f, 0.35, 'triangle', 0.05, null, i * 0.08));
     }
     // Kapı açılışı: kanatlar açılır, ışık hüzmeleri, fişekler; ardından sis kalkar
     function openGate(gt) {
       const now = performance.now();
       S.opening[gt] = now; S.wow = now;
-      snd.noise(0.6, 0.35, 2200, 140); snd.tone(90, 0.4, 'sine', 0.2, 40);
+      snd.bang(1);
       if (!reduced()) {
         confetti(W / 2, GATE_Y[gt] - 40, 90);
         for (let i = 0; i < 6; i++) setTimeout(() => S.fireworks.push({ x: 60 + Math.random() * (W - 120), y: GATE_Y[gt] - 220 - Math.random() * 120, t0: performance.now(), c: ['#ffd34a', '#ff6fb5', '#4cc9f0', '#ff7a45'][i % 4] }), i * 180);
@@ -3046,7 +3046,7 @@
     }
     function burstJar(stars, max) {
       const now = performance.now(), x = 34, y = sc.scrollTop / k + 44;
-      snd.noise(0.3, 0.25, 4000, 1500); [1319, 1568, 2093, 2637].forEach((f, i) => snd.tone(f, 0.12, 'triangle', 0.06, null, 0.15 + i * 0.07));
+      snd.bang(1);
       if (reduced()) return;
       S.jarBurst = { t0: now, stars, max };
       for (let i = 0; i < 14; i++) { const a = Math.random() * TAU, sp = 2 + Math.random() * 3; S.fx.push({ k: 'shard', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: Math.random() * 3 }); }

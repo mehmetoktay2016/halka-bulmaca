@@ -209,12 +209,7 @@
         [2349, 2637, 3136].forEach((f, k) => tone(f, 0.3, 'sine', 0.04, null, 0.6 + k * 0.07));
       },
       unlock: k => tone(740 + k * 60, 0.12, 'sine', 0.08, 1100 + k * 60),
-      // Son halka: derin bir gümleme ve üstünde parıltı
-      boom: () => {
-        tone(150, 0.7, 'sine', 0.28, 36);
-        tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
-        [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
-      },
+      // Bütün patlamalar (bomba, kazan, son halka, Dev Halka, haritada top, fişek, kapı, kumbara) bu sesi çalar.
       // Bomba: tok gümleme (telefon hoparlöründe de duyulsun diye üstünde üçgen katman), şaklayan pop, hızla yükselen
       // parlak arpej, açılan akor ve dökülen parıltılar (konfeti patlaması gibi); zincirde (k. patlama) her biri
       // iki yarım ses daha tiz, üçüncüden sonra en tepeye bir parıltı daha eklenir. Gürültü kısa ve alçaktır (cızırtı yok)
@@ -1968,9 +1963,9 @@
     return { x: x / wave.length, y: y / wave.length };
   }
 
-  // Son halka: gümleme, şok dalgası, beyaz parlama ve tahtada kısa bir sarsıntı
+  // Son halka: büyük patlama sesi (zincirin 3. kademesi, tepe parıltılı), şok dalgası, beyaz parlama ve tahtada kısa bir sarsıntı
   function finaleBlast(wave) {
-    Sound.boom();
+    Sound.bang(2);
     if (fxOn()) flashT = performance.now();
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (e) { /* yok say */ } }
     if (!fxOn()) return;
@@ -2027,7 +2022,7 @@
   }
   function renderCombo(bump) {
     const el = $('combo');
-    el.querySelector('i').style.width = `${Math.round(comboPts / COMBO_FULL * 100)}%`;
+    el.querySelector('i').style.transform = `scaleX(${Math.round(comboPts / COMBO_FULL * 100) / 100})`;
     $('comboMul').textContent = comboStreak >= 2 ? '×' + comboStreak : '';
     if (bump) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
   }
@@ -3631,7 +3626,7 @@
   // Dev Halka parçalandı: gümleme ve zafer çıngılı, kendi renginde büyük parça yağmuru, şok dalgası ve sarsıntı
   function bossBreak(i) {
     const r = S.L.rings[i];
-    Sound.boom(); Sound.victory(); music.hit();
+    Sound.bang(2); Sound.victory(); music.hit();
     if (navigator.vibrate) { try { navigator.vibrate([30, 40, 60]); } catch (e) { /* yok say */ } }
     if (REDUCED) return;
     const color = ringColor(i);
