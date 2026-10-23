@@ -215,15 +215,19 @@
         tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
         [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
       },
-      // Bomba: yumuşak "pof" gümlemesi, şaklayan pop ve hızla yükselen parlak arpej (konfeti patlaması gibi);
-      // zincirde (k. patlama) her biri iki yarım ses daha tiz, ödül hissi büyür. Gürültü kısa ve alçaktır (cızırtı yok)
+      // Bomba: tok gümleme (telefon hoparlöründe de duyulsun diye üstünde üçgen katman), şaklayan pop, hızla yükselen
+      // parlak arpej, açılan akor ve dökülen parıltılar (konfeti patlaması gibi); zincirde (k. patlama) her biri
+      // iki yarım ses daha tiz, üçüncüden sonra en tepeye bir parıltı daha eklenir. Gürültü kısa ve alçaktır (cızırtı yok)
       bang: (k = 0) => {
         const m = Math.pow(2, Math.min(k, 5) * 2 / 12);
-        tone(170, 0.32, 'sine', 0.3, 48);
-        tone(620 * m, 0.07, 'triangle', 0.14, 1240 * m);
-        noise(0.16, 0.16, 1400, 260);
-        [784, 988, 1175, 1568].forEach((f, j) => tone(f * m, 0.22, 'triangle', 0.075, null, 0.05 + j * 0.04));
-        [2349, 3136].forEach((f, j) => tone(f * m, 0.45, 'sine', 0.035, null, 0.22 + j * 0.06));
+        tone(180, 0.45, 'sine', 0.32, 45);
+        tone(260, 0.25, 'triangle', 0.12, 90);
+        tone(700 * m, 0.08, 'triangle', 0.14, 1400 * m);
+        noise(0.22, 0.18, 1800, 220);
+        [784, 988, 1175, 1568, 1976].forEach((f, j) => tone(f * m, 0.2, 'triangle', 0.08, null, 0.04 + j * 0.035));
+        [1175, 1568, 1976].forEach(f => tone(f * m, 0.6, 'triangle', 0.04, null, 0.2));
+        [3136, 2637, 2349, 2093, 1760].forEach((f, j) => tone(f * m * (0.98 + Math.random() * 0.04), 0.35, 'sine', 0.03, null, 0.28 + j * 0.05));
+        if (k >= 2) tone(4186 * m, 0.5, 'sine', 0.025, null, 0.3);
       },
       // Motor: çark dönerken tahta tık + metal tak
       gear: () => {
