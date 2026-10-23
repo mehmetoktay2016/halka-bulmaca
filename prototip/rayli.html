@@ -1,0 +1,412 @@
+<title>Raylı Halka Prototipi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Tek koyu görünüm, oyunun Bulut Krallığı dünyası: dar sütun, üstte bölüm seçimi, ortada tahta, altta hamle ve düğmeler */
+:root {
+  --bg: #080c1c; --panel: #161f3d; --line: #2a3766; --fg: #f2f7ff; --muted: #a9bde0;
+  --accent: #9fd8ff; --gold: #ffd36b; --gold-ink: #3a2a00;
+  --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(70% 45% at 15% 0%, rgba(159, 216, 255, .14), transparent 70%), radial-gradient(50% 35% at 100% 30%, rgba(255, 192, 224, .08), transparent 70%), linear-gradient(180deg, #121a35, var(--bg)); background-color: var(--bg); color: var(--fg); font-family: var(--body); min-height: 100vh; }
+main { max-width: 440px; margin: 0 auto; padding-block: 18px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+header { display: grid; gap: 2px; }
+.eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-size: 28px; line-height: 1.1; color: var(--accent); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { font: 800 13px var(--body); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.tabs button.done::after { content: " ✓"; }
+.tip { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.tip b { color: var(--fg); }
+.board { position: relative; width: 100%; aspect-ratio: 400 / 520; border-radius: 22px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.count { flex: 1; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-family: var(--display); font-size: 22px; }
+.bar button { font: 800 15px var(--body); border-radius: 14px; padding: 10px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+.bar button.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.win { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: rgba(8, 12, 28, .72); backdrop-filter: blur(3px); }
+.win h2 { margin: 0; font-family: var(--display); font-size: 38px; color: var(--gold); }
+.win p { margin: 0; color: var(--muted); }
+.win button { justify-self: center; font: 800 16px var(--body); border-radius: 14px; padding: 10px 20px; border: 0; background: var(--gold); color: var(--gold-ink); cursor: pointer; }
+.legend { display: grid; gap: 6px; font-size: 14px; color: var(--muted); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.legend b { color: var(--fg); }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Bulut Krallığı · prototip</span>
+    <h1>Raylı Halka</h1>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <p class="tip" id="tip"></p>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Oyun tahtası"></canvas>
+    <div class="win" id="win" hidden>
+      <h2 id="winTitle">Kusursuz!</h2>
+      <p id="winText"></p>
+      <button id="next" type="button">Sonraki bölüm</button>
+    </div>
+  </div>
+  <div class="bar">
+    <span class="count">Hamle <b id="moves">0</b> · en iyi <span id="par">1</span></span>
+    <button id="reset" type="button">Baştan</button>
+    <button id="hint" class="primary" type="button">İpucu</button>
+  </div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<script src="../logic.js"></script>
+<script>
+(function () {
+  'use strict';
+  const Logic = window.RingLogic;
+  const { TAU, DEG, GAP_HALF } = Logic;
+  const W = 400, H = 520, STROKE = 13;
+  // Bulut Krallığı renkleri: gün batımı pembesi, altın, lila; raylı halka gök mavisi, ray bulut beyazı
+  const COLORS = ['#ff9ec7', '#ffd36b', '#b9a2ff'];
+  const SKY = '#7fd0ff', RAIL = '#e8f1ff';
+
+  // R14 deneme bölümleri (çözücüyle seçildi; raylı halka yerinde çakılı olsa hamle sayısı parantezde)
+  const ROW = [[110, 170], [200, 170], [290, 170], [110, 350], [200, 350], [290, 350]], COL = [[110, 150], [110, 260], [110, 370], [290, 150], [290, 260], [290, 370]];
+  const level = (around, stops, at, a) => [{ x: stops[at][0], y: stops[at][1], r: 58, a: a[0], rail: stops },
+    ...around.map(([x, y], i) => ({ x, y, r: 56, a: a[i + 1] }))];
+  const HS = [[110, 260], [200, 260], [290, 260]], VS = [[200, 150], [200, 260], [200, 370]];
+  const LEVELS = [
+    { name: 'İlk ray', tip: 'Mavi halka <b>dönmez</b>: rayında kayar. Onu sürükle, bıraktığın durağa oturur. Her kayma bir hamle.',
+      rings: level(ROW, HS, 0, [150, 30, 345, 90, 195, 210, 315]) }, // 3 (4)
+    { name: 'Dikey ray', tip: 'Raylı halka her durakta başka halkaları keser. Boşluğu hangi durakta işe yarar?',
+      rings: level(COL, VS, 1, [105, 195, 345, 240, 180, 300, 315]) }, // 5 (6)
+    { name: 'Yukarı aşağı', tip: 'Önce yolu aç, sonra kaydır: kaydığı durakta değdiği halkalar onu tutar.',
+      rings: level(COL, VS, 2, [270, 180, 315, 135, 210, 315, 165]) }, // 5 (6)
+    { name: 'Üç durak', tip: 'Raylı halkanın boşluğu hiç dönmez; doğru durağı ve doğru anı seç.',
+      rings: level(COL, VS, 0, [105, 165, 180, 345, 255, 210, 45]) }, // 5 (6)
+  ];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const done = new Set();
+  let S = null;
+  $('legend').innerHTML =
+    '<span><b>Gök mavisi halka raylıdır.</b> Dönmez; rayı boyunca sürükleyince en yakın durağa oturur. Kaydığı yerde başka halkaları keser.</span>' +
+    '<span>Raydaki yuvarlak yuvalar durakların; halkanın durduğu yuva parlar. Kayma bir hamledir.</span>';
+
+  function centered(rings) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of rings) for (const [x, y] of r.rail || [[r.x, r.y]]) { x0 = Math.min(x0, x - r.r); x1 = Math.max(x1, x + r.r); y0 = Math.min(y0, y - r.r); y1 = Math.max(y1, y + r.r); }
+    const dx = W / 2 - (x0 + x1) / 2, dy = H / 2 - (y0 + y1) / 2;
+    return rings.map(r => ({ ...r, x: r.x + dx, y: r.y + dy, ...(r.rail ? { rail: r.rail.map(([x, y]) => [x + dx, y + dy]) } : {}) }));
+  }
+
+  function load(k) {
+    const L = Logic.buildLevel({ rings: centered(LEVELS[k].rings) });
+    const sol = Logic.solve(L, L.startAngles, 0, 200000);
+    S = { k, L, angles: L.startAngles.slice(), mask: 0, moves: 0, par: sol ? sol.moves : '?', busy: false,
+      fly: {}, hidden: 0, drag: null, praise: null, hintRing: -1, slide: null };
+    $('tip').innerHTML = LEVELS[k].tip;
+    $('par').textContent = S.par;
+    $('moves').textContent = 0;
+    $('win').hidden = true;
+    renderTabs();
+  }
+
+  function renderTabs() {
+    $('tabs').innerHTML = LEVELS.map((l, i) =>
+      `<button type="button" data-k="${i}" aria-pressed="${i === S.k}" class="${done.has(i) ? 'done' : ''}">${i + 1}. ${l.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => { b.onclick = () => load(+b.dataset.k); });
+  }
+
+  // ---- ses: kayış (yumuşak hışırtı + yükselen ton), durağa oturma (tok tık), kurtulma ----
+  let AC = null;
+  const audio = () => (AC = AC || new (window.AudioContext || window.webkitAudioContext)());
+  function tone(t, freq, len, vol, type, to) {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + len);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + len + 0.02);
+  }
+  const sound = {
+    slide() { try { const t = audio().currentTime; tone(t, 330, 0.25, 0.05, 'sine', 520); tone(t + 0.24, 880, 0.06, 0.06, 'triangle'); tone(t + 0.24, 196, 0.12, 0.08, 'sine'); } catch (e) { /* sessiz */ } },
+    free(n) { try { const t = audio().currentTime; for (let k = 0; k < Math.min(n, 5); k++) tone(t + k * 0.06, 523.25 * Math.pow(2, [0, 4, 7, 12, 16][k] / 12), 0.3, 0.12); } catch (e) { /* sessiz */ } },
+  };
+
+  // ---- çizim ----
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientWidth * H / W * dpr);
+  }
+  const present = i => !(S.hidden & (1 << i));
+  const live = i => present(i) && !S.fly[i];
+  const colorOf = i => (S.L.rings[i].rail ? SKY : COLORS[i % COLORS.length]);
+
+  // Raylı halkanın görünen yeri: sürüklenirken parmağın raydaki izdüşümü, kayarken iki durak arası
+  function railPos(i, now) {
+    const r = S.L.rings[i];
+    if (S.drag && S.drag.ring === i) return S.drag.at;
+    if (S.slide && S.slide.ring === i) {
+      const t = REDUCED ? 1 : Math.min(1, (now - S.slide.t0) / 260), e = 1 - Math.pow(1 - t, 3);
+      return { x: S.slide.from.x + (r.x - S.slide.from.x) * e, y: S.slide.from.y + (r.y - S.slide.from.y) * e };
+    }
+    return { x: r.x, y: r.y };
+  }
+  function pose(i, now) {
+    const p = S.L.rings[i].rail ? railPos(i, now) : S.L.rings[i], f = S.fly[i];
+    if (!f) return { x: p.x, y: p.y, alpha: 1, grow: 1 };
+    const t = Math.min(Math.max((now - f.t0) / f.ms, 0), 1), e = t * t;
+    return { x: p.x + f.dx * f.dist * e, y: p.y + f.dy * f.dist * e, alpha: 1 - t, grow: 1 + 0.18 * t };
+  }
+  function arcs(ring, angle, x, y, color, width) {
+    const gaps = ring.gaps.map(g => Logic.norm(angle + g)).sort((a, b) => a - b);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+    for (let k = 0; k < gaps.length; k++) { ctx.beginPath(); ctx.arc(x, y, ring.r, gaps[k] + GAP_HALF, (k + 1 < gaps.length ? gaps[k + 1] : gaps[0] + TAU) - GAP_HALF); ctx.stroke(); }
+  }
+  // Ray: duraklar arasında iki ince bulut beyazı çizgi ve traversler; her durakta yuva, halkanın durduğu yuva parlar
+  function drawRails(now) {
+    for (const [k, R] of S.L.rails.entries()) {
+      if (!present(R.ring)) continue;
+      const st = R.stops, a = Math.atan2(st[st.length - 1].y - st[0].y, st[st.length - 1].x - st[0].x), nx = -Math.sin(a), ny = Math.cos(a);
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (let s = 0; s + 1 < st.length; s++) {
+        const len = Math.hypot(st[s + 1].x - st[s].x, st[s + 1].y - st[s].y);
+        ctx.strokeStyle = 'rgba(232,241,255,.22)'; ctx.lineWidth = 3;
+        for (let u = 6; u < len; u += 14) {
+          const x = st[s].x + Math.cos(a) * u, y = st[s].y + Math.sin(a) * u;
+          ctx.beginPath(); ctx.moveTo(x - nx * 9, y - ny * 9); ctx.lineTo(x + nx * 9, y + ny * 9); ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(232,241,255,.55)'; ctx.lineWidth = 2.5;
+        for (const d of [-6, 6]) { ctx.beginPath(); ctx.moveTo(st[s].x + nx * d, st[s].y + ny * d); ctx.lineTo(st[s + 1].x + nx * d, st[s + 1].y + ny * d); ctx.stroke(); }
+      }
+      st.forEach((p, s) => {
+        const here = s === S.L.railAt[k] && !S.drag;
+        ctx.fillStyle = 'rgba(8,12,28,.85)'; ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, TAU); ctx.fill();
+        ctx.strokeStyle = here ? '#ffd36b' : RAIL; ctx.lineWidth = here ? 3.5 : 2.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 8 + (here && !REDUCED ? Math.sin(now / 260) : 0), 0, TAU); ctx.stroke();
+      });
+      ctx.restore();
+    }
+  }
+  // Raylı halkanın tekerlekleri: halkanın ray yönündeki iki ucunda küçük makaralar
+  function wheels(i, P, now) {
+    const k = S.L.rails.findIndex(R => R.ring === i), st = S.L.rails[k].stops;
+    const a = Math.atan2(st[st.length - 1].y - st[0].y, st[st.length - 1].x - st[0].x), r = S.L.rings[i].r, spin = S.slide && S.slide.ring === i ? now / 40 : 0;
+    for (const d of [-1, 1]) {
+      const x = P.x + Math.cos(a) * r * d, y = P.y + Math.sin(a) * r * d;
+      ctx.fillStyle = 'rgba(8,12,28,.9)'; ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.fill();
+      ctx.fillStyle = RAIL; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#5a7bb0'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(spin) * 5, y + Math.sin(spin) * 5); ctx.lineTo(x - Math.cos(spin) * 5, y - Math.sin(spin) * 5); ctx.stroke();
+    }
+  }
+
+  function draw(now) {
+    const dpr = cv.width / W;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const L = S.L;
+    drawRails(now);
+    if (!S.drag && !S.slide) for (const link of L.links) {
+      if (!live(link.a) || !live(link.b)) continue;
+      for (const p of link.pts) {
+        if (!Logic.pointOpen(L, link, p, S.angles)) continue;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.35, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, TAU); ctx.fill();
+      }
+    }
+    for (let i = 0; i < L.rings.length; i++) {
+      if (!present(i)) continue;
+      const r = L.rings[i], P = pose(i, now), color = colorOf(i), ang = S.angles[i];
+      ctx.save();
+      ctx.globalAlpha = P.alpha;
+      ctx.translate(P.x, P.y); ctx.scale(P.grow, P.grow); ctx.translate(-P.x, -P.y);
+      const active = (S.drag && S.drag.ring === i) || S.hintRing === i;
+      arcs(r, ang, P.x + 2, P.y + 4, 'rgba(0,0,0,.42)', STROKE + 6);
+      if (active) { ctx.shadowColor = color; ctx.shadowBlur = 20; }
+      arcs(r, ang, P.x, P.y, color, STROKE);
+      ctx.shadowBlur = 0;
+      arcs(r, ang, P.x - 1.2, P.y - 1.6, 'rgba(255,255,255,.28)', 3);
+      if (r.rail && !S.fly[i]) wheels(i, P, now);
+      ctx.restore();
+    }
+    if (S.praise) {
+      const t = (now - S.praise.t0) / 1400;
+      if (t >= 1) S.praise = null;
+      else {
+        ctx.save();
+        ctx.globalAlpha = t < .12 ? t / .12 : 1 - Math.max(0, (t - .6) / .4);
+        ctx.font = '800 44px "Baloo 2", "Nunito", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(8,12,28,.85)'; ctx.lineJoin = 'round';
+        ctx.translate(W / 2, 72 - 14 * t);
+        ctx.strokeText(S.praise.text, 0, 0);
+        ctx.fillStyle = S.praise.color || '#ffd36b'; ctx.fillText(S.praise.text, 0, 0);
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  // ---- hareket ----
+  const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? 0 : ms));
+  function tween(from, to, ms) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const step = () => {
+        const t = REDUCED ? 1 : Math.min((performance.now() - t0) / ms, 1), e = 1 - Math.pow(1 - t, 3);
+        S.angles = from.map((a, i) => a + Logic.signedDelta(a, to[i]) * e);
+        if (t < 1) requestAnimationFrame(step); else { S.angles = to.slice(); res(); }
+      };
+      step();
+    });
+  }
+  function launch(i, now) {
+    const r = S.L.rings[i], dx = r.x - W / 2, dy = r.y - H / 2, d = Math.hypot(dx, dy) || 1;
+    S.fly[i] = { t0: now, dx: dx / d, dy: dy / d - .25, ms: 520, dist: 460 };
+  }
+
+  async function settle() {
+    const L = S.L, st = S;
+    const c = Logic.cascade(L, S.angles, S.mask);
+    if (!c.waves.length) return;
+    S.busy = true;
+    let freed = 0, rail = false;
+    for (const wave of c.waves) {
+      const now = performance.now();
+      for (const i of wave) { launch(i, now); freed++; if (L.rings[i].rail) rail = true; }
+      await sleep(200); if (S !== st) return;
+    }
+    sound.free(freed);
+    await sleep(520); if (S !== st) return;
+    for (const i of Object.keys(S.fly)) { S.hidden |= 1 << i; delete S.fly[i]; }
+    S.mask = c.mask;
+    const now = performance.now();
+    if (rail && S.slid) S.praise = { text: 'Tam durağında!', color: SKY, t0: now };
+    else if (freed >= 2) S.praise = { text: freed >= 4 ? 'Muhteşem!' : freed === 3 ? 'Harika!' : 'Süper!', t0: now };
+    S.busy = false;
+    if (S.mask === L.full) win();
+  }
+
+  function win() {
+    done.add(S.k);
+    renderTabs();
+    const perfect = S.moves <= S.par;
+    $('winTitle').textContent = perfect ? 'Kusursuz!' : 'Bitti!';
+    $('winText').textContent = perfect ? `${S.moves} hamle, en iyi çözüm.` : `${S.moves} hamle. En iyi çözüm ${S.par} hamle.`;
+    $('next').textContent = S.k + 1 < LEVELS.length ? 'Sonraki bölüm' : 'Baştan oyna';
+    const k = S.k;
+    setTimeout(() => { if (S.k === k && S.mask === S.L.full) $('win').hidden = false; }, 900);
+  }
+
+  function snap(i) {
+    const L = S.L, ring = L.rings[i];
+    let best = null, bd = 14 * DEG;
+    for (const li of L.ringLinks[i]) {
+      const k = L.links[li], o = k.a === i ? k.b : k.a;
+      if (S.mask & (1 << o)) continue;
+      for (const p of k.pts) {
+        const ang = k.a === i ? p.angA : p.angB;
+        for (const g of ring.gaps) {
+          const t = Logic.norm(ang - g), d = Logic.angDist(t, S.angles[i]);
+          if (d < bd) { bd = d; best = t; }
+        }
+      }
+    }
+    if (best != null) S.angles = Logic.rotate(L, S.angles, i, Logic.signedDelta(S.angles[i], best));
+  }
+  // Raylı halka k. raydaki s durağına kayar: düzen değişir, kayış canlanır
+  function slideTo(k, s) {
+    const R = S.L.rails[k], from = railPos(R.ring, performance.now());
+    S.L = Logic.slideRail(S.L, k, s);
+    S.slide = { ring: R.ring, from, t0: performance.now() };
+    sound.slide();
+    S.slid = true;
+    setTimeout(() => { S.slide = null; }, 280);
+  }
+  function commit() { S.moves++; $('moves').textContent = S.moves; settle(); }
+  // Noktanın raydaki izdüşümü (rayın çizgisi boyunca, duraklar arasında kalır)
+  function onRail(R, p) {
+    let best = null, bd = Infinity;
+    for (let s = 0; s + 1 < R.stops.length; s++) {
+      const A = R.stops[s], B = R.stops[s + 1], vx = B.x - A.x, vy = B.y - A.y;
+      const u = Math.max(0, Math.min(1, ((p.x - A.x) * vx + (p.y - A.y) * vy) / (vx * vx + vy * vy)));
+      const q = { x: A.x + vx * u, y: A.y + vy * u }, d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d < bd) { bd = d; best = q; }
+    }
+    return best;
+  }
+
+  const toBoard = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height }; };
+  cv.addEventListener('pointerdown', e => {
+    if (S.busy || !$('win').hidden) return;
+    const p = toBoard(e);
+    let pick = -1, bd = 26;
+    S.L.rings.forEach((r, i) => {
+      if (S.mask & (1 << i)) return;
+      const d = Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
+      if (d < bd) { bd = d; pick = i; }
+    });
+    if (pick < 0) return;
+    const r = S.L.rings[pick];
+    S.drag = r.rail ? { ring: pick, rail: true, grab: { x: p.x - r.x, y: p.y - r.y }, at: { x: r.x, y: r.y } }
+                    : { ring: pick, last: Math.atan2(p.y - r.y, p.x - r.x), total: 0, base: S.angles.slice() };
+    S.hintRing = -1;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!S.drag) return;
+    const p = toBoard(e), D = S.drag, r = S.L.rings[D.ring];
+    if (D.rail) { D.at = onRail(S.L.rails.find(R => R.ring === D.ring), { x: p.x - D.grab.x, y: p.y - D.grab.y }); return; }
+    const a = Math.atan2(p.y - r.y, p.x - r.x);
+    D.total += Logic.signedDelta(D.last, a); D.last = a;
+    S.angles = Logic.rotate(S.L, D.base, D.ring, D.total);
+  });
+  const release = () => {
+    if (!S.drag) return;
+    const D = S.drag; S.drag = null;
+    if (D.rail) {
+      const k = S.L.rails.findIndex(R => R.ring === D.ring), R = S.L.rails[k];
+      let s = 0;
+      R.stops.forEach((q, j) => { if (Math.hypot(q.x - D.at.x, q.y - D.at.y) < Math.hypot(R.stops[s].x - D.at.x, R.stops[s].y - D.at.y)) s = j; });
+      const from = D.at;
+      if (s === S.L.railAt[k]) { S.slide = { ring: D.ring, from, t0: performance.now() }; setTimeout(() => { S.slide = null; }, 280); return; }
+      slideTo(k, s); S.slide.from = from;
+      setTimeout(commit, 280);
+      return;
+    }
+    if (Math.abs(D.total) < 3 * DEG) { S.angles = D.base; return; }
+    snap(D.ring);
+    S.slid = false;
+    commit();
+  };
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  $('reset').onclick = () => { if (!S.busy) load(S.k); };
+  $('next').onclick = () => load((S.k + 1) % LEVELS.length);
+  $('hint').onclick = async () => {
+    if (S.busy || S.mask === S.L.full) return;
+    const sol = Logic.solve(S.L, S.angles, S.mask, 200000);
+    if (!sol || !sol.first) return;
+    S.busy = true; S.hintRing = sol.first.ring;
+    if (sol.first.rail != null) { slideTo(sol.first.rail, sol.first.stop); await sleep(300); }
+    else { S.slid = false; await tween(S.angles, Logic.rotate(S.L, S.angles, sol.first.ring, sol.first.delta), 650); }
+    S.hintRing = -1; S.busy = false;
+    commit();
+  };
+
+  new ResizeObserver(resize).observe(cv);
+  resize();
+  load(0);
+  requestAnimationFrame(draw);
+  window.__proto = { get S() { return S; }, load, hint: () => $('hint').onclick() };
+})();
+</script>
