@@ -582,5 +582,30 @@ test('zincir: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0, chain: 1 }, { x: 300, y: 100, r: 50, chain: 1 }] }), /zincir portal/);
 });
 
+// Raylı halka (R14): 0 rayda (üstte 1'i keser, aşağıda kimseyi, sağ altta 2'yi); 1 ve 2 sabit
+const RAIL = stops => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 270, rail: stops }, { x: 170, y: 100, r: 50, a: 0, fixed: true },
+  { x: 170, y: 300, r: 50, a: 0, fixed: true }] });
+
+test('raylı halka: dönmez, bir hamlede başka durağa kayar; kayınca kesişimleri değişir', () => {
+  const L = RAIL([[100, 100], [100, 200]]);
+  assert.strictEqual(Logic.canRotate(L, 0, 0), false);
+  assert.deepStrictEqual(L.railAt, [0]);
+  // aşağıdaki durakta kimseyi kesmez: kayınca uçar, sonra sabit halka da
+  const s = Logic.solve(L, L.startAngles, 0);
+  assert.strictEqual(s.moves, 1);
+  assert.deepStrictEqual([s.first.rail, s.first.stop], [0, 1]);
+  const L2 = Logic.slideRail(L, 0, 1);
+  assert.deepStrictEqual([L2.railAt, L2.rings[0].y, L2.links.length], [[1], 200, 0]);
+  // sağ alt durakta 2'yi keser ve boşluğu kesişime bakmaz: kayınca kurtulmaz
+  const L3 = RAIL([[100, 100], [100, 300]]);
+  assert.strictEqual(Logic.cascade(Logic.slideRail(L3, 0, 1), L3.startAngles, 0).mask & 1, 0);
+});
+
+test('raylı halka: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => RAIL([[100, 100]]), /raylı halka başka/);
+  assert.throws(() => RAIL([[90, 100], [100, 200]]), /durağında başlamalı/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, rail: [[100, 100], [100, 200]], bomb: true }, { x: 170, y: 100, r: 50 }] }), /raylı halka başka/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

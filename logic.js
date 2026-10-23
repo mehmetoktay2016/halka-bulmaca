@@ -55,7 +55,11 @@
   // step derecelik adımlarla taşır; taşınan halkaların boşlukları da tablayla döner. Tablanın her konumu
   // ayrı bir düzendir (kesişimler yeniden hesaplanır, halka numaraları aynı). Dönen yapı tablanın 0. konumu;
   // her konumda table, tableIdx ve bütün konumların listesi (variants) bulunur. Tabla çevirmek bir hamledir.
+  // Raylı halka (rail: [[x, y], ...], en az iki durak; halkanın x, y'si duraklardan biri): dönmez, bir hamlede rayındaki
+  // başka bir durağa kayar. Rayların her konum birleşimi ayrı bir düzendir (tablada olduğu gibi variants; vIdx karışık
+  // tabanda durak numaraları). Her düzende rails (ray halkaları ve durakları) ve railAt (o anki duraklar) bulunur.
   function buildLevel(def) {
+    if (def.rings.some(r => r.rail)) return buildRails(def);
     if (!def.table) return buildPlain(def);
     const T = def.table, k = Math.round(360 / T.step);
     if (!T.step || Math.abs(k * T.step - 360) > 1e-9) throw new Error('Tabla adımı 360 derecenin tam böleni olmalı');
@@ -72,10 +76,41 @@
         return { ...r, x: T.x + dx * c - dy * s, y: T.y + dx * s + dy * c };
       });
       const v = buildPlain({ ...def, rings });
-      Object.assign(v, { table: { ...T, k }, tableIdx: t, variants });
+      Object.assign(v, { table: { ...T, k }, tableIdx: t, vIdx: t, variants });
       variants.push(v);
     }
     return variants[0];
+  }
+
+  function buildRails(def) {
+    if (def.table) throw new Error('Raylı halka döner tablayla birleşemez');
+    const rails = [];
+    for (const [i, r] of def.rings.entries()) {
+      if (!r.rail) continue;
+      // Kayan halka dönmediği ve yeri değiştiği için başka bir parçayla birleşmez
+      if (r.type || r.rail.length < 2 || Object.keys(r).some(k => !['x', 'y', 'r', 'a', 'gaps', 'rail', 'color'].includes(k))) throw new Error(`Halka ${i}: raylı halka başka parçayla birleşemez`);
+      const at = r.rail.findIndex(([x, y]) => Math.hypot(x - r.x, y - r.y) < 1e-6);
+      if (at < 0) throw new Error(`Halka ${i}: raylı halka rayının bir durağında başlamalı`);
+      rails.push({ ring: i, stops: r.rail.map(([x, y]) => ({ x, y })), at });
+    }
+    const sizes = rails.map(R => R.stops.length), count = sizes.reduce((m, n) => m * n, 1);
+    const digits = v => sizes.map((n, k) => Math.floor(v / sizes.slice(0, k).reduce((m, q) => m * q, 1)) % n);
+    const variants = [];
+    for (let v = 0; v < count; v++) {
+      const pos = digits(v);
+      const rings = def.rings.map((r, i) => {
+        const k = rails.findIndex(R => R.ring === i);
+        return k < 0 ? r : { ...r, x: rails[k].stops[pos[k]].x, y: rails[k].stops[pos[k]].y };
+      });
+      variants.push(Object.assign(buildPlain({ ...def, rings }), { rails, railAt: pos, vIdx: v, variants }));
+    }
+    return variants[rails.reduce((v, R, k) => v + R.at * sizes.slice(0, k).reduce((m, q) => m * q, 1), 0)];
+  }
+
+  // Raylı halkanın (rails[k]) s durağındaki düzen
+  function slideRail(L, k, s) {
+    const sizes = L.rails.map(R => R.stops.length), w = sizes.slice(0, k).reduce((m, q) => m * q, 1);
+    return L.variants[L.vIdx + (s - L.railAt[k]) * w];
   }
 
   // Tabla bir adım (saat yönünde) döner: sonraki konum ve taşınan halkaların yeni açıları
@@ -154,6 +189,7 @@
       // Zincirli ikiz (chain: n): aynı numarayı taşıyan iki halka zincirlidir; ancak ikisi aynı anda serbestken birlikte
       // uçarlar. Patlamanın zorla uçurduğu zincirliyi zincir tutmaz (zincir kopar, eşi tek başına kurtulabilir)
       chain: r.chain == null ? -1 : r.chain,
+      rail: !!r.rail,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -404,7 +440,7 @@
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
-    if (!L.rotatable[i] || hidden(L, i, mask)) return false;
+    if (!L.rotatable[i] || hidden(L, i, mask) || L.rings[i].rail) return false;
     if (L.rings[i].motor) return false;
     if (iceLeft(L, i, mask) || armorLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
@@ -613,6 +649,17 @@
       const c = afterMove(L, node.angles, node.mask, node.left, ph2);
       if (emit({ L, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw ^ 1, ph: ph2 }, { toggle: true, ring: -1 })) return true;
     }
+    // Raylı halka: rayındaki başka bir durağa kayar (her durak ayrı hamle seçeneği)
+    if (L.rails) {
+      for (const [k, R] of L.rails.entries()) {
+        if (node.mask & (1 << R.ring)) continue;
+        for (let s = 0; s < R.stops.length; s++) {
+          if (s === L.railAt[k]) continue;
+          const L2 = slideRail(L, k, s), c = afterMove(L2, node.angles, node.mask, node.left, ph2);
+          if (emit({ L: L2, angles: c.angles, mask: c.mask, left: c.left, sw: node.sw, ph: ph2 }, { rail: k, stop: s, ring: R.ring })) return true;
+        }
+      }
+    }
     if (L.table) {
       const t = turnTable(L, node.angles);
       const c = afterMove(t.L, t.angles, node.mask, node.left, ph2);
@@ -629,7 +676,7 @@
     }
     return false;
   }
-  const keyOf = s => (s.L.table ? s.L.tableIdx + '@' : '') + stateKey(s.L, s.angles, s.mask, s.left, s.sw, s.ph);
+  const keyOf = s => (s.L.variants ? s.L.vIdx + '@' : '') + stateKey(s.L, s.angles, s.mask, s.left, s.sw, s.ph);
 
   // Arama başlangıcı: verilmeyen jeton, şalter ve nabız başlangıçtaki haliyle; serbest olanlar çıkar
   function startState(L, angles, mask, left, sw, ph) {
@@ -738,7 +785,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, hidden, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
+    buildLevel, slideRail, hidden, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;
