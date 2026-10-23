@@ -138,6 +138,13 @@
         <path d="M50 38m-4 0a4 4 0 1 1 8 0a10 10 0 1 1 -20 0a16 16 0 1 1 32 0a22 22 0 0 1 -6 15" fill="none" stroke="${c.ink}" stroke-width="4" stroke-linecap="round"/>
         <path d="M42 60q8 6 16 0" fill="none" stroke="${c.ink}" stroke-width="3" stroke-linecap="round"/>`,
     },
+    piramit: {
+      name: 'Piramit',
+      art: c => `<circle cx="72" cy="26" r="11" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>
+        <path d="M50 18L88 84H12Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M38 40H62M28 57H72M19 72H81M50 40V57M40 57V72M60 57V72M32 72V84M68 72V84" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M44 84V74Q50 68 56 74V84" fill="${c.ink}"/>`,
+    },
   };
   const PIECES = 5;
 

@@ -335,6 +335,24 @@
         k.every(9, 17, t => { for (let i = 0; i < 4; i++) k.puff(t + i * (0.04 + rand() * 0.05), 'highpass', 4500, 0.8, 0.05, 0.015); });
         return 2.8;
       },
+      // Piramit (2.6): çöl rüzgârı ve savrulan kum; taş koridorda derin yankı, arada uzaktan ney
+      piramit(k) {
+        const wind = k.bed('bandpass', 420, 0.5, 0.045);
+        k.lfo(wind.filter.frequency, 0.05, 180);
+        k.lfo(wind.gain.gain, 0.04, 0.02);
+        k.every(2, 5, t => k.puff(t, 'highpass', 3800 + rand() * 1500, 0.6, 0.9 + rand() * 0.8, 0.02, 0.3));
+        const tomb = k.echo(0.45, 0.45, 1200);
+        k.every(12, 24, t => k.blip(t, pick([65.4, 73.4, 82.4]), 2.4, 0.05, 'sine', 0, tomb));
+        // ney: Hicaz dizisinden (Re, Mi bemol, Fa diyez, Sol, La) yavaş kayan iki üç nota
+        k.every(16, 30, t => {
+          let at = t;
+          for (let i = 0, n = 2 + Math.floor(rand() * 2); i < n; i++, at += 0.9) {
+            const f = pick([587.3, 622.3, 740, 784, 880]);
+            k.blip(at, f * 0.995, 1.1, 0.012, 'triangle', f, tomb);
+          }
+        });
+        return 3.2;
+      },
     };
 
     function stopScene(scene, fade) {

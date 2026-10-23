@@ -43,6 +43,7 @@
     degirmen: [55, 100, 'organ', 'pluck', 'marimba'],
     buyu: [61, 94, 'celesta', 'glock', 'musicBox'],
     seker: [63, 106, 'musicBox', 'marimba', 'glock'],
+    piramit: [61, 96, 'pluck', 'kalimba', 'flute'],
   };
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 

@@ -118,7 +118,7 @@
       intro: 'Cırcırlı halkalar yalnız tek yöne döner. Fazla çevirirsen geri dönemezsin.',
       theme: { top: '#21180c', bottom: '#0e0a04', accent: '#f0b44a',
                glows: [['#f0b44a', 0.11], ['#ff7a45', 0.07], ['#4cc9f0', 0.05]],
-               board: { kind: 'tas', tint: '#c8a870', alpha: 0.08 }, air: 'polen' } },
+               board: { kind: 'piramit', tint: '#c8a870', alpha: 0.08 }, air: 'piramit' } },
     { id: 'mercan', name: 'Mercan Resifi', title: 'Dalgıç',
       intro: 'İstiridye açılınca içinden inci halka çıkar. Zincirli ikizler ancak birlikte kurtulur.',
       theme: { top: '#0b2230', bottom: '#040f16', accent: '#ff8a7a',

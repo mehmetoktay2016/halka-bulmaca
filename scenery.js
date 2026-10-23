@@ -390,6 +390,38 @@
       g.fillStyle = rgba(c, a * 0.8);
       for (let k = 0; k < 14; k++) { g.beginPath(); g.arc(R() * w, R() * h, 3 + R() * 4, 0, TAU); g.fill(); }
     },
+    // Piramit (2.6): şaşırtmalı kumtaşı bloklar, derzlerde kum; bazı bloklarda oyma hiyeroglif (göz, ankh, su, kuş)
+    piramit(g, w, h, c, a, R) {
+      const bh = 46, bw = 92;
+      g.strokeStyle = rgba(c, a * 0.9); g.lineWidth = 2;
+      for (let y = 0, row = 0; y < h + bh; y += bh, row++) {
+        g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+        for (let x = (row % 2) * bw / 2; x < w + bw; x += bw) {
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + bh); g.stroke();
+          // blok yüzeyinde aşınma lekesi
+          g.fillStyle = rgba(c, a * 0.25);
+          g.beginPath(); g.ellipse(x + bw * (0.3 + R() * 0.4), y + bh * (0.3 + R() * 0.4), 6 + R() * 12, 3 + R() * 6, 0, 0, TAU); g.fill();
+          if (R() > 0.22) continue;
+          const cx = x + bw / 2, cy = y + bh / 2, kind = Math.floor(R() * 4);
+          g.save(); g.strokeStyle = rgba(c, a * 1.4); g.lineWidth = 2.2; g.lineCap = 'round';
+          g.beginPath();
+          if (kind === 0) { // göz
+            g.ellipse(cx, cy, 11, 5, 0, 0, TAU); g.moveTo(cx + 3, cy); g.arc(cx, cy, 3, 0, TAU);
+            g.moveTo(cx - 4, cy + 5); g.lineTo(cx - 7, cy + 12);
+          } else if (kind === 1) { // ankh
+            g.ellipse(cx, cy - 8, 4, 6, 0, 0, TAU); g.moveTo(cx, cy - 2); g.lineTo(cx, cy + 14); g.moveTo(cx - 8, cy + 2); g.lineTo(cx + 8, cy + 2);
+          } else if (kind === 2) { // su
+            for (const dy of [-5, 3]) { g.moveTo(cx - 14, cy + dy); for (let k = 1; k <= 7; k++) g.lineTo(cx - 14 + k * 4, cy + dy + (k % 2 ? -3 : 0)); }
+          } else { // kuş
+            g.moveTo(cx - 10, cy + 8); g.quadraticCurveTo(cx - 4, cy - 4, cx + 6, cy - 6); g.lineTo(cx + 11, cy - 3);
+            g.moveTo(cx - 2, cy); g.lineTo(cx - 2, cy + 12); g.moveTo(cx + 3, cy - 2); g.lineTo(cx + 3, cy + 12);
+          }
+          g.stroke(); g.restore();
+        }
+      }
+      g.fillStyle = rgba(c, a * 0.7);
+      for (let k = 0; k < (w * h) / 1800; k++) g.fillRect(R() * w, R() * h, 1.2, 1.2);
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -771,6 +803,23 @@
         g.globalAlpha = 0.5; g.rotate(now / 1000 * p.spin + p.ph);
         g.strokeStyle = p.c; g.lineWidth = 3; g.lineCap = 'round';
         g.beginPath(); g.moveTo(-4, 0); g.lineTo(4, 0); g.stroke();
+      },
+    },
+    // Piramit (2.6): rüzgârla yana savrulan kum taneleri; arada güneşte parlayan altın toz
+    piramit: {
+      count: 36,
+      make: (w, h, fresh) => ({ x: fresh ? rand() * w : -10, y: rand() * h, vx: 30 + rand() * 40, ph: rand() * TAU, r: 1.1 + rand() * 1.6,
+        gold: rand() < 0.08, c: ['#e8c88a', '#d9b070', '#f3dcae'][Math.floor(rand() * 3)] }),
+      step: (p, dt, w) => { p.x += p.vx * dt; p.y += Math.sin(p.x / 40 + p.ph) * 14 * dt; return p.x < w + 10; },
+      draw: (g, p, now) => {
+        if (p.gold) {
+          g.globalAlpha = 0.35 + 0.35 * Math.sin(now / 180 + p.ph); g.fillStyle = '#ffe08a';
+          g.translate(p.x, p.y); g.rotate(now / 700 + p.ph);
+          g.beginPath(); for (let k = 0; k < 8; k++) { const rr = k % 2 ? 1 : 3.5, a = k * Math.PI / 4; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill();
+          return;
+        }
+        g.globalAlpha = 0.6; g.fillStyle = p.c;
+        g.beginPath(); g.ellipse(p.x, p.y, p.r * 2.6, p.r * 1.1, 0, 0, TAU); g.fill();
       },
     },
   };
