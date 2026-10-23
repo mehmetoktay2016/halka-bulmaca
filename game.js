@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft, hidden, isFree, slideRail } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft, hidden, isFree } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -253,8 +253,6 @@
         noise(0.6, 0.07, 900, 2600);
         tone(620, 0.5, 'sine', 0.025, 980);
       },
-      // Raylı halka kayar: yükselen yumuşak kayış, durağa tok oturma
-      slide: () => { tone(330, 0.25, 'sine', 0.05, 520); tone(880, 0.06, 'triangle', 0.06, null, 0.24); tone(196, 0.12, 'sine', 0.08, null, 0.24); },
       gear: () => {
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
         noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
@@ -1217,7 +1215,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [], chainCut: {}, chainSide: {}, chainTold: false, slide: null, slid: false,
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [], chainCut: {}, chainSide: {}, chainTold: false,
       flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
@@ -1499,11 +1497,8 @@
         setTimeout(() => { S.shellHalves.push({ ring: s, t0: performance.now() }); Sound.pearl(); }, at[w] + 60);
       }
     });
-    // Kayarak kurtulan raylı halka
-    const railed = S.slid ? waves.flat().find(i => S.L.rings[i].rail) ?? -1 : -1;
     // Rüzgârın döndürdüğü halka bu hamlede kurtulduysa övgü
     const gusted = kicks.flat().filter(k => k.gust).map(k => k.target).find(t => waves.flat().includes(t)) ?? -1;
-    S.slid = false;
     // Zincirli ikizler birlikte uçar; biri zorla tek başına giderse zincir kopar
     let twinned = -1, twinN = 0;
     waves.forEach((wave, w) => {
@@ -1543,9 +1538,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : twinned >= 0 ? 'twins' : railed >= 0 ? 'rail' : gusted >= 0 ? 'gust' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : twinned >= 0 ? 'twins' : gusted >= 0 ? 'gust' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'twins' ? twinned : word === 'rail' ? railed : word === 'gust' ? gusted : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'twins' ? twinned : word === 'gust' ? gusted : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1594,7 +1589,7 @@
       if (out.length >= want) break;
       const k = L.links[li];
       // saklı incinin kesişimine altın konmaz (görünmeyen halkada asılı kalırdı)
-      if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2 || L.shellOf[k.a] >= 0 || L.shellOf[k.b] >= 0 || L.rings[k.a].rail || L.rings[k.b].rail) continue;
+      if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2 || L.shellOf[k.a] >= 0 || L.shellOf[k.b] >= 0) continue;
       if (L.table && (L.table.carried.includes(k.a) || L.table.carried.includes(k.b))) continue;
       const x = (k.pts[0].x + k.pts[1].x) / 2;
       const y = (k.pts[0].y + k.pts[1].y) / 2;
@@ -2183,7 +2178,6 @@
     pearl: { text: 'İnci belirdi!', colors: ['#ffffff', '#d8cfe6'] },
     catch: { text: 'İnci avcısı!', colors: ['#ffffff', '#ffcf7a'] },
     twins: { text: 'İkizler birlikte!', colors: ['#d9fff6', '#2dd4bf'] },
-    rail: { text: 'Tam durağında!', colors: ['#ffffff', '#7fd0ff'] },
     gust: { text: 'Rüzgâr esti!', colors: ['#ffffff', '#a8e6ff'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
@@ -2659,20 +2653,13 @@
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (S.won || S.failed || S.auto || S.kicks.length || S.turn || S.slide) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     S.help.lastAct = performance.now();
     const p = toBoard(e);
     if (S.L.table && Math.hypot(p.x - S.L.table.x, p.y - S.L.table.y) < HUB + 10) { spinTable(); return; }
     if (S.swPos && Math.abs(p.x - S.swPos.x) < SWITCH_W / 2 + 8 && Math.abs(p.y - S.swPos.y) < SWITCH_H / 2 + 8) { flipSwitch(); return; }
     const i = hitRing(p);
     if (i < 0) return;
-    if (S.L.rings[i].rail) {
-      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* sentetik olay */ }
-      const r = S.L.rings[i];
-      S.drag = { ring: i, rail: S.L.rails.findIndex(R => R.ring === i), grab: { x: p.x - r.x, y: p.y - r.y }, at: { x: r.x, y: r.y } };
-      if (S.hint && S.hint.ring === i) S.hint = null;
-      return;
-    }
     if (!canRotate(S.L, i, S.mask, S.left, S.sw)) {
       for (const k of S.L.group[i]) S.shake[k] = performance.now();
       Sound.deny();
@@ -2712,7 +2699,6 @@
   canvas.addEventListener('pointermove', e => {
     if (!S.drag) return;
     const p = toBoard(e);
-    if (S.drag.rail != null) { S.drag.at = onRail(S.L.rails[S.drag.rail], { x: p.x - S.drag.grab.x, y: p.y - S.drag.grab.y }); return; }
     const r = S.L.rings[S.drag.ring];
     const ang = Math.atan2(p.y - r.y, p.x - r.x);
     const d = signedDelta(S.drag.lastAng, ang);
@@ -2752,7 +2738,6 @@
     if (!S.drag) return;
     const drag = S.drag;
     S.drag = null;
-    if (drag.rail != null) { endRailDrag(drag); return; }
     const stepped = S.L.rings[drag.ring].step;
     if (stepped ? !drag.applied : Math.abs(drag.total) < 3 * DEG) { S.angles = drag.before.angles; return; }
     commitMove(drag.before, drag.ring);
@@ -3185,7 +3170,7 @@
     bulbFly = bulbFly.filter(f => !f.landed);
   }
   function useHint(tier) {
-    if (S.won || S.failed || S.auto || S.kicks.length || S.turn || S.slide) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const cost = tier === 'nudge' || hintsFree() ? 0 : 1;
     if (cost > progress.hints) { Sound.deny(); showTip(tr('Ampulün kalmadı. Ücretsiz dürtmeyi dene')); return; }
     const sol = bestMove();
@@ -3211,9 +3196,6 @@
     if (sol.first.toggle) {
       // Sıradaki hamle şalter: dürtme ve ipucu şalteri gösterir, "Hamleyi yap" çevirir
       if (tier === 'move') { S.hint = null; hideTip(); flipSwitch(); } else { S.hint = { toggle: true, ring: -1, t0: now }; showTip(tr('Şalteri çevir')); }
-    } else if (sol.first.rail != null) {
-      if (tier === 'move') { S.hint = null; hideTip(); slideTo(sol.first.rail, sol.first.stop); }
-      else { S.hint = { ...sol.first, t0: now, nudge: tier === 'nudge' }; showTip(tr('Mavi halkayı parlayan durağa kaydır')); }
     } else if (sol.first.table) {
       if (tier === 'move') { S.hint = null; hideTip(); spinTable(); } else { S.hint = { table: true, ring: -1, t0: now }; showTip(tr('Tablayı çevir')); }
     } else if (tier === 'nudge') {
@@ -3234,7 +3216,7 @@
   // Her kademe kendi düğmesinde; eğitimde üçü de rehberi gösterir
   for (const [id, tier] of [['nudge', 'nudge'], ['hint', 'hint'], ['autoMove', 'move']]) {
     $(id).onclick = () => {
-      if (S.won || S.failed || S.auto || S.kicks.length || S.turn || S.slide) return;
+      if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
       if (S.tut != null) { guide(); return; }
       useHint(tier);
     };
@@ -3380,7 +3362,7 @@
   }
 
   function spinTable() {
-    if (!S.L.table || S.won || S.failed || S.auto || S.kicks.length || S.turn || S.slide) return;
+    if (!S.L.table || S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const before = snapshot();
     S.turn = { t0: performance.now(), base: S.angles.slice() };
     S.hint = null;
@@ -3545,7 +3527,7 @@
   }
 
   function flipSwitch() {
-    if (S.won || S.failed || S.auto || S.kicks.length || S.turn || S.slide) return;
+    if (S.won || S.failed || S.auto || S.kicks.length || S.turn) return;
     const before = snapshot();
     S.sw ^= 1;
     S.swT0 = performance.now();
@@ -4295,96 +4277,6 @@
     }
   }
 
-  // ---- Raylı halka (2.6) ----
-  const SLIDE_MS = 280;
-  // Raylı halkanın görünen yeri: sürüklenirken parmağın raydaki izdüşümü, kayarken iki durak arası
-  function railPos(i, now) {
-    const r = S.L.rings[i];
-    if (S.drag && S.drag.ring === i && S.drag.rail != null) return S.drag.at;
-    if (S.slide && S.slide.ring === i) {
-      const t = REDUCED ? 1 : Math.min(1, (now - S.slide.t0) / SLIDE_MS), e = 1 - Math.pow(1 - t, 3);
-      return { x: S.slide.from.x + (r.x - S.slide.from.x) * e, y: S.slide.from.y + (r.y - S.slide.from.y) * e };
-    }
-    return r;
-  }
-  // Noktanın raydaki izdüşümü (duraklar arasındaki çizgilerde kalır)
-  function onRail(R, p) {
-    let best = R.stops[0], bd = Infinity;
-    for (let s = 0; s + 1 < R.stops.length; s++) {
-      const A = R.stops[s], B = R.stops[s + 1], vx = B.x - A.x, vy = B.y - A.y;
-      const u = Math.max(0, Math.min(1, ((p.x - A.x) * vx + (p.y - A.y) * vy) / (vx * vx + vy * vy)));
-      const q = { x: A.x + vx * u, y: A.y + vy * u }, d = Math.hypot(q.x - p.x, q.y - p.y);
-      if (d < bd) { bd = d; best = q; }
-    }
-    return best;
-  }
-  // k. raydaki halka s durağına kayar: düzen değişir, kayış biter bitmez hamle sayılır
-  function slideTo(k, s, from) {
-    const R = S.L.rails[k], before = snapshot();
-    from = from || { x: S.L.rings[R.ring].x, y: S.L.rings[R.ring].y };
-    S.L = slideRail(S.L, k, s);
-    S.slide = { ring: R.ring, from, t0: performance.now() };
-    S.hint = null; S.springSpot = {}; S.slid = true;
-    Sound.slide();
-    setTimeout(() => { S.slide = null; commitMove(before, R.ring); }, REDUCED ? 0 : SLIDE_MS);
-  }
-  // Bırakınca en yakın durağa oturur; durak aynıysa geri kayar, hamle sayılmaz
-  function endRailDrag(drag) {
-    const R = S.L.rails[drag.rail];
-    let s = 0;
-    R.stops.forEach((q, j) => { if (Math.hypot(q.x - drag.at.x, q.y - drag.at.y) < Math.hypot(R.stops[s].x - drag.at.x, R.stops[s].y - drag.at.y)) s = j; });
-    if (s !== S.L.railAt[drag.rail]) { slideTo(drag.rail, s, drag.at); return; }
-    S.slide = { ring: drag.ring, from: drag.at, t0: performance.now() };
-    setTimeout(() => { S.slide = null; }, REDUCED ? 0 : SLIDE_MS);
-  }
-  // Ray: duraklar arasında iki bulut beyazı çizgi ve traversler; her durakta yuva, halkanın durduğu yuva altın parlar
-  function drawRails(now) {
-    for (const [k, R] of S.L.rails.entries()) {
-      if (!present(R.ring) && !S.fly[R.ring]) continue;
-      const st = R.stops, a = Math.atan2(st[st.length - 1].y - st[0].y, st[st.length - 1].x - st[0].x), nx = -Math.sin(a), ny = Math.cos(a);
-      ctx.save();
-      ctx.globalAlpha = present(R.ring) ? 1 : 0.35;
-      ctx.lineCap = 'round';
-      for (let s = 0; s + 1 < st.length; s++) {
-        const len = Math.hypot(st[s + 1].x - st[s].x, st[s + 1].y - st[s].y);
-        ctx.strokeStyle = 'rgba(232,241,255,.22)'; ctx.lineWidth = 3;
-        for (let u = 6; u < len; u += 14) {
-          const x = st[s].x + Math.cos(a) * u, y = st[s].y + Math.sin(a) * u;
-          ctx.beginPath(); ctx.moveTo(x - nx * 9, y - ny * 9); ctx.lineTo(x + nx * 9, y + ny * 9); ctx.stroke();
-        }
-        ctx.strokeStyle = 'rgba(232,241,255,.55)'; ctx.lineWidth = 2.5;
-        for (const d of [-6, 6]) { ctx.beginPath(); ctx.moveTo(st[s].x + nx * d, st[s].y + ny * d); ctx.lineTo(st[s + 1].x + nx * d, st[s + 1].y + ny * d); ctx.stroke(); }
-      }
-      st.forEach((p, s) => {
-        const here = s === S.L.railAt[k] && !(S.drag && S.drag.rail === k);
-        ctx.fillStyle = 'rgba(8,12,28,.85)'; ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, TAU); ctx.fill();
-        ctx.strokeStyle = here ? '#ffd36b' : '#e8f1ff'; ctx.lineWidth = here ? 3.5 : 2.5;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 8 + (here && !REDUCED ? Math.sin(now / 260) : 0), 0, TAU); ctx.stroke();
-      });
-      ctx.restore();
-    }
-  }
-  // Makaralar: halkanın ray yönündeki iki ucunda, kayarken döner
-  function drawRailWheels(i, cx, cy, now) {
-    const st = S.L.rails.find(R => R.ring === i).stops, r = S.L.rings[i].r;
-    const a = Math.atan2(st[st.length - 1].y - st[0].y, st[st.length - 1].x - st[0].x), spin = S.slide && S.slide.ring === i ? now / 40 : 0;
-    for (const d of [-1, 1]) {
-      const x = cx + Math.cos(a) * r * d, y = cy + Math.sin(a) * r * d;
-      ctx.fillStyle = 'rgba(8,12,28,.9)'; ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#e8f1ff'; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#5a7bb0'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x + Math.cos(spin) * 5, y + Math.sin(spin) * 5); ctx.lineTo(x - Math.cos(spin) * 5, y - Math.sin(spin) * 5); ctx.stroke();
-    }
-  }
-  // İpucu: kaydırılacak durakta atan altın halka
-  function drawStopPulse(h, now) {
-    const p = S.L.rails[h.rail].stops[h.stop], pulse = 0.5 + 0.5 * Math.sin((now - h.t0) / 200);
-    ctx.save();
-    ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 16; ctx.strokeStyle = '#ffc94a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 14 + 4 * pulse, 0, TAU); ctx.stroke();
-    ctx.restore();
-  }
-
   // ---- Buz halka çizimi (2.5) ----
   // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
   function iceShown(i, now) {
@@ -4487,10 +4379,9 @@
     if (S.L.rings[i].ratchet) return W.PIECE_COLORS.ratchet;
     if (S.L.rings[i].pearl >= 0) return W.PIECE_COLORS.pearl;
     if (S.L.chainMate[i] >= 0) return W.PIECE_COLORS.twin;
-    if (S.L.rings[i].rail) return W.PIECE_COLORS.sky;
     if (S.L.rings[i].gust) return W.PIECE_COLORS.sky;
-    // raylı bölümde renksizler gök mavisine karışmayan gün batımı pembesi, altın, lila
-    if (S.L.rails || S.L.rings.some(r => r.gust)) return S.def.rings[i].color || W.PIECE_COLORS.dusk[i % W.PIECE_COLORS.dusk.length];
+    // rüzgârlı bölümde renksizler gök mavisine karışmayan gün batımı pembesi, altın, lila
+    if (S.L.rings.some(r => r.gust)) return S.def.rings[i].color || W.PIECE_COLORS.dusk[i % W.PIECE_COLORS.dusk.length];
     // zincirli bölümde renksizler ikizlerin deniz yeşiline karışmayan mercan, gece mavisi, lila
     if (S.L.chainMate.some(m => m >= 0)) return S.def.rings[i].color || W.PIECE_COLORS.reef[i % W.PIECE_COLORS.reef.length];
     if (isShell(i)) return W.PIECE_COLORS.shell;
@@ -4521,8 +4412,8 @@
 
   // Halkanın o anki konumu: uçuş, sallanma ve büyüme dahil
   function ringPose(i, now) {
-    const ring = S.L.rings[i], at = ring.rail ? railPos(i, now) : ring;
-    let cx = at.x, cy = at.y, alpha = 1, grow = 1, spin = 0;
+    const ring = S.L.rings[i];
+    let cx = ring.x, cy = ring.y, alpha = 1, grow = 1, spin = 0;
     const off = tableOffset(now);
     if (off && S.L.table.carried.includes(i)) {
       const T = S.L.table, dx = cx - T.x, dy = cy - T.y, c = Math.cos(off), s = Math.sin(off);
@@ -4649,7 +4540,6 @@
     if (ring.paint >= 0) drawCandy(i, ang, cx, cy, now);
     if (isShell(i)) drawShellGrooves(i, ang, cx, cy);
     if (ring.pearl >= 0) drawNacre(i, ang, cx, cy, now, born);
-    if (ring.rail && !S.fly[i]) drawRailWheels(i, cx, cy, now);
     const icy = ring.ice ? iceShown(i, now) : 0;
     if (icy) drawIceShell(i, ang, cx, cy, icy, now);
     const fl = S.flash[i] ? 1 - (now - S.flash[i]) / 260 : 0;
@@ -4978,7 +4868,6 @@
     const h = S.hint;
     if (h && h.toggle) { drawSwitchPulse(now, h.t0); return; }
     if (h && h.table) { drawHubPulse(now, h.t0); return; }
-    if (h && h.rail != null) { if (!h.nudge) drawStopPulse(h, now); }
     if (!h || !present(h.ring)) return;
     const ring = S.L.rings[h.ring];
     const pulse = 0.5 + 0.5 * Math.sin((now - h.t0) / 200);
@@ -5240,11 +5129,10 @@
         stepRain(now);
         renderBossBar(now);
         const visible = S.L.rings.map((_, i) => present(i) || (S.fly[i] && now < S.fly[i].t0 + flyMs(S.fly[i])));
-        if (S.L.rails) drawRails(now);
         drawDeco(visible, now);
         visible.forEach((v, i) => v && drawRing(i, now));
         drawWeave();
-        if (!S.turn && !S.slide && !(S.drag && S.drag.rail != null)) drawOpenPoints(now);
+        if (!S.turn) drawOpenPoints(now);
         drawSprings(now);
         drawBombs(now);
         drawIceBadges(now);

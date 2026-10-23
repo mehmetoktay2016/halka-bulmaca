@@ -111,8 +111,7 @@
     if (p.type === 'bar') {
       return { ...p, x1: p.x1 * k + dx, y1: p.y1 * k + dy, x2: p.x2 * k + dx, y2: p.y2 * k + dy };
     }
-    // raylı halkanın durakları da onunla taşınır
-    return { ...p, x: p.x * k + dx, y: p.y * k + dy, r: p.r * k, ...(p.rail ? { rail: p.rail.map(([x, y]) => [x * k + dx, y * k + dy]) } : {}) };
+    return { ...p, x: p.x * k + dx, y: p.y * k + dy, r: p.r * k };
   }
 
   function segDist(px, py, b) {
@@ -1511,8 +1510,6 @@
       0.8 * n(r => r.pearl != null) +
       // zincir: iki halkayı aynı ana hazırlamak gerekir
       0.5 * n(r => r.chain != null) +
-      // raylı halka: her durağın kesişimlerini ayrı düşünmek gerekir
-      0.6 * n(r => r.rail) +
       // rüzgâr: komşuların, özellikle taş halkaların boşluğu nereye gelecek, önceden hesaplanır
       0.8 * n(r => r.gust);
   }
@@ -1674,11 +1671,6 @@
     // (soldaki erken gidip yol açar), zincirle 3
     1019: { title: 'Zincirli ikizler', world: 'mercan', tip: 'Zincirli iki halka ancak birlikte kurtulur: biri serbest kalınca eşini bekler',
       rings: [{ x: 110, y: 200, r: 60, a: 240, chain: 1 }, { x: 110, y: 300, r: 56, a: 225 }, { x: 200, y: 250, r: 56, a: 345 }, { x: 290, y: 200, r: 60, a: 105, chain: 1 }, { x: 290, y: 300, r: 56, a: 345 }] },
-    // Raylı halka tanıtımı (1020, 2.6): ortadaki rayda üç durak, üstte ve altta üçer halka. Raylı halka yerinde çakılı
-    // olsa 4 hamle, rayla 3 (prototipin "İlk ray"ı)
-    1020: { title: 'Raylı halka', world: 'bulut', tip: 'Mavi halka dönmez, rayında kayar: onu sürükle, bıraktığın durağa oturur',
-      rings: [{ x: 110, y: 260, r: 58, a: 150, rail: [[110, 260], [200, 260], [290, 260]] }, { x: 110, y: 170, r: 56, a: 30 }, { x: 200, y: 170, r: 56, a: 345 }, { x: 290, y: 170, r: 56, a: 90 },
-        { x: 110, y: 350, r: 56, a: 195 }, { x: 200, y: 350, r: 56, a: 210 }, { x: 290, y: 350, r: 56, a: 315 }] },
     // Rüzgâr halka tanıtımı (1021, 2.6): ortadaki taş halka dönmez; soldaki rüzgâr halka kurtulunca onu çeyrek tur
     // çevirir ve taşın boşluğu sağdakiyle kesişime gelir. Rüzgârsız 4 hamle, rüzgârla 3
     1021: { title: 'Rüzgâr halka', world: 'bulut', tip: 'Girdaplı halka rüzgârdır: kurtulunca değdiği halkaları, taş halkaları bile, çeyrek tur çevirir',
@@ -1690,7 +1682,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined, chain: undefined, rail: undefined, gust: undefined, ...(r.rail ? { fixed: true } : {}) })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined, chain: undefined, gust: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1698,7 +1690,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018, chain: 1019, rail: 1020, gust: 1021 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018, chain: 1019, gust: 1021 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1723,7 +1715,6 @@
     if (def.rings.some(r => r.ratchet)) f.push('ratchet');
     if (def.rings.some(r => r.pearl != null)) f.push('pearl');
     if (def.rings.some(r => r.chain != null)) f.push('chain');
-    if (def.rings.some(r => r.rail)) f.push('rail');
     if (def.rings.some(r => r.gust)) f.push('gust');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
@@ -1760,7 +1751,7 @@
     31: 15.7, 32: 15.7, 33: 15.7, 34: 15.7, 35: 15.7, 36: 15.7, 37: 15.7, 38: 15.7, 39: 15.7, 40: 15.7,
     // 2.6: düzey aynı, zorluk yeni parçalardan. Cırcır kapılarında (44-45) +2: cırcır turu tamamlatır, hamleyi uzatır
     // (kullanıcı kararı: hamle tavanı ve zirve sınırı bu kapılarda esnetilir)
-    // Bulut Krallığı (49-50) 14.5: raylı halka yeni ve düşündürür, puan zorlanmasın (kullanıcı kararı: hedefi çok yükseltme)
+    // Bulut Krallığı (49-50) 14.5: rüzgâr halka yeni ve düşündürür, puan zorlanmasın (kullanıcı kararı: hedefi çok yükseltme)
     41: 15.7, 42: 15.7, 43: 15.7, 44: 17.7, 45: 17.7, 46: 15.7, 47: 15.7, 48: 15.7, 49: 14.5, 50: 14.5 };
   const PLATEAU = 21; // bu kapıdan sonra zirveler artmaz (check_levels de buna göre denetler)
   const OLD_PEAK = 12.5; // 6. kapının zirvesi
@@ -2215,7 +2206,7 @@
       // Göbeğin parçası; motor ve portal komşulara
       // Her halkada en çok bir parça: önce ikizler (göbeğin iki komşusu), göbeğe buz ya da kazan, kalanlar boş halkalara
       const shells = new Set();
-      const hasPiece = r => r.ice || r.boiler || r.bomb || r.motor || r.portal || r.step || r.cbomb || r.pearl != null || r.chain != null || r.rail || shells.has(r);
+      const hasPiece = r => r.ice || r.boiler || r.bomb || r.motor || r.portal || r.step || r.cbomb || r.pearl != null || r.chain != null || shells.has(r);
       // İnci: istiridyenin içinde eşmerkezli, 26 küçük halka (istiridye sabit olamaz); en çok iki istiridye
       const addPearl = S => {
         if (S.fixed || S.r < 56 || shells.size >= 2) return null;
@@ -2513,7 +2504,6 @@
     // incisiz hâli: inci baştan görünür
     if (f === 'pearl') out.rings.forEach(r => delete r.pearl);
     if (f === 'chain') out.rings.forEach(r => delete r.chain);
-    if (f === 'rail') out.rings.forEach(r => { if (r.rail) { delete r.rail; r.fixed = true; } });
     if (f === 'gust') out.rings.forEach(r => delete r.gust);
     return out;
   }

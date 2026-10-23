@@ -357,7 +357,7 @@ var RING_LANG_EN = {
   'Renk Bombası kurtulunca kendi rengindeki bütün halkalar da uçar.': 'When a color bomb flies off, every ring of its color flies off with it.',
   'Cırcırlı halkalar yalnız tek yöne döner. Fazla çevirirsen geri dönemezsin.': 'Ratchet rings turn only one way. Turn too far and there is no going back.',
   'İstiridye açılınca içinden inci halka çıkar. Zincirli ikizler ancak birlikte kurtulur.': 'When an oyster opens, a pearl ring appears inside. Chained twins can only fly off together.',
-  'Raylı halkalar dönmez, rayda kayar. Kaydıkça kesişimleri değişir.': 'Rail rings do not turn; they slide along their rail, and their crossings change as they go.',
+  'Rüzgâr halkalar kurtulunca komşularını, taş halkaları bile, çeyrek tur çevirir.': 'Wind rings, when they fly off, turn their neighbours a quarter turn, even stone rings.',
   'Şekerleme Dükkânı': 'Sweet Shop',
   'Lolipop Bahçesi': 'Lollipop Garden',
   'Çikolata Nehri': 'Chocolate River',
@@ -672,13 +672,6 @@ var RING_LANG_EN = {
   'rüzgâr taşı çevirdi': 'the wind turned the stone',
   'Girdaplı halka rüzgârdır: kurtulunca değdiği halkaları, taş halkaları bile, çeyrek tur çevirir': 'The swirl ring is wind: when it flies off it turns the rings it touches a quarter turn, even stone rings',
   'Girdap rozetli halka kurtulunca değdiği her halkayı, senin çeviremediğin taş halkaları bile, rüzgâr yönünde çeyrek tur çevirir. Taşın boşluğu nereye gelecek, önceden düşün.': 'When the ring with the swirl badge flies off, it turns every ring it touches a quarter turn with the wind, even the stone rings you cannot turn. Think ahead about where the stone\'s gap will land.',
-  // 2.6 Raylı halka
-  'Raylı halka': 'Rail ring',
-  'Tam durağında!': 'Right on the stop!',
-  'kaydır': 'slide',
-  'Mavi halkayı parlayan durağa kaydır': 'Slide the blue ring to the glowing stop',
-  'Mavi halka dönmez, rayında kayar: onu sürükle, bıraktığın durağa oturur': 'The blue ring does not turn, it slides on its rail: drag it and it settles on the stop where you let go',
-  'Gök mavisi halka dönmez; rayı boyunca sürükleyince en yakın durağa oturur. Kaydığı yerde başka halkaları keser. Her kayma bir hamle.': 'The sky-blue ring does not turn; drag it along its rail and it settles on the nearest stop. Where it lands it crosses other rings. Each slide is a move.',
   // 2.6 Zincirli ikizler
   'Zincirli ikizler': 'Chained twins',
   'İkizler birlikte!': 'Twins together!',
