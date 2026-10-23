@@ -3075,25 +3075,58 @@
       fog(now, top, bot);
       return banners;
     }
-    // Dilim: sahnenin TILE birimlik yatay şeridi. FRAMES animasyon karesi önceden boyanır, kaydırırken sırayla
-    // oynar (objeler kaydırırken de hareket eder); en çok 6 dilim bellekte, 1,5x çözünürlükte (bellek az kalsın)
-    const TILE = 480, FRAMES = 3, FRAME_MS = 140, TILES = new Map();
+    // Dilim: sahnenin TILE birimlik yatay şeridi, resim olarak saklanır. FRAMES animasyon karesi önceden boyanıp WebP
+    // resmine çevrilir ve kaydırma kabının (#map) içine konur: kaydırırken resimleri tarayıcı kendisi kaydırır (JS
+    // çizimini beklemez, takılmaz), üst canvas'a yalnız kahraman ve efektler çizilir; kareler sırayla görünür (objeler
+    // kaydırırken de hareket eder). Görünür bölgeden en uzak dilimler atılır (en çok KEEP dilim, 1,5x çözünürlük)
+    const TILE = 480, FRAMES = 3, FRAME_MS = 140, KEEP = 10, TILES = new Map();
+    const PICS = document.createElement('div');
+    PICS.className = 'map-pics'; sc.prepend(PICS);
     let tileKey = '', imgWait = false;
-    function tile(i, f, dpr) {
+    function drop(i) {
+      const t = TILES.get(i);
+      if (!t) return;
+      t.el.remove(); t.urls.forEach(u => URL.revokeObjectURL(u)); TILES.delete(i);
+    }
+    function tile(i, f, dpr, mid) {
       let t = TILES.get(i);
-      if (!t) { t = { t0: performance.now(), frames: [] }; TILES.set(i, t); if (TILES.size > 6) TILES.delete(TILES.keys().next().value); }
-      if (t.frames[f]) return t.frames[f];
+      if (!t) {
+        t = { t0: performance.now(), frames: [], urls: [], shown: -1, dirty: false, el: document.createElement('div') };
+        t.el.style.top = i * TILE * k + 'px'; t.el.style.height = (TILE + 4) * k + 'px';
+        PICS.appendChild(t.el); TILES.set(i, t);
+        while (TILES.size > KEEP) drop([...TILES.keys()].reduce((a, b) => (Math.abs(b - mid) > Math.abs(a - mid) ? b : a)));
+      }
+      if (t.frames[f]) return;
       // dilim alttan 4 birim taşar: komşusuyla üst üste biner, birleşim yerinde çizgi kalmaz
       const d = Math.min(dpr, 1.5), c = document.createElement('canvas'); c.width = Math.ceil(cv.width / dpr * d); c.height = Math.ceil((TILE + 4) * k * d);
       const main = g, at = t.t0 + f * FRAME_MS; g = c.getContext('2d'); imgWait = false;
       g.setTransform(d * k, 0, 0, d * k, 0, -i * TILE * d * k);
       for (const st of scene(at, i * TILE, (i + 1) * TILE + 4)) nameBanner(st, at);
       g = main;
-      if (!imgWait) t.frames[f] = c; // şekil resmi henüz yüklenmediyse saklanmaz
-      return c;
+      if (imgWait) t.dirty = true; // şekil resmi henüz yüklenmemişti: dururken yeniden boyanır
+      c.style.visibility = 'hidden'; t.frames[f] = c; t.shown = -1; t.el.appendChild(c);
+      // önce canvas'ın kendisi durur; WebP resmi çözülünce yerini alır (canvas belleği boşalır)
+      c.toBlob(b => {
+        if (!b || TILES.get(i) !== t) return;
+        const img = new Image(), u = URL.createObjectURL(b);
+        t.urls.push(u); img.src = u;
+        img.decode().then(() => {
+          if (TILES.get(i) !== t || t.frames[f] !== c) return;
+          img.style.visibility = c.style.visibility; t.el.replaceChild(img, c); t.frames[f] = img; c.width = 0;
+        }, () => {});
+      }, 'image/webp', 0.92);
     }
-    // kaydırırken gösterilecek kare: sıradaki hazırsa o, değilse hazır olan ilk kare (yeni boyama kaydırmayı kesmesin)
-    const frameOf = (i, now, dpr) => { const t = TILES.get(i), f = Math.floor(now / FRAME_MS) % FRAMES; return (t && (t.frames[f] || t.frames.find(Boolean))) || tile(i, 0, dpr); };
+    // kaydırırken görünen kare: sıradaki hazırsa o, değilse hazır olan ilk kare (yeni boyama kaydırmayı kesmesin)
+    function showFrames(now, first, last, dpr) {
+      const f = Math.floor(now / FRAME_MS) % FRAMES, mid = (first + last) >> 1;
+      for (let i = first; i <= last; i++) {
+        if (!TILES.has(i)) tile(i, 0, dpr, mid);
+        const t = TILES.get(i);
+        if (!t) continue;
+        const j = t.frames[f] ? f : t.frames.findIndex(Boolean);
+        if (j !== t.shown) { t.frames.forEach((e, q) => { if (e) e.style.visibility = q === j ? '' : 'hidden'; }); t.shown = j; }
+      }
+    }
     let fullT = 0; // son canlı çizim: dururken animasyonlar saniyede 20 kare (telefon boşta yorulmasın, ilk kaydırma takılmasın)
     function draw(now) {
       FRONT = D.frontier(); OPEN.length = 0;
@@ -3108,15 +3141,15 @@
         sc.scrollTop += (want - sc.scrollTop) * (reduced() ? 1 : 0.1);
       }
       const camY = sc.scrollTop / k, top = camY, bot = camY + vh;
-      // Kaydırılırken (kahraman yürümüyorsa) sahne her karede boyanmaz: önceden boyanmış dilimler kopyalanır,
-      // telefonda harita parmağı akıcı izler; durunca canlı (animasyonlu) çizime dönülür
+      // Kaydırılırken (kahraman yürümüyor, kapı açılmıyorsa) sahne çizilmez: alttaki dilim resimleri görünür,
+      // tarayıcı onları parmakla birlikte kaydırır; canvas'ta yalnız kahraman kalır. Durunca canlı çizime dönülür
       const key = FRONT + ':' + cv.width + ':' + k + ':' + Object.keys(S.opening).length;
-      if (key !== tileKey) { TILES.clear(); tileKey = key; }
+      if (key !== tileKey) { [...TILES.keys()].forEach(drop); tileKey = key; }
       const first = Math.floor(top / TILE), last = Math.floor(bot / TILE);
       g.setTransform(1, 0, 0, 1, 0, 0);
-      if (now - moveT < 150 && !S.hop && !S.follow) {
+      if (now - moveT < 150 && !S.hop && !S.follow && !Object.keys(S.opening).length) {
+        showFrames(now, first, last, dpr);
         g.clearRect(0, 0, cv.width, cv.height);
-        for (let i = first; i <= last; i++) { const c = frameOf(i, now, dpr), sc2 = dpr / Math.min(dpr, 1.5); g.drawImage(c, 0, Math.round((i * TILE - top) * k * dpr), c.width * sc2, c.height * sc2); }
         g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k);
         hero(now);
       } else {
@@ -3126,10 +3159,14 @@
         hero(now);
         for (const st of banners) nameBanner(st, now);
         // dururken görünen bölgenin ve komşularının dilim kareleri hazırlanır (karede en çok bir kare)
+        // (yukarı ve aşağı ikişer dilim: hızlı kaydırmada da resim hazır olsun)
         if (now - moveT > 500) {
-          const miss = [];
-          for (let i = Math.max(0, first - 1); i <= last + 1; i++) for (let f = 0; f < FRAMES; f++) if (!(TILES.get(i) || { frames: [] }).frames[f]) miss.push([i, f]);
-          if (miss.length) { tile(miss[0][0], miss[0][1], dpr); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); }
+          const miss = [], lo = Math.max(0, first - 2), hi = Math.min(Math.floor(H / TILE), last + 2);
+          for (let i = lo; i <= hi; i++) {
+            if (TILES.get(i) && TILES.get(i).dirty) drop(i);
+            for (let f = 0; f < FRAMES; f++) if (!(TILES.get(i) || { frames: [] }).frames[f]) miss.push([i, f]);
+          }
+          if (miss.length) { tile(miss[0][0], miss[0][1], dpr, (first + last) >> 1); g.setTransform(dpr * k, 0, 0, dpr * k, 0, -camY * dpr * k); }
         }
       }
       effects(now, top);
@@ -3141,6 +3178,7 @@
     // Düzen piksel cinsinden (DOM düğmeleri ve kaydırma için)
     function measure(width) {
       k = width / W; S.k = k;
+      PICS.style.height = H * k + 'px';
       return {
         k, height: H * k,
         node: n => ({ x: NODES[n].x * k, y: NODES[n].y * k }),
@@ -3149,8 +3187,9 @@
         bonus: b => { const p = bonusAt(b); return { x: p.x * k, y: (p.y - 16) * k }; },
       };
     }
-    // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır
-    const stopFollow = () => { S.follow = false; }; // yürüyüş sürerken de: parmak haritayı geri çekmesin
+    // Kullanıcı kaydırınca kamera Halka'yı izlemeyi bırakır; parmak değdiği anda resimlere geçilir
+    // (kaydırmanın ilk karesinde canlı çizim geride kalmasın)
+    const stopFollow = () => { S.follow = false; moveT = performance.now(); }; // yürüyüş sürerken de: parmak haritayı geri çekmesin
     sc.addEventListener('wheel', stopFollow, { passive: true });
     sc.addEventListener('touchstart', stopFollow, { passive: true });
 
