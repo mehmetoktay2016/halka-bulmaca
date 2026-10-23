@@ -148,6 +148,9 @@
       // tahtadan çıkınca kendi rengindeki bütün halkalar bağlarına bakılmadan bir sonraki dalgada uçar.
       paint: r.paint == null ? -1 : r.paint,
       cbomb: !!r.cbomb,
+      // İnci halka (pearl: k): k numaralı istiridye halkasının içinde saklıdır. İstiridye tahtadayken inci yok sayılır
+      // (kesişmez, dönmez, kurtulmaz, patlamalar onu vurmaz); istiridye çıkınca belirir ve normal bir halka olur
+      pearl: r.pearl == null ? -1 : r.pearl,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -196,6 +199,15 @@
       painted[r.paint].push(i);
     }
     for (const [i, r] of def.rings.entries()) if (r.cbomb && painted[r.paint].length < 2) throw new Error(`Halka ${i}: renk bombasının renginde başka halka yok`);
+    for (const [i, r] of def.rings.entries()) {
+      if (r.pearl == null) continue;
+      const k = def.rings[r.pearl];
+      // İstiridye düz bir halka, kendisi inci değil; inci komşu sayısına bağlı ya da başka halkayı taşıyan parça olamaz
+      if (!k || r.pearl === i || k.type || k.pearl != null || k.fixed) throw new Error(`Halka ${i}: incinin istiridyesi geçersiz`);
+      if (r.type || r.motor || r.portal != null || r.ice || r.boiler || r.boss || r.lockedBy != null || def.rings.some(o => o.kick && o.kick[0] === i)) {
+        throw new Error(`Halka ${i}: inci başka parçayla birleşemez`);
+      }
+    }
     for (const [i, r] of def.rings.entries()) {
       if (!r.motor) continue;
       if (r.type || 360 % Math.abs(r.motor)) throw new Error(`Halka ${i}: motor adımı 360'ı tam bölmeli`);
@@ -309,6 +321,8 @@
     for (const r of rings) if (r.boss && iceNbrs[r.id].length < r.boss) throw new Error(`Halka ${r.id}: dev halkanın zırhını kıracak kadar komşusu yok`);
     // Dev halka eşli olamaz: eşi dönünce zırhlı halka da dönerdi
     for (const r of rings) if (r.boss && group[r.id].length > 1) throw new Error(`Halka ${r.id}: dev halka eşli olamaz`);
+    // İnci eşli olamaz: istiridye tahtadayken eşi dönünce görünmeyen inci de dönerdi
+    for (const r of rings) if (r.pearl >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: inci eşli olamaz`);
 
     return {
       rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
@@ -328,6 +342,8 @@
       boilers: rings.filter(r => r.boiler).map(r => r.id),
       bosses: rings.filter(r => r.boss).map(r => r.id),
       motors: rings.filter(r => r.motor).map(r => r.id),
+      // İncinin istiridyesi (inci olmayanda -1)
+      shellOf: rings.map(r => (r.kind === 'ring' ? r.pearl : -1)),
       // Portal ikizi (yoksa -1)
       twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
     };
@@ -368,11 +384,14 @@
     return Math.max(0, n - gone);
   }
 
+  // İnci halka istiridyesi tahtadayken görünmez (yok sayılır)
+  const hidden = (L, i, mask) => L.shellOf[i] >= 0 && !(mask & (1 << L.shellOf[i]));
+
   // Halka i şu an döndürülebilir mi? Sabit değil, buzu erimiş, (anahtarlıysa) anahtarı tahtadan çıkmış ve
   // (jetonluysa) jetonu kalmış olmalı. left: kalan jetonlar (verilmezse başlangıçtaki).
   // sw: şalterin gösterdiği renk (verilmezse başlangıçtaki); başka renkteki halka dönmez.
   function canRotate(L, i, mask, left, sw) {
-    if (!L.rotatable[i]) return false;
+    if (!L.rotatable[i] || hidden(L, i, mask)) return false;
     if (L.rings[i].motor) return false;
     if (iceLeft(L, i, mask) || armorLeft(L, i, mask)) return false;
     if ((left || L.tokens)[i] === 0) return false;
@@ -404,7 +423,7 @@
     for (const li of L.ringLinks[i]) {
       const k = L.links[li];
       const other = k.a === i ? k.b : k.a;
-      if (mask & (1 << other)) continue;
+      if (mask & (1 << other) || hidden(L, other, mask)) continue;
       if (!linkOpen(L, k, angles, ph)) return false;
     }
     return true;
@@ -427,7 +446,7 @@
     for (;;) {
       const wave = [];
       for (let i = 0; i < L.rings.length; i++) {
-        if (mask & (1 << i) || L.rings[i].kind === 'frame') continue;
+        if (mask & (1 << i) || L.rings[i].kind === 'frame' || hidden(L, i, mask)) continue;
         if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) wave.push(i);
       }
       if (!wave.length) break;
@@ -455,7 +474,7 @@
         const near = r.cbomb ? L.painted[r.paint] : L.ringLinks[i].map(li => (L.links[li].a === i ? L.links[li].b : L.links[li].a));
         const hits = [];
         for (const o of near) {
-          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame') continue;
+          if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame' || hidden(L, o, mask)) continue;
           hit |= 1 << o;
           hits.push(o);
         }
@@ -531,7 +550,7 @@
     for (const li of L.ringLinks[i]) {
       const k = L.links[li];
       const other = k.a === i ? k.b : k.a;
-      if (mask & (1 << other)) continue;
+      if (mask & (1 << other) || hidden(L, other, mask)) continue;
       for (const p of k.pts) {
         if (pointOpen(L, k, p, angles, ph)) continue;
         const angI = k.a === i ? p.angA : p.angB;
@@ -634,7 +653,7 @@
   function closedLinks(L, angles, mask, ph) {
     let c = 0;
     for (const k of L.links) {
-      if ((mask & (1 << k.a)) || (mask & (1 << k.b))) continue;
+      if ((mask & (1 << k.a)) || (mask & (1 << k.b)) || hidden(L, k.a, mask) || hidden(L, k.b, mask)) continue;
       if (!linkOpen(L, k, angles, ph)) c++;
     }
     return c;
@@ -699,7 +718,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
+    buildLevel, hidden, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;

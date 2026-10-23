@@ -502,5 +502,49 @@ test('cırcır: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, step: 90, ratchet: 1 }, { x: 170, y: 100, r: 50, kick: [0, 90] }] }), /yayın hedefi/);
 });
 
+// İnci halka (R10): 0 istiridye, 1 onun içinde (aynı merkezli) inci, 2 sağda ikisini de kesen halka
+const PEARL = extra => Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 70, a: 90 }, { x: 200, y: 200, r: 40, a: 90, pearl: 0 }, { x: 290, y: 200, r: 60, a: 90, ...extra }] });
+// İstiridye ile sağdaki halkanın kesişimini istiridyenin boşluğuyla açan açılar
+const pearlOpen = L => { const k = L.links.find(l => l.a === 0 && l.b === 2), a = L.startAngles.slice(); a[0] = k.pts[0].angA; return a; };
+
+test('inci: istiridye tahtadayken yok sayılır, çıkınca belirir ve kurtulur', () => {
+  const L = PEARL();
+  assert.deepStrictEqual(L.shellOf, [-1, 0, -1]);
+  assert.strictEqual(Logic.hidden(L, 1, 0), true);
+  assert.strictEqual(Logic.canRotate(L, 1, 0), false);
+  assert.strictEqual(Logic.canRotate(L, 1, 1), true);
+  // İstiridyenin boşluğu sağdaki halkayla kesişimi açar: ikisi uçar (inci sağdakini tutmaz), sonra inci belirip kurtulur
+  const c = Logic.cascade(L, pearlOpen(L), 0);
+  assert.deepStrictEqual(c.waves, [[0, 2], [1]]);
+  assert.strictEqual(c.mask, L.full);
+  // İnci bölümün bitişine sayılır; çözücü onu da kurtarır
+  const s = Logic.solve(L, L.startAngles, 0);
+  assert.ok(s && s.moves >= 1);
+});
+
+test('inci: istiridye tahtadayken bomba onu vurmaz; aynı dalgada istiridye çıkarsa belirmiş inciyi vurur', () => {
+  const B = PEARL({ bomb: true });
+  const k0 = B.links.find(l => l.a === 0 && l.b === 2), a0 = B.startAngles.slice();
+  a0[2] = k0.pts[0].angB;
+  assert.deepStrictEqual(Logic.cascade(B, a0, 0).blasts[0], [{ from: 2, hits: [1] }]);
+  // Soldaki sabit halka istiridyeyi tutar (inciye değmez): bomba yalnız istiridyeyi vurur
+  const L = Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 70, a: 90 }, { x: 200, y: 200, r: 40, a: 90, pearl: 0 }, { x: 290, y: 200, r: 60, a: 90, bomb: true },
+    { x: 120, y: 200, r: 40, a: 180, fixed: true }] });
+  // Sağdaki bomba tek başına kurtulsun: istiridyeyle kesişimini bombanın boşluğu açar
+  const k = L.links.find(l => l.a === 0 && l.b === 2), a = L.startAngles.slice();
+  a[2] = k.pts[0].angB;
+  const c = Logic.cascade(L, a, 0);
+  assert.deepStrictEqual(c.blasts[0], [{ from: 2, hits: [0] }]);
+});
+
+test('inci: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60, ...a }, { x: 100, y: 100, r: 30, ...b }] });
+  assert.throws(() => two({}, { pearl: 1 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({ fixed: true }, { pearl: 0 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({ pearl: 1 }, { pearl: 0 }), /istiridyesi geçersiz/);
+  assert.throws(() => two({}, { pearl: 0, motor: 90 }), /inci başka parçayla/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0 }, { x: 160, y: 100, r: 40 }], couples: [[1, 2]] }), /inci eşli/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);
