@@ -435,6 +435,11 @@
     // 2.6 (R5): kapı 41-50 (R2 şekilleri); kapı açıldıkça eklenir. Hedefler GEÇİCİ, üretimde ölçülür
     2041: { name: 'Kurabiye Adam', gate: 41, role: 'mid', target: 8.0, bars: 2 },
     2042: { name: 'Lolipop', gate: 41, role: 'final', target: 8.0, bars: 2, boss: true }, // 5 halkalı ağaç: 2 çubukla en çok ~8,2
+    // Dondurma ve Pasta R6'da halka eklenerek zenginleşti; iç içe halkalar kafes çubuklarını engellediği için serbest çubuk
+    2043: { name: 'Dondurma', gate: 42, role: 'mid', target: 8.0, bars: 1, cage: false },
+    2044: { name: 'Pasta', gate: 42, role: 'final', target: 8.0, bars: 1, cage: false, boss: true },
+    2045: { name: 'Hamster', gate: 43, role: 'mid', target: 8.0, bars: 2 }, // ölçülen en çok ~8,4
+    2046: { name: 'Sakız Makinesi', gate: 43, role: 'final', target: 8.0, bars: 2, boss: true }, // 3 çubukla kurulamıyor, en çok ~8,15
   };
   const ANIMALS = [
     { name: 'Kedi',
@@ -1247,8 +1252,11 @@
         {x: 0, y: -76, r: 46, color: '#8fe3c0'},
         {x: 0, y: -122, r: 26, color: '#ff3b5c'},
         {x: 0, y: 78, r: 48, color: '#e8a95c'},
+        // R6: iki yan top (limon, çikolata) ana topu ve üst topu keser, ters dönerler: düz zincir halkalı düzene döner
+        {x: -40, y: -43, r: 34, color: '#ffe08a'},
+        {x: 40, y: -43, r: 34, color: '#a8714a'},
       ],
-      couples: [],
+      couples: [[4, 5, -1]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'happy', nose: 'none', mouth: 'w', extras: ['cheeks'], fill: 0.75}}, {ring: 1, type: 'sprinkles'}, {ring: 3, type: 'cone'}] },
     { name: 'Pasta',
       rings: [
@@ -1258,9 +1266,11 @@
         {x: 59.2, y: -59.6, r: 26, color: '#7ad7ff'},
         {x: -82.9, y: 29.5, r: 30, color: '#ff3b5c'},
         {x: 82.9, y: 29.5, r: 30, color: '#ff3b5c'},
+        // R6: alt kat; gövdeyi ve iki kirazı keser (yıldız düzen halkalı olur, final zorluğuna çıkabilir)
+        {x: 0, y: 64, r: 88, color: '#fff0d6'},
       ],
       couples: [[2, 3], [4, 5, -1]],
-      deco: [{ring: 0, type: 'cake'}, {ring: 1, type: 'flame'}, {ring: 2, type: 'flame'}, {ring: 3, type: 'flame'}] },
+      deco: [{ring: 0, type: 'cake'}, {ring: 6, type: 'cake'}, {ring: 1, type: 'flame'}, {ring: 2, type: 'flame'}, {ring: 3, type: 'flame'}] },
     { name: 'Hamster',
       rings: [
         {x: 0, y: 0, r: 56, color: '#f4b26b'},
@@ -1680,7 +1690,7 @@
   // normal bölümler, 5. sırada ara şekil, sonda final. Normal bölümler 90'dan başlayan kaynak
   // numaralarıyla kendi kapılarının dünyasına göre üretilir (NORMAL_PLAN: kapı ve hedef zorluk).
   const OLD_GATES = 6;
-  const LAST_GATE = 41; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane); 2.5: kapı 31-40; 2.6: 41-50 kapı kapı açılır
+  const LAST_GATE = 43; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane); 2.5: kapı 31-40; 2.6: 41-50 kapı kapı açılır
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
