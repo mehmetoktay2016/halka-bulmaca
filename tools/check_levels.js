@@ -103,7 +103,8 @@ for (let g = 0; g < order.length / G; g++) {
   const flat = g + 1 >= PLATEAU;
   if (g + 1 === PLATEAU - 1) plateauPeak = peak;
   if (!flat && peak <= prevPeak && !RISE_EXCEPT.has(g + 1)) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
-  if (flat && plateauPeak != null && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
+  // Cırcır kapılarının (44-45) zirvesi bilerek 2 yüksek (kullanıcı kararı)
+  if (flat && plateauPeak != null && !Levels.RATCHET_GATES.includes(g + 1) && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
   const avgD = avg(mains);
   if (!flat && avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
   const near = row.filter(generated).map(s => Levels.closeness(get(s)));

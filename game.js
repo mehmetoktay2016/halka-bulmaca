@@ -129,7 +129,7 @@
   const fmt = n => n.toLocaleString(LOCALE);
   // Hamle hakkı: en iyi çözüm + pay, ama en fazla 10. En iyi çözüm sınırı 9 olan kapılarda (12-16) 12,
   // 10 olanlarda (17-20) 14. Aşılırsa "Hamlen bitti" penceresi açılır.
-  const moveCap = src => ({ 9: 12, 10: 14 })[window.RingLevels.maxParOf(src)] || 10;
+  const moveCap = src => ({ 9: 12, 10: 14, 12: 17 })[window.RingLevels.maxParOf(src)] || 10;
   const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 
   // ---- Ses (WebAudio ile sentez; dosya gerekmez) ----

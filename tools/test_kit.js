@@ -9,7 +9,7 @@ const pre = new Function(fs.readFileSync(path.join(__dirname, '..', 'levels_data
 const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s);
 
 // game.js ile aynı kurallar
-const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10;
+const moveCap = src => ({ 9: 12, 10: 14, 12: 17 })[Levels.maxParOf(src)] || 10;
 const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 
 // Rastgele oyuncu: her hamlede anlamlı hamlelerden (boşluğu bir kesişime getiren çevirme, şalter, tabla)
