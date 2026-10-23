@@ -1299,7 +1299,7 @@
     { name: 'Skarabe',
       rings: [
         {x: 0, y: 0, r: 64, color: '#2a9d8f'},
-        {x: 0.1, y: -74, r: 36, color: '#1f7a70'},
+        {x: 0.1, y: -74, r: 36, color: '#268f82'},
         {x: 0, y: -124, r: 40, color: '#ffc94a'},
         {x: -63.1, y: 19.2, r: 28, color: '#3fb8a8'},
         {x: 63.1, y: 19.5, r: 28, color: '#3fb8a8'},

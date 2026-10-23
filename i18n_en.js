@@ -590,6 +590,7 @@ var RING_LANG_EN = {
   'inci belirdi': 'pearl revealed',
   'Dalgalı kenarlı halka istiridyedir. Kurtulunca içindeki inci halka belirir, onu da kurtar': 'The ring with the wavy rim is an oyster. When it flies off, the pearl ring inside appears: free it too',
   'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.': 'When the wavy-rimmed oyster flies off, the pearl inside appears. While hidden the pearl holds no ring; once it appears it holds the rings it touches. Open the oyster last.',
+  'Deniz Kabuğu': 'Seashell',
   // 2.6 Zincirli ikizler
   'Zincirli ikizler': 'Chained twins',
   'İkizler birlikte!': 'Twins together!',

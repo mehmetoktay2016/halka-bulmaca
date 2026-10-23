@@ -130,7 +130,7 @@
       intro: 'İstiridye açılınca içinden inci halka çıkar. Zincirli ikizler ancak birlikte kurtulur.',
       theme: { top: '#0b2230', bottom: '#040f16', accent: '#ff8a7a',
                glows: [['#ff8a7a', 0.12], ['#2dd4bf', 0.12], ['#4c7cf0', 0.08]],
-               board: { kind: 'dalga', tint: '#8fd0d8', alpha: 0.10 }, air: 'buhar' } },
+               board: { kind: 'mercan', tint: '#8fd0d8', alpha: 0.10 }, air: 'mercan' } },
     { id: 'bulut', name: 'Bulut Krallığı', title: 'Bulut Bekçisi',
       intro: 'Raylı halkalar dönmez, rayda kayar. Kaydıkça kesişimleri değişir.',
       theme: { top: '#121a35', bottom: '#080c1c', accent: '#9fd8ff',

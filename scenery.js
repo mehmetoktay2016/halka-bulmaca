@@ -422,6 +422,43 @@
       g.fillStyle = rgba(c, a * 0.7);
       for (let k = 0; k < (w * h) / 1800; k++) g.fillRect(R() * w, R() * h, 1.2, 1.2);
     },
+    // Mercan Resifi (2.6): su altından süzülen ışık ağı (dalgalı hücreler), yer yer dallanan mercan ve küçük deniz kabukları
+    mercan(g, w, h, c, a, R) {
+      g.strokeStyle = rgba(c, a * 0.9); g.lineWidth = 1.6; g.lineCap = 'round';
+      // ışık ağı: kaydırılmış ızgaranın köşeleri arasında hafif kıvrık çizgiler
+      const cell = 46, pts = [];
+      for (let y = -cell, j = 0; y < h + cell; y += cell, j++) {
+        const row = [];
+        for (let x = -cell; x < w + cell; x += cell) row.push([x + (j % 2) * cell / 2 + (R() - 0.5) * 18, y + (R() - 0.5) * 18]);
+        pts.push(row);
+      }
+      const bend = (p, q) => { g.moveTo(p[0], p[1]); g.quadraticCurveTo((p[0] + q[0]) / 2 + (R() - 0.5) * 14, (p[1] + q[1]) / 2 + (R() - 0.5) * 14, q[0], q[1]); };
+      g.beginPath();
+      pts.forEach((row, j) => row.forEach((p, k) => {
+        if (row[k + 1]) bend(p, row[k + 1]);
+        const nx = pts[j + 1];
+        if (nx) bend(p, nx[k + (j % 2)] || nx[k]);
+      }));
+      g.stroke();
+      // mercan dalları: kökten çatallanan kalın çizgiler
+      const branch = (x, y, ang, len, wd, depth) => {
+        const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+        g.lineWidth = wd; g.beginPath(); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke();
+        if (depth > 0) for (const d of [-0.5, 0.45]) branch(x2, y2, ang + d + (R() - 0.5) * 0.3, len * 0.72, wd * 0.7, depth - 1);
+        else { g.beginPath(); g.arc(x2, y2, wd * 0.8, 0, TAU); g.fill(); }
+      };
+      g.strokeStyle = rgba(c, a * 1.3); g.fillStyle = rgba(c, a * 1.3);
+      for (let k = 0; k < 4; k++) branch(R() * w, h * (0.5 + R() * 0.5), -Math.PI / 2 + (R() - 0.5) * 0.6, 22 + R() * 14, 5, 3);
+      // deniz kabukları: yelpaze biçimli küçük taraklar
+      for (let k = 0; k < 7; k++) {
+        const x = R() * w, y = R() * h, s = 6 + R() * 5, rot = R() * TAU;
+        g.save(); g.translate(x, y); g.rotate(rot);
+        g.fillStyle = rgba(c, a); g.beginPath(); g.moveTo(0, s * 0.6); g.arc(0, 0, s, Math.PI * 1.1, Math.PI * 1.9); g.closePath(); g.fill();
+        g.strokeStyle = rgba(c, a * 1.4); g.lineWidth = 1;
+        for (let r = -2; r <= 2; r++) { g.beginPath(); g.moveTo(0, s * 0.6); g.lineTo(Math.cos(-Math.PI / 2 + r * 0.32) * s, Math.sin(-Math.PI / 2 + r * 0.32) * s); g.stroke(); }
+        g.restore();
+      }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -820,6 +857,31 @@
         }
         g.globalAlpha = 0.6; g.fillStyle = p.c;
         g.beginPath(); g.ellipse(p.x, p.y, p.r * 2.6, p.r * 1.1, 0, 0, TAU); g.fill();
+      },
+    },
+    // Mercan Resifi (2.6): sallanarak yükselen kabarcıklar; arada yandan geçen küçük balık sürüsü
+    mercan: {
+      count: 26,
+      make: (w, h, fresh) => (rand() < 0.05 && !fresh
+        ? { fish: true, x: -30, y: h * (0.15 + rand() * 0.7), v: 30 + rand() * 25, ph: rand() * TAU, n: 3 + Math.floor(rand() * 3), c: ['#ff8a7a', '#ffcf7a', '#2dd4bf'][Math.floor(rand() * 3)] }
+        : { x: rand() * w, y: fresh ? rand() * h : h + 10, vy: 16 + rand() * 22, ph: rand() * TAU, r: 1.5 + rand() * 3.5 }),
+      step: (p, dt, w) => {
+        if (p.fish) { p.x += p.v * dt; return p.x < w + 60; }
+        p.y -= p.vy * dt; p.x += Math.sin(p.y / 22 + p.ph) * 10 * dt; return p.y > -10;
+      },
+      draw: (g, p, now) => {
+        if (p.fish) {
+          g.globalAlpha = 0.28; g.fillStyle = p.c;
+          for (let k = 0; k < p.n; k++) {
+            const x = p.x - k * 16, y = p.y + Math.sin(now / 300 + k + p.ph) * 5 + (k % 2) * 8, wag = Math.sin(now / 90 + k) * 2;
+            g.beginPath(); g.ellipse(x, y, 7, 3.5, 0, 0, TAU); g.fill();
+            g.beginPath(); g.moveTo(x - 6, y); g.lineTo(x - 12, y - 4 + wag); g.lineTo(x - 12, y + 4 + wag); g.closePath(); g.fill();
+          }
+          return;
+        }
+        g.globalAlpha = 0.4; g.strokeStyle = '#bff3ff'; g.lineWidth = 1.2;
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.stroke();
+        g.fillStyle = '#ffffff'; g.beginPath(); g.arc(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.3, 0, TAU); g.fill();
       },
     },
   };

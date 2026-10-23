@@ -145,6 +145,13 @@
         <path d="M38 40H62M28 57H72M19 72H81M50 40V57M40 57V72M60 57V72M32 72V84M68 72V84" stroke="${c.ink}" stroke-width="3" fill="none"/>
         <path d="M44 84V74Q50 68 56 74V84" fill="${c.ink}"/>`,
     },
+    mercan: {
+      name: 'Deniz Kabuğu',
+      art: c => `<path d="M50 82L20 44Q22 18 50 14Q78 18 80 44Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M50 82L30 24M50 82L40 16M50 82V14M50 82L60 16M50 82L70 24" stroke="${c.ink}" stroke-width="3" fill="none"/>
+        <path d="M38 80H62L58 90H42Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>
+        <circle cx="74" cy="72" r="6" fill="${c.hi}" stroke="${c.ink}" stroke-width="3"/>`,
+    },
   };
   const PIECES = 5;
 

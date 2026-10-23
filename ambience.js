@@ -353,6 +353,17 @@
         });
         return 3.2;
       },
+      // Mercan Resifi (2.6): su altı uğultusu, yükselen kabarcıklar, uzaktan balina ve resifte tıkırdayan karides
+      mercan(k) {
+        const sea = k.bed('lowpass', 260, 0.7, 0.05);
+        k.lfo(sea.gain.gain, 0.06, 0.02);
+        k.lfo(sea.filter.frequency, 0.04, 80);
+        k.every(1.2, 3.5, t => { for (let i = 0, n = 2 + Math.floor(rand() * 4); i < n; i++) { const f = 380 + rand() * 500; k.blip(t + i * 0.07, f, 0.07, 0.02, 'sine', f * 2.2); } });
+        const deep = k.echo(0.5, 0.5, 900);
+        k.every(18, 34, t => { const f = 180 + rand() * 60; k.blip(t, f, 2.6, 0.03, 'sine', f * 1.6, deep); k.blip(t + 2.4, f * 1.5, 1.8, 0.02, 'sine', f, deep); });
+        k.every(5, 11, t => { for (let i = 0; i < 6; i++) k.puff(t + i * (0.03 + rand() * 0.04), 'highpass', 5000, 1, 0.015, 0.012); });
+        return 3;
+      },
     };
 
     function stopScene(scene, fade) {
