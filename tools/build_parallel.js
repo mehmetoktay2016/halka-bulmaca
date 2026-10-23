@@ -22,7 +22,8 @@ if (process.argv[2] === '--worker') {
   const pool = Object.entries(Kit.pre).filter(([, d]) => !d.name).map(([s, d]) => [Number(s), d]);
   Levels.setGrowCheck((def, n) => {
     if (Levels.NORMAL_PLAN[n].gate < 41) return null;
-    if (Kit.randomPlay(def, Kit.moveLimit(def.par, n), 100).rate > EASY) return 'rastgele_kolay';
+    // Bulut Krallığı'nda (49-50) sınır bölüm sınırı %50 (raylı halka denemesinde kullanıcı kararı)
+    if (Kit.randomPlay(def, Kit.moveLimit(def.par, n), 100).rate > (Levels.NORMAL_PLAN[n].gate >= 49 ? 0.5 : EASY)) return 'rastgele_kolay';
     if (Kit.nearest(def, pool).sim > SIMILAR) return 'benzer';
     return null;
   });

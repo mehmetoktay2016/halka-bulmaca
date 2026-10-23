@@ -60,12 +60,14 @@
       text: 'Zincirle bağlı iki halka ancak aynı anda serbest kalınca birlikte uçar. Biri hazırsa eşini bekler; bomba birini uçurursa zincir kopar.' },
     { id: 'rail', intro: 1020, name: 'Raylı halka',
       text: 'Gök mavisi halka dönmez; rayı boyunca sürükleyince en yakın durağa oturur. Kaydığı yerde başka halkaları keser. Her kayma bir hamle.' },
+    { id: 'gust', intro: 1021, name: 'Rüzgâr halka',
+      text: 'Girdap rozetli halka kurtulunca değdiği her halkayı, senin çeviremediğin taş halkaları bile, rüzgâr yönünde çeyrek tur çevirir. Taşın boşluğu nereye gelecek, önceden düşün.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'kaydır'];
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'kaydır', 'rüzgâr taşı çevirdi'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -814,6 +816,23 @@
       if (m === 1 && fly < 0.4) openPoint(g, 206, 96);
       finger(g, x, A[1] + r, t > 500 && t < 1350, t > 300 && t < 1500 ? 1 : 0);
       label(g, tx('kaydır'), 130, 178, t > 500 && t < 1600 ? 1 : 0);
+    } },
+    // 2.6: rüzgâr halka kurtulur, yanındaki taş halkayı çeyrek tur çevirir; taşın boşluğu açılır ve o da uçar
+    gust: { ms: 4600, draw(g, t) {
+      const G = [78, 96], Sx = [176, 96], r = 42;
+      const e = io(seg(t, 400, 1100)), fly = seg(t, 1250, 1700), turn = seg(t, 1450, 2100), sFly = seg(t, 2500, 2950);
+      const sAng = 90 * DEG + (turn > 0 ? back(turn) : 0) * 90 * DEG;
+      if (sFly === 0) ring(g, Sx[0], Sx[1], r, sAng, C.fixed); else flyRing(g, Sx[0], Sx[1], r, sAng, C.fixed, sFly, 1, -0.3);
+      if (fly === 0) ring(g, G[0], G[1], 36, 160 * DEG - e * 140 * DEG, '#7fd0ff'); else flyRing(g, G[0], G[1], 36, 20 * DEG, '#7fd0ff', fly, -1, -0.3);
+      if (turn > 0 && turn < 1) {
+        g.save(); g.strokeStyle = 'rgba(232,246,255,.8)'; g.lineWidth = 2; g.lineCap = 'round';
+        for (let k = 0; k < 4; k++) { const y = 80 + k * 10, x = 110 + turn * 50 + k * 6; g.beginPath(); g.moveTo(x - 20, y); g.lineTo(x, y); g.stroke(); }
+        g.restore();
+      }
+      if (fly === 0) { g.save(); g.fillStyle = '#e8f6ff'; g.beginPath(); g.arc(G[0] - 30, G[1] - 26, 11, 0, TAU); g.fill(); g.strokeStyle = '#3b7bb8'; g.lineWidth = 2; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(G[0] - 30, G[1] - 26, 6, k * 2.1, k * 2.1 + 1.4); g.stroke(); } g.restore(); }
+      if (t > 1100 && fly < 0.3) openPoint(g, 120, 96);
+      dragFinger(g, G[0], G[1], 36, 160 * DEG - e * 140 * DEG, t - 300, 900);
+      label(g, tx('rüzgâr taşı çevirdi'), 130, 178, seg(t, 1600, 1900) * (t < 3300 ? 1 : 0));
     } },
   };
 

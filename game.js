@@ -248,6 +248,11 @@
         for (let k = 0; k < 6; k++) { const f = 2400 + Math.random() * 1600; tone(f, 0.09, 'square', 0.025, null, k * 0.045); }
         for (const f of [659.25, 830.6]) { tone(f, 0.6, 'triangle', 0.07, null, 0.08); tone(f * 2, 0.3, 'sine', 0.02, null, 0.08); }
       },
+      // Rüzgâr eser: yükselip alçalan hışırtı ve hafif ıslık
+      gust: () => {
+        noise(0.6, 0.07, 900, 2600);
+        tone(620, 0.5, 'sine', 0.025, 980);
+      },
       // Raylı halka kayar: yükselen yumuşak kayış, durağa tok oturma
       slide: () => { tone(330, 0.25, 'sine', 0.05, 520); tone(880, 0.06, 'triangle', 0.06, null, 0.24); tone(196, 0.12, 'sine', 0.08, null, 0.24); },
       gear: () => {
@@ -1447,6 +1452,7 @@
       for (const k of ks) {
         S.kicks.push({ ring: k.target, delta: k.turn, t0: now + at[w] + KICK_WAIT, done: 0 });
         if (k.motor) setTimeout(() => Sound.gear(), at[w] + KICK_WAIT);
+        else if (k.gust) { if (!ks.some(o => o.gust && o.from === k.from && o.target < k.target)) setTimeout(() => Sound.gust(), at[w] + KICK_WAIT); setTimeout(() => gustLines(k.from, k.target), at[w] + KICK_WAIT); }
         else setTimeout(() => { Sound.boing(); kickSpark(k.from, k.target); }, at[w] + KICK_WAIT);
         before = rotate(S.L, before, k.target, k.turn);
       }
@@ -1495,6 +1501,8 @@
     });
     // Kayarak kurtulan raylı halka
     const railed = S.slid ? waves.flat().find(i => S.L.rings[i].rail) ?? -1 : -1;
+    // Rüzgârın döndürdüğü halka bu hamlede kurtulduysa övgü
+    const gusted = kicks.flat().filter(k => k.gust).map(k => k.target).find(t => waves.flat().includes(t)) ?? -1;
     S.slid = false;
     // Zincirli ikizler birlikte uçar; biri zorla tek başına giderse zincir kopar
     let twinned = -1;
@@ -1533,9 +1541,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : twinned >= 0 ? 'twins' : railed >= 0 ? 'rail' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : twinned >= 0 ? 'twins' : railed >= 0 ? 'rail' : gusted >= 0 ? 'gust' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'twins' ? twinned : word === 'rail' ? railed : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'twins' ? twinned : word === 'rail' ? railed : word === 'gust' ? gusted : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -2174,6 +2182,7 @@
     catch: { text: 'İnci avcısı!', colors: ['#ffffff', '#ffcf7a'] },
     twins: { text: 'İkizler birlikte!', colors: ['#d9fff6', '#2dd4bf'] },
     rail: { text: 'Tam durağında!', colors: ['#ffffff', '#7fd0ff'] },
+    gust: { text: 'Rüzgâr esti!', colors: ['#ffffff', '#a8e6ff'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -3593,7 +3602,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.ratchet || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.ratchet || r.gust || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -4253,6 +4262,36 @@
     });
   }
 
+  // ---- Rüzgâr halka (2.6) ----
+  // Rozet: gök mavisi disk üstünde üç kıvrık rüzgâr çizgisi, rüzgâr yönünde yavaşça döner
+  function drawGusts(now) {
+    S.L.rings.forEach((r, i) => {
+      if (!r.gust || !springLive(i)) return;
+      const th = springBadgeAt(i), x = r.x + Math.cos(th) * r.r, y = r.y + Math.sin(th) * r.r, dir = Math.sign(r.gust);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(8,12,28,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#e8f6ff'; ctx.beginPath(); ctx.arc(0, 0, 13.5, 0, TAU); ctx.fill();
+      ctx.rotate(REDUCED ? 0 : dir * now / 900);
+      ctx.strokeStyle = '#3b7bb8'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        ctx.rotate(TAU / 3);
+        ctx.beginPath(); ctx.arc(0, 0, 8, -0.2, dir > 0 ? 1.4 : -1.8, dir < 0); ctx.stroke();
+      }
+      ctx.fillStyle = '#3b7bb8'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, TAU); ctx.fill();
+      ctx.restore();
+    });
+  }
+  // Rüzgâr çizgileri: rüzgâr halkasından döndürdüğü halkaya doğru savrulan beyaz çizgiler
+  function gustLines(from, to) {
+    if (REDUCED) return;
+    const A = S.L.rings[from], B = S.L.rings[to], a = Math.atan2(B.y - A.y, B.x - A.x);
+    for (let k = 0; k < 10; k++) {
+      const sp = 3 + Math.random() * 3, off = (Math.random() - 0.5) * 30;
+      particles.push({ x: A.x - Math.sin(a) * off, y: A.y + Math.cos(a) * off, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, size: 1.5 + Math.random() * 1.5, color: '#e8f6ff' });
+    }
+  }
+
   // ---- Raylı halka (2.6) ----
   const SLIDE_MS = 280;
   // Raylı halkanın görünen yeri: sürüklenirken parmağın raydaki izdüşümü, kayarken iki durak arası
@@ -4446,8 +4485,9 @@
     if (S.L.rings[i].pearl >= 0) return W.PIECE_COLORS.pearl;
     if (S.L.chainMate[i] >= 0) return W.PIECE_COLORS.twin;
     if (S.L.rings[i].rail) return W.PIECE_COLORS.sky;
+    if (S.L.rings[i].gust) return W.PIECE_COLORS.sky;
     // raylı bölümde renksizler gök mavisine karışmayan gün batımı pembesi, altın, lila
-    if (S.L.rails) return S.def.rings[i].color || W.PIECE_COLORS.dusk[i % W.PIECE_COLORS.dusk.length];
+    if (S.L.rails || S.L.rings.some(r => r.gust)) return S.def.rings[i].color || W.PIECE_COLORS.dusk[i % W.PIECE_COLORS.dusk.length];
     // zincirli bölümde renksizler ikizlerin deniz yeşiline karışmayan mercan, gece mavisi, lila
     if (S.L.chainMate.some(m => m >= 0)) return S.def.rings[i].color || W.PIECE_COLORS.reef[i % W.PIECE_COLORS.reef.length];
     if (isShell(i)) return W.PIECE_COLORS.shell;
@@ -5207,6 +5247,7 @@
         drawIceBadges(now);
         drawMotors(now);
         drawRatchets(now);
+        drawGusts(now);
         if (S.shellHalves.length) drawShellHalves(now);
         drawChains(visible, now);
         drawPortals(now);

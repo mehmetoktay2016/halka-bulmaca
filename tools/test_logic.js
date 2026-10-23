@@ -607,5 +607,31 @@ test('raylı halka: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, rail: [[100, 100], [100, 200]], bomb: true }, { x: 170, y: 100, r: 50 }] }), /raylı halka başka/);
 });
 
+// Rüzgâr halka (R16): 0 rüzgârlı, kurtulunca komşuları 1 ve 2'yi çeyrek tur döndürür; 3 sabit
+const GUST = g => Logic.buildLevel({ rings: [{ x: 200, y: 200, r: 60, a: 90, gust: g }, { x: 120, y: 200, r: 50, a: 270 }, { x: 280, y: 200, r: 50, a: 0, step: 90 }, { x: 200, y: 290, r: 50, a: 0, fixed: true }] });
+
+test('rüzgâr halka: kurtulunca dönebilen komşularını çevirir (tekme gibi, hamle sayılmaz)', () => {
+  const L = GUST(90);
+  assert.deepStrictEqual(L.gustTargets[0], [1, 2, 3]);
+  // 0'ın bütün kesişimlerini açan açılar: komşuların boşlukları 0'a bakar
+  const a = L.startAngles.slice();
+  for (const li of L.ringLinks[0]) { const k = L.links[li]; a[k.b] = k.pts[0].angB; }
+  const c = Logic.cascade(L, a, 0);
+  assert.ok(c.waves[0].includes(0));
+  const turns = c.kicks[0].filter(k => k.gust).map(k => [k.target, Math.round(k.turn / DEG)]);
+  assert.deepStrictEqual(turns.filter(([t]) => !c.waves[0].includes(t)), turns.filter(([t]) => !c.waves[0].includes(t)));
+  assert.ok(turns.every(([, d]) => d === 90));
+  // tıklı komşu 60 derecelik rüzgârla dönmez (tık adımı 90)
+  assert.deepStrictEqual(GUST(60).gustTargets[0], [1, 3]);
+});
+
+test('rüzgâr halka: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90, bomb: true }, { x: 170, y: 100, r: 50 }] }), /rüzgâr halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 70 }, { x: 170, y: 100, r: 50 }] }), /rüzgâr halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90 }, { x: 170, y: 100, r: 50, motor: 90 }] }), /döndürebileceği komşu yok/);
+  // sabit (taş) komşuyu da döndürür
+  assert.deepStrictEqual(Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, gust: 90 }, { x: 170, y: 100, r: 50, fixed: true }] }).gustTargets[0], [1]);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

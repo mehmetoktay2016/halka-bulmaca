@@ -190,6 +190,10 @@
       // uçarlar. Patlamanın zorla uçurduğu zincirliyi zincir tutmaz (zincir kopar, eşi tek başına kurtulabilir)
       chain: r.chain == null ? -1 : r.chain,
       rail: !!r.rail,
+      // Rüzgâr halka (gust: derece, artı saat yönü): tahtadan çıkınca değdiği her halkayı bu kadar döndürür; oyuncunun
+      // çeviremediği sabit (taş) halkaları da. Yaylı halkanın tekmesi gibi hamle sayılmaz. Tıklı komşu ancak dönüş tık
+      // adımının katıysa döner
+      gust: r.gust ? r.gust * DEG : 0,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -359,6 +363,16 @@
       }
       kickedBy[t.id].push(r.id);
     }
+    // Rüzgârın dönebilen komşuları (tekmesi gibi): tekme alabilecek halkalar
+    const gustTargets = rings.map(r => (!r.gust ? [] : [...new Set(ringLinks[r.id].map(li => (links[li].a === r.id ? links[li].b : links[li].a)))]
+      .filter(o => { const t = rings[o]; return t.kind === 'ring' && !(t.lockedBy >= 0) && !t.ice && !t.motor && !t.boss && !t.rail && group[o].length === 1 && (!t.step || Math.abs(r.gust / t.step % 1) < 1e-9); })));
+    for (const r of rings) {
+      if (!r.gust) continue;
+      const d = def.rings[r.id];
+      if (d.type || d.kick || d.bomb || d.cbomb || d.boiler || d.motor || d.portal != null || d.pearl != null || d.chain != null || d.rail || d.ice || 360 % Math.abs(d.gust)) throw new Error(`Halka ${r.id}: rüzgâr halka başka parçayla birleşemez, adımı 360'ı bölmeli`);
+      if (!gustTargets[r.id].length) throw new Error(`Halka ${r.id}: rüzgârın döndürebileceği komşu yok`);
+      for (const o of gustTargets[r.id]) kickedBy[o].push(r.id);
+    }
 
     // Buz halkanın ve kazanın komşuları (çerçeve hiç çıkmadığı için sayılmaz)
     const iceNbrs = rings.map((r, i) => (!r.ice && !r.boiler && !r.boss ? [] : [...new Set(ringLinks[i].map(li => (links[li].a === i ? links[li].b : links[li].a)))]
@@ -372,7 +386,7 @@
     for (const r of rings) if (r.pearl >= 0 && group[r.id].length > 1) throw new Error(`Halka ${r.id}: inci eşli olamaz`);
 
     return {
-      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
+      rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, gustTargets, iceNbrs,
       // Her şeker renginin halkaları
       painted,
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
@@ -514,6 +528,14 @@
         angles = rotate(L, angles, k.target, k.turn);
         ks.push({ from: i, target: k.target, turn: k.turn });
       }
+      // Rüzgâr: çıkan rüzgâr halkası tahtada kalan dönebilir komşularının hepsini döndürür
+      for (const i of wave) {
+        for (const o of L.gustTargets[i]) {
+          if (mask & (1 << o) || hidden(L, o, mask)) continue;
+          angles = rotate(L, angles, o, L.rings[i].gust);
+          ks.push({ from: i, target: o, turn: L.rings[i].gust, gust: true });
+        }
+      }
       const ts = [];
       for (const i of wave) {
         const t = L.rings[i].token;
@@ -602,7 +624,7 @@
     // Cırcırın tek hamlesi: yönünde bir tık
     if (ring.ratchet) return [norm(angles[i] + ring.ratchet * ring.step)];
     const out = [];
-    const pendingKicks = L.kickedBy[i].filter(s => !(mask & (1 << s))).map(s => L.rings[s].kick.turn);
+    const pendingKicks = L.kickedBy[i].filter(s => !(mask & (1 << s))).map(s => (L.rings[s].kick ? L.rings[s].kick.turn : L.rings[s].gust));
     for (const li of L.ringLinks[i]) {
       const k = L.links[li];
       const other = k.a === i ? k.b : k.a;
