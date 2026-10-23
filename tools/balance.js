@@ -3,19 +3,12 @@
 // - Her bölüm hamle hakkı içinde bitmeli (ipucu takılırsa oyuncu da takılır).
 // - İpucunun en yavaş adımı ölçülür (telefonda gecikme hissedilmemeli).
 // - Altın, ampul ve rozet ekonomisinin toplamları çıkarılır.
-const fs = require('fs');
-const path = require('path');
 const Logic = require('../logic.js');
 const Levels = require('../levels.js');
 const Badges = require('../achievements.js');
+const { get, moveLimit } = require('./test_kit.js'); // hamle hakkı game.js ile aynı
 
-const pre = new Function(fs.readFileSync(path.join(__dirname, '..', 'levels_data.js'), 'utf8') + '; return RING_LEVEL_DATA;')();
-const get = s => (s > Levels.HAND_LEVELS.length && pre[s]) || Levels.getLevel(s);
 const order = Levels.gateOrder(get);
-
-// game.js ile aynı kurallar
-const moveCap = src => ({ 9: 12, 10: 14 })[Levels.maxParOf(src)] || 10; // game.js ile aynı
-const moveLimit = (par, src) => Math.min(moveCap(src), par + Math.max(3, Math.ceil(par * 0.6)));
 // İpucu arama bütçesi (game.js ile aynı olmalı); farklı bütçeleri denemek için HINT_NODES verilebilir
 const HINT_NODES = Number(process.env.HINT_NODES || 2000);
 const FALLBACK_NODES = Number(process.env.FALLBACK_NODES || 30000);

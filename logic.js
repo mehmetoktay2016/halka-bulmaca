@@ -672,7 +672,7 @@
   const api = {
     TAU, DEG, GAP_HALF, COVER_HALF,
     norm, angDist, signedDelta,
-    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, iceLeft, pressureLeft, armorLeft,
+    buildLevel, circleIntersections, gapCovers, pointOpen, linkOpen, isFree, cascade, afterMove, rotate, solve, solveFast, snapStep, canRotate, spend, candidates, stateKey, turnTable, expand, startState, iceLeft, pressureLeft, armorLeft,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLogic = api;
