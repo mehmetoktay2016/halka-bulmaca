@@ -372,6 +372,24 @@
       g.fillStyle = rgba(c, a * 0.8);
       for (let k = 0; k < 30; k++) { g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R(), 0, TAU); g.fill(); }
     },
+    // Şeker Diyarı (2.6): şeker ambalajı gibi çapraz şeritler, üstüne dağılmış serpinti ve küçük şeker topları
+    seker(g, w, h, c, a, R) {
+      g.save();
+      g.translate(w / 2, h / 2); g.rotate(-Math.PI / 4);
+      const D = Math.hypot(w, h);
+      g.fillStyle = rgba(c, a * 0.55);
+      for (let x = -D / 2; x < D / 2; x += 56) g.fillRect(x, -D / 2, 22, D);
+      g.fillStyle = rgba(c, a * 0.3);
+      for (let x = -D / 2 + 30; x < D / 2; x += 56) g.fillRect(x, -D / 2, 5, D);
+      g.restore();
+      g.lineCap = 'round'; g.lineWidth = 3; g.strokeStyle = rgba(c, a);
+      for (let k = 0; k < (w * h) / 2600; k++) {
+        const x = R() * w, y = R() * h, ang = R() * TAU;
+        g.beginPath(); g.moveTo(x - Math.cos(ang) * 4, y - Math.sin(ang) * 4); g.lineTo(x + Math.cos(ang) * 4, y + Math.sin(ang) * 4); g.stroke();
+      }
+      g.fillStyle = rgba(c, a * 0.8);
+      for (let k = 0; k < 14; k++) { g.beginPath(); g.arc(R() * w, R() * h, 3 + R() * 4, 0, TAU); g.fill(); }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -729,6 +747,30 @@
         const x = p.x0 + Math.cos(p.y / 30 + p.ph) * p.R;
         g.globalAlpha = 0.5; g.fillStyle = acc; g.shadowColor = acc; g.shadowBlur = 8;
         g.beginPath(); g.arc(x, p.y, p.r, 0, TAU); g.fill();
+      },
+    },
+    // Şeker Diyarı (2.6): dönerek düşen renkli serpinti; arada yukarı süzülen sarılı şeker
+    seker: {
+      count: 24,
+      make: (w, h, fresh) => (rand() < 0.04 && !fresh
+        ? { candy: true, x: rand() * w, y: h + 30, v: 14 + rand() * 10, ph: rand() * TAU, c: ['#ff6fc0', '#4fdcb0', '#ffd34a'][Math.floor(rand() * 3)] }
+        : { x: rand() * w, y: fresh ? rand() * h : -10, vy: 14 + rand() * 18, ph: rand() * TAU, spin: 1 + rand() * 2.5,
+            c: ['#ff6fc0', '#4fdcb0', '#ffd34a', '#ffffff', '#b388ff'][Math.floor(rand() * 5)] }),
+      step: (p, dt, w, h) => {
+        if (p.candy) { p.y -= p.v * dt; p.x += Math.sin(p.y / 45 + p.ph) * 10 * dt; return p.y > -40; }
+        p.y += p.vy * dt; p.x += Math.sin(p.y / 30 + p.ph) * 12 * dt; return p.y < h + 10;
+      },
+      draw: (g, p, now) => {
+        g.translate(p.x, p.y);
+        if (p.candy) {
+          g.globalAlpha = 0.3; g.rotate(Math.sin(now / 900 + p.ph) * 0.4); g.fillStyle = p.c;
+          for (const d of [-1, 1]) { g.beginPath(); g.moveTo(d * 7, 0); g.lineTo(d * 17, -7); g.lineTo(d * 17, 7); g.closePath(); g.fill(); }
+          g.beginPath(); g.arc(0, 0, 9, 0, TAU); g.fill();
+          return;
+        }
+        g.globalAlpha = 0.5; g.rotate(now / 1000 * p.spin + p.ph);
+        g.strokeStyle = p.c; g.lineWidth = 3; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(-4, 0); g.lineTo(4, 0); g.stroke();
       },
     },
   };

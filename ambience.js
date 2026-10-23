@@ -324,6 +324,17 @@
         k.every(7, 14, t => { for (let i = 0; i < 4; i++) k.blip(t + i * 0.14, pick(scale) * (rand() < 0.3 ? 2 : 1), 0.7, 0.012, 'sine', 0, hall); });
         return 2.6;
       },
+      // Şeker Diyarı (2.6): şekerci dükkânı; kazanda fokurdayan şurup, cam kavanoz tınlaması, kapı zili, ambalaj hışırtısı
+      seker(k) {
+        const room = k.bed('lowpass', 400, 0.7, 0.02);
+        k.lfo(room.gain.gain, 0.08, 0.008);
+        k.every(0.4, 1.4, t => k.blip(t, 160 + rand() * 120, 0.12, 0.018, 'sine', 320 + rand() * 200));
+        const jar = k.echo(0.3, 0.3, 4000);
+        k.every(6, 12, t => k.blip(t, pick([1568, 1760, 2093, 2349]), 0.9, 0.01, 'sine', 0, jar));
+        k.every(18, 34, t => { for (let i = 0; i < 2; i++) k.blip(t + i * 0.16, i ? 1975 : 2637, 0.8, 0.014, 'triangle', 0, jar); });
+        k.every(9, 17, t => { for (let i = 0; i < 4; i++) k.puff(t + i * (0.04 + rand() * 0.05), 'highpass', 4500, 0.8, 0.05, 0.015); });
+        return 2.8;
+      },
     };
 
     function stopScene(scene, fade) {

@@ -110,7 +110,7 @@
       intro: 'Renk Bombası kurtulunca kendi rengindeki bütün halkalar da uçar.',
       theme: { top: '#2a1228', bottom: '#12070f', accent: '#ff7ac8',
                glows: [['#ff6fc0', 0.16], ['#7cf0d0', 0.08], ['#ffd34a', 0.08]],
-               board: { kind: 'cadir', tint: '#f0a8d8', alpha: 0.10 }, air: 'konfeti' } },
+               board: { kind: 'seker', tint: '#f0a8d8', alpha: 0.10 }, air: 'seker' } },
     { id: 'piramit', name: 'Piramit', title: 'Arkeolog',
       intro: 'Cırcırlı halkalar yalnız tek yöne döner. Fazla çevirirsen geri dönemezsin.',
       theme: { top: '#21180c', bottom: '#0e0a04', accent: '#f0b44a',

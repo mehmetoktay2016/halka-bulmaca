@@ -130,6 +130,14 @@
         <path d="M33 66Q50 60 67 66" stroke="${c.hi}" stroke-width="5" fill="none"/>
         <path d="M56 30l2 5 5 .6-3.8 3.4 1 5-4.2-2.6-4.2 2.6 1-5L49 35.6l5-.6Z" fill="${c.hi}"/>`,
     },
+    // 2.6: yeni dünyalar
+    seker: {
+      name: 'Lolipop',
+      art: c => `<rect x="46" y="58" width="8" height="34" rx="3" fill="${c.hi}" stroke="${c.ink}" stroke-width="2.5"/>
+        <circle cx="50" cy="38" r="26" fill="${c.hi}" stroke="${c.ink}" stroke-width="4"/>
+        <path d="M50 38m-4 0a4 4 0 1 1 8 0a10 10 0 1 1 -20 0a16 16 0 1 1 32 0a22 22 0 0 1 -6 15" fill="none" stroke="${c.ink}" stroke-width="4" stroke-linecap="round"/>
+        <path d="M42 60q8 6 16 0" fill="none" stroke="${c.ink}" stroke-width="3" stroke-linecap="round"/>`,
+    },
   };
   const PIECES = 5;
 
