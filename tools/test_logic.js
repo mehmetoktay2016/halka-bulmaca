@@ -442,5 +442,43 @@ test('dev halka: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, boss: 1 }, { x: 170, y: 100, r: 50 }], couples: [[0, 1]] }), /dev halka eşli/);
 });
 
+// Renk bombası (R3): üstteki halka 0 rengin bombası; sağdaki kilitli çiftin 3 numarası da 0 renginde
+const PAINT = [{ x: 200, y: 215, r: 70, a: 255, paint: 0, cbomb: true }, { x: 140, y: 320, r: 64, a: 210, paint: 1 }, { x: 260, y: 320, r: 64, a: 105 },
+  { x: 420, y: 215, r: 60, a: 0, paint: 0 }, { x: 490, y: 215, r: 60, a: 90 }];
+
+test('renk bombası: çıkınca kendi rengindeki halkalar kilitli ve uzak olsalar da sonraki dalgada uçar', () => {
+  const L = Logic.buildLevel({ rings: PAINT });
+  assert.deepStrictEqual(L.painted, [[0, 3], [1], []]);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, 0, 195 * DEG), 0);
+  assert.deepStrictEqual(c.waves, [[0], [3], [4]]);
+  assert.deepStrictEqual(c.blasts, [[{ from: 0, hits: [3], paint: 0 }], [], []]);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+  const P = Logic.buildLevel({ rings: PAINT.map(({ paint, cbomb, ...r }) => r) });
+  assert.strictEqual(Logic.solve(P, P.startAngles, 0).moves, 3);
+});
+
+test('renk bombası: bombanın vurduğu renk bombası da patlar (zincir)', () => {
+  const rings = PAINT.map(({ paint, cbomb, ...r }) => r);
+  rings[0].bomb = true;
+  Object.assign(rings[1], { paint: 0, cbomb: true });
+  rings[3].paint = 0;
+  const L = Logic.buildLevel({ rings });
+  // Bomba, BOMB bölümündeki çözüm hamlesiyle kurtulur
+  const B = Logic.buildLevel({ rings: BOMB }), sol = Logic.solve(B, B.startAngles, 0);
+  const c = Logic.cascade(L, Logic.rotate(L, L.startAngles, sol.first.ring, sol.first.delta), 0);
+  assert.deepStrictEqual(c.blasts.flat(), [{ from: 0, hits: [1, 2] }, { from: 1, hits: [3], paint: 0 }]);
+  assert.strictEqual(c.mask, L.full);
+});
+
+test('renk bombası: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ cbomb: true }, {}), /rengi yok/);
+  assert.throws(() => two({ paint: 0, cbomb: true }, { paint: 1 }), /renginde başka halka yok/);
+  assert.throws(() => two({ paint: 3 }, {}), /şeker rengi 0-2/);
+  assert.throws(() => two({ paint: 0, fixed: true }, {}), /şeker rengi 0-2/);
+  assert.throws(() => two({ paint: 0, cbomb: true, bomb: true }, { paint: 0 }), /başka parçayla/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50 }, { type: 'bar', x1: 40, y1: 100, x2: 160, y2: 100, paint: 0 }] }), /şeker rengi/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

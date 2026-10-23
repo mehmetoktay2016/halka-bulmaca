@@ -141,6 +141,10 @@
       // Dev Halka (boss: n, 1-6): zırhlıdır, dönmez. Kesiştiği parçalardan her biri tahtadan çıktıkça zırhından
       // bir plaka kırılır; n plaka kırılınca bir sonraki dalgada parçalanıp kendiliğinden çıkar (patlamaz).
       boss: r.boss || 0,
+      // Şeker rengi (paint: 0-2, yoksa -1): halkanın renk grubu. Renk bombası (cbomb: true, renkli halkada)
+      // tahtadan çıkınca kendi rengindeki bütün halkalar bağlarına bakılmadan bir sonraki dalgada uçar.
+      paint: r.paint == null ? -1 : r.paint,
+      cbomb: !!r.cbomb,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -177,6 +181,18 @@
       (portalRings[r.portal] = portalRings[r.portal] || []).push(i);
     }
     for (const [n, list] of Object.entries(portalRings)) if (list.length !== 2) throw new Error(`Portal ${n}: tam iki halkada olmalı`);
+    const painted = [[], [], []];
+    for (const [i, r] of def.rings.entries()) {
+      if (r.paint == null) {
+        if (r.cbomb) throw new Error(`Halka ${i}: renk bombasının rengi yok`);
+        continue;
+      }
+      // Sabit ve şalterli halkanın kendi rengi var; renk bombası rozeti öbür rozetlerle aynı yere düşerdi
+      if (r.type || r.fixed || r.side != null || ![0, 1, 2].includes(r.paint)) throw new Error(`Halka ${i}: şeker rengi 0-2, sabit ya da şalterli olmayan halkada olur`);
+      if (r.cbomb && (r.bomb || r.kick || r.ice || r.motor || r.boiler || r.boss || r.portal != null)) throw new Error(`Halka ${i}: renk bombası başka parçayla birleşemez`);
+      painted[r.paint].push(i);
+    }
+    for (const [i, r] of def.rings.entries()) if (r.cbomb && painted[r.paint].length < 2) throw new Error(`Halka ${i}: renk bombasının renginde başka halka yok`);
     for (const [i, r] of def.rings.entries()) {
       if (!r.motor) continue;
       if (r.type || 360 % Math.abs(r.motor)) throw new Error(`Halka ${i}: motor adımı 360'ı tam bölmeli`);
@@ -292,6 +308,8 @@
 
     return {
       rings, links, ringLinks, group, groupId, rotatable, factor, couples, kickedBy, iceNbrs,
+      // Her şeker renginin halkaları
+      painted,
       // Bölümün bitişi: çerçeveler dışında her parça tahtadan çıkmış olmalı
       full: rings.reduce((m, r, i) => (r.kind === 'frame' ? m : m | (1 << i)), 0),
       startAngles: def.rings.map(r => norm((r.a || 0) * DEG)),
@@ -394,6 +412,7 @@
   // hedeflerine geçer: `left` kalan jetonlar (verilmezse başlangıçtaki), `tokens[w]` w. dalganın jetonları.
   // ph: nabız kapaklarının o anki hali (hamle sayısının teki/çifti, verilmezse 0)
   // Dalgada çıkan bombalar patlar: blasts[w] = [{ from, hits }]; vurulanlar sonraki dalgada uçar.
+  // Renk bombasının patlaması { from, hits, paint } (hits: o renkte tahtada kalanlar).
   // Dalgada çıkan portalın ikizi tahtadaysa ışınlanır: portals[w] = [{ from, to }]; ikiz sonraki dalgada uçar.
   // Dalgadan sonra basıncı dolan kazanlar ve zırhı biten dev halkalar: fuses[w] = [halka]; sonraki dalgada çıkarlar
   // (kazan patlar, dev halka yalnızca parçalanır).
@@ -426,15 +445,17 @@
       const bs = [];
       hit = 0;
       for (const i of wave) {
-        if (!L.rings[i].bomb && !L.rings[i].boiler) continue;
+        const r = L.rings[i];
+        if (!r.bomb && !r.boiler && !r.cbomb) continue;
+        // Bomba ve kazan kesiştiklerini, renk bombası kendi rengindekileri vurur
+        const near = r.cbomb ? L.painted[r.paint] : L.ringLinks[i].map(li => (L.links[li].a === i ? L.links[li].b : L.links[li].a));
         const hits = [];
-        for (const li of L.ringLinks[i]) {
-          const k = L.links[li], o = k.a === i ? k.b : k.a;
+        for (const o of near) {
           if (mask & (1 << o) || hit & (1 << o) || L.rings[o].kind === 'frame') continue;
           hit |= 1 << o;
           hits.push(o);
         }
-        if (hits.length) bs.push({ from: i, hits });
+        if (hits.length) bs.push(r.cbomb ? { from: i, hits, paint: r.paint } : { from: i, hits });
       }
       const ps = [];
       for (const i of wave) {
