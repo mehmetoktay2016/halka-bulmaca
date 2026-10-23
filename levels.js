@@ -456,7 +456,7 @@
     2057: { name: 'Sıcak Hava Balonu', gate: 49, role: 'mid', target: 8.0, bars: 2 },
     2058: { name: 'Kartal', gate: 49, role: 'final', target: 8.0, bars: 2, boss: true },
     2059: { name: 'Gökkuşağı', gate: 50, role: 'mid', target: 6.0, bars: 0 }, // iç içe yaylar: çubuk sığmıyor (6,0)
-    2060: { name: 'Bulut Şatosu', gate: 50, role: 'final', target: 8.0, bars: 2, boss: true }, // 500. bölüm
+    2060: { name: 'Bulut Şatosu', gate: 50, role: 'final', target: 10.0, bars: 4, cage: false, boss: true }, // 500. bölüm: en güçlü final (6 hamle, 9,98)
   };
   const ANIMALS = [
     { name: 'Kedi',

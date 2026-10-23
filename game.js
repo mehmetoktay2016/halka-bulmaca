@@ -1487,13 +1487,13 @@
       }
     });
     // İstiridye uçarken kapakları ayrılır, inci yerinde belirip büyür (çizim pearlAt anına dek saklı inciyi gösterir)
-    let pearled = -1, caught = -1;
+    let pearled = -1, caught = -1, pearlN = 0;
     waves.forEach((wave, w) => {
       for (const s of wave.filter(isShell)) {
         S.L.shellOf.forEach((k, p) => {
           if (k !== s) return;
           S.pearlAt[p] = now + at[w] + 80;
-          pearled = p;
+          pearled = p; pearlN++;
           if (waves.slice(w + 1).some(v => v.includes(p))) caught = p;
         });
         setTimeout(() => { S.shellHalves.push({ ring: s, t0: performance.now() }); Sound.pearl(); }, at[w] + 60);
@@ -1505,12 +1505,12 @@
     const gusted = kicks.flat().filter(k => k.gust).map(k => k.target).find(t => waves.flat().includes(t)) ?? -1;
     S.slid = false;
     // Zincirli ikizler birlikte uçar; biri zorla tek başına giderse zincir kopar
-    let twinned = -1;
+    let twinned = -1, twinN = 0;
     waves.forEach((wave, w) => {
       for (const i of wave) {
         const m = S.L.chainMate[i];
         if (m < 0 || S.mask & (1 << m)) continue;
-        if (wave.includes(m)) { if (i < m) { twinned = i; setTimeout(() => Sound.twins(), at[w]); } continue; }
+        if (wave.includes(m)) { if (i < m) { twinned = i; twinN++; setTimeout(() => Sound.twins(), at[w]); } continue; }
         S.chainCut[Math.min(i, m)] = now + at[w];
       }
     });
@@ -1536,6 +1536,8 @@
     if (!S.preview && S.tut == null) {
       setTimeout(() => addCombo(freed.length), at[Math.max(0, waves.length - 1)] + 200);
       stat('bombs', bangs); stat('iceCracks', cracks); stat('boilers', boils); stat('teleports', Object.keys(teleOf).length);
+      stat('paints', blasts.flat().filter(b => b.paint != null).length); stat('pearls', pearlN); stat('twins', twinN);
+      stat('gusts', waves.flat().filter(i => S.L.rings[i].gust).length);
       if (bossDown >= 0) stat('bosses');
     }
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
@@ -2761,6 +2763,7 @@
   // Bir hamle tamamlandı (elle ya da "Hamleyi yap" ile)
   function commitMove(before, ring) {
     S.moves++;
+    if (ring >= 0 && S.L.rings[ring].ratchet && !S.preview && S.tut == null) stat('ratchets');
     S.left = spend(S.L, S.left, ring);
     // Her hamle nabız kapaklarını çevirir (serbest kalma kapakların yeni haline göre)
     if (S.L.hasPulse) { S.ph ^= 1; S.phT0 = performance.now(); Sound.lamp(S.ph); }
@@ -2878,10 +2881,10 @@
     const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
     const perfect = nums.filter(n => starsOf(n) === 3).length;
-    $('endingEyebrow').textContent = kind === 'finale' ? tr('Üçüncü perde tamam') : tr('İlk 8 dünya tamam');
-    $('endingTitle').textContent = kind === 'finale' ? tr('Anka kanatlandı!') : tr('Büyük Makine çalıştı!');
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Dördüncü perde tamam') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Gökyüzü Sarayı\'na ulaştın!') : tr('Büyük Makine çalıştı!');
     $('endingLead').textContent = kind === 'finale'
-      ? tr('{n} bölümün hepsini bitirdin. Anka\'nın ateşi bütün dünyalara ışık taşıyor.', { n: TOTAL })
+      ? tr('{n} bölümün hepsini bitirdin. Anka seni bulutların üstüne taşıdı; bütün dostların sarayda buluştu.', { n: TOTAL })
       : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
       [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],
