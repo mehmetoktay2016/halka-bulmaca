@@ -546,5 +546,41 @@ test('inci: geçersiz tanımlar hata verir', () => {
   assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0 }, { x: 160, y: 100, r: 40 }], couples: [[1, 2]] }), /inci eşli/);
 });
 
+// Zincirli ikizler (R11): 0 ile 2 zincirli; 1 ve 3 onları tutan sabit halkalar
+const CHAIN = Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, a: 90, chain: 1 }, { x: 170, y: 100, r: 50, a: 0, fixed: true },
+  { x: 330, y: 100, r: 50, a: 90, chain: 1 }, { x: 400, y: 100, r: 50, a: 0, fixed: true }] });
+// i halkasının boşluğunu sağındaki sabit halkayla kesişime getiren açılar
+const chainOpen = (L, a, i) => { const k = L.links.find(l => l.a === i), out = a.slice(); out[i] = k.pts[0].angA; return out; };
+
+test('zincir: eşi serbest değilken zincirli halka uçmaz, ikisi birden serbestken birlikte uçar', () => {
+  const L = CHAIN;
+  assert.deepStrictEqual(L.chainMate, [2, -1, 0, -1]);
+  // yalnız 0 açık: sabit komşusu 1 uçar ama 0 eşini bekler
+  const one = Logic.cascade(L, chainOpen(L, L.startAngles, 0), 0);
+  assert.deepStrictEqual(one.waves, [[1]]);
+  const both = Logic.cascade(L, chainOpen(L, chainOpen(L, L.startAngles, 0), 2), 0);
+  assert.deepStrictEqual(both.waves[0], [0, 1, 2, 3]);
+  assert.strictEqual(Logic.solve(L, L.startAngles, 0).moves, 2);
+});
+
+test('zincir: patlamanın vurduğu zincirliyi zincir tutmaz, eşi sonra tek başına kurtulur', () => {
+  const rings = [{ x: 100, y: 100, r: 50, a: 90, chain: 1 }, { x: 170, y: 100, r: 50, a: 0, bomb: true },
+    { x: 330, y: 100, r: 50, a: 90, chain: 1 }, { x: 400, y: 100, r: 50, a: 0, fixed: true }];
+  const L = Logic.buildLevel({ rings });
+  // bombanın boşluğu 0 ile kesişimi açar: bomba uçar, 0'ı vurur; 0 zorla gider, 2 artık zincirsiz
+  const k = L.links.find(l => l.a === 0 && l.b === 1), a = L.startAngles.slice();
+  a[1] = k.pts[0].angB;
+  const c = Logic.cascade(L, a, 0);
+  assert.deepStrictEqual(c.waves, [[1], [0]]);
+  // eşi gittiği için 2 artık tek başına kurtulur
+  assert.deepStrictEqual(Logic.cascade(L, chainOpen(L, c.angles, 2), c.mask).waves, [[2, 3]]);
+});
+
+test('zincir: geçersiz tanımlar hata verir', () => {
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, chain: 1 }, { x: 170, y: 100, r: 50 }] }), /tam iki halkada/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, chain: 1, portal: 1 }, { x: 300, y: 100, r: 50, chain: 1, portal: 1 }] }), /zincir portal/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 60 }, { x: 100, y: 100, r: 30, pearl: 0, chain: 1 }, { x: 300, y: 100, r: 50, chain: 1 }] }), /zincir portal/);
+});
+
 console.log(failed ? `\n${failed} test başarısız` : '\nTüm kural testleri geçti');
 process.exit(failed ? 1 : 0);

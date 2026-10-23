@@ -151,6 +151,9 @@
       // İnci halka (pearl: k): k numaralı istiridye halkasının içinde saklıdır. İstiridye tahtadayken inci yok sayılır
       // (kesişmez, dönmez, kurtulmaz, patlamalar onu vurmaz); istiridye çıkınca belirir ve normal bir halka olur
       pearl: r.pearl == null ? -1 : r.pearl,
+      // Zincirli ikiz (chain: n): aynı numarayı taşıyan iki halka zincirlidir; ancak ikisi aynı anda serbestken birlikte
+      // uçarlar. Patlamanın zorla uçurduğu zincirliyi zincir tutmaz (zincir kopar, eşi tek başına kurtulabilir)
+      chain: r.chain == null ? -1 : r.chain,
     }));
     for (const [i, r] of def.rings.entries()) {
       if (r.lockedBy == null) continue;
@@ -199,6 +202,14 @@
       painted[r.paint].push(i);
     }
     for (const [i, r] of def.rings.entries()) if (r.cbomb && painted[r.paint].length < 2) throw new Error(`Halka ${i}: renk bombasının renginde başka halka yok`);
+    const chained = {};
+    for (const [i, r] of def.rings.entries()) {
+      if (r.chain == null) continue;
+      // Portal ve inci de iki halkalık bağlar; birleşince hangisinin geçerli olduğu belirsiz kalırdı
+      if (r.type || r.portal != null || r.pearl != null || def.rings.some(o => o.pearl === i)) throw new Error(`Halka ${i}: zincir portal, inci ya da istiridyeyle birleşemez`);
+      (chained[r.chain] = chained[r.chain] || []).push(i);
+    }
+    for (const [n, list] of Object.entries(chained)) if (list.length !== 2) throw new Error(`Zincir ${n}: tam iki halkada olmalı`);
     for (const [i, r] of def.rings.entries()) {
       if (r.pearl == null) continue;
       const k = def.rings[r.pearl];
@@ -344,6 +355,8 @@
       motors: rings.filter(r => r.motor).map(r => r.id),
       // İncinin istiridyesi (inci olmayanda -1)
       shellOf: rings.map(r => (r.kind === 'ring' ? r.pearl : -1)),
+      // Zincirli eşi (yoksa -1)
+      chainMate: rings.map(r => (!(r.chain >= 0) ? -1 : rings.findIndex(o => o !== r && o.chain === r.chain))),
       // Portal ikizi (yoksa -1)
       twin: rings.map(r => (!(r.portal >= 0) ? -1 : rings.findIndex(o => o !== r && o.portal === r.portal))),
     };
@@ -444,10 +457,17 @@
     const waves = [], kicks = [], tokens = [], blasts = [], portals = [], fuses = [];
     let hit = 0; // patlamanın vurduğu ya da portalla ışınlanan, sonraki dalgada zorla uçacak parçalar
     for (;;) {
-      const wave = [];
+      let free = 0;
       for (let i = 0; i < L.rings.length; i++) {
         if (mask & (1 << i) || L.rings[i].kind === 'frame' || hidden(L, i, mask)) continue;
-        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) wave.push(i);
+        if ((hit & (1 << i)) || isFree(L, i, angles, mask, ph)) free |= 1 << i;
+      }
+      // Zincirli halka eşi de serbestken (ya da eşi gitmişken) uçar; patlamanın vurduğunu zincir tutmaz
+      const wave = [];
+      for (let i = 0; i < L.rings.length; i++) {
+        if (!(free & (1 << i))) continue;
+        const m = L.chainMate[i];
+        if (m < 0 || hit & (1 << i) || mask & (1 << m) || free & (1 << m)) wave.push(i);
       }
       if (!wave.length) break;
       for (const i of wave) mask |= 1 << i;
