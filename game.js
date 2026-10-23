@@ -215,11 +215,15 @@
         tone(75, 0.5, 'triangle', 0.12, 30, 0.02);
         [1568, 2093, 2637].forEach((f, k) => tone(f, 0.45, 'sine', 0.05, null, 0.08 + k * 0.06));
       },
-      // Bomba: gürültülü patlama ve alçalan bas; zincirde (k. patlama) her biri biraz daha tok
+      // Bomba: yumuşak "pof" gümlemesi, şaklayan pop ve hızla yükselen parlak arpej (konfeti patlaması gibi);
+      // zincirde (k. patlama) her biri iki yarım ses daha tiz, ödül hissi büyür. Gürültü kısa ve alçaktır (cızırtı yok)
       bang: (k = 0) => {
-        noise(0.7, 0.55, 2600 - Math.min(k, 4) * 300, 160);
-        tone(120 - Math.min(k, 4) * 10, 0.5, 'sine', 0.3, 36);
-        tone(1800, 0.05, 'square', 0.03, 600);
+        const m = Math.pow(2, Math.min(k, 5) * 2 / 12);
+        tone(170, 0.32, 'sine', 0.3, 48);
+        tone(620 * m, 0.07, 'triangle', 0.14, 1240 * m);
+        noise(0.16, 0.16, 1400, 260);
+        [784, 988, 1175, 1568].forEach((f, j) => tone(f * m, 0.22, 'triangle', 0.075, null, 0.05 + j * 0.04));
+        [2349, 3136].forEach((f, j) => tone(f * m, 0.45, 'sine', 0.035, null, 0.22 + j * 0.06));
       },
       // Motor: çark dönerken tahta tık + metal tak
       gear: () => {
