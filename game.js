@@ -1197,7 +1197,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {},
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {},
       flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
@@ -2647,9 +2647,22 @@
     const d = signedDelta(S.drag.lastAng, ang);
     S.drag.lastAng = ang;
     S.drag.total += d;
+    if (r.ratchet && S.drag.total * r.ratchet < -12 * DEG) {
+      // Cırcır ters yöne dönmez: mandal takılır (bir kez), uygulanan tık da geri alınır
+      if (S.drag.applied) { S.angles = rotate(S.L, S.angles, S.drag.ring, -S.drag.applied); S.drag.applied = 0; }
+      if (!S.drag.denied) {
+        S.drag.denied = true;
+        for (const k of S.L.group[S.drag.ring]) S.shake[k] = performance.now();
+        S.ratchetDeny[S.drag.ring] = performance.now();
+        Sound.deny();
+        showTip(tr('Cırcır yalnız okun yönüne döner. Geri dönmek için turu tamamla'));
+      }
+      return;
+    }
     if (r.step) {
-      // Tıklı halka parmağı serbestçe izlemez: en yakın tık yerine atlar
-      const want = Math.round(S.drag.total / r.step) * r.step;
+      // Tıklı halka parmağı serbestçe izlemez: en yakın tık yerine atlar. Cırcır yalnız yönünde ve en çok bir tık
+      const k = Math.round(S.drag.total / r.step);
+      const want = (r.ratchet ? (k * r.ratchet > 0 ? r.ratchet : 0) : k) * r.step;
       if (want !== S.drag.applied) {
         S.angles = rotate(S.L, S.angles, S.drag.ring, want - S.drag.applied);
         S.drag.applied = want;
@@ -3516,7 +3529,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.ratchet || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3997,6 +4010,50 @@
     }
   }
 
+  // ---- Cırcır halka çizimi (2.6) ----
+  // Testere dişleri halkanın dışında, halkayla döner: dik yüzü dönüş yönünün önünde (mandal oraya takılır)
+  function drawRatchetTeeth(i, ang, cx, cy) {
+    const r = S.L.rings[i], dir = r.ratchet, pitch = 15 / r.r, r0 = r.r + STROKE / 2 - 1, r1 = r0 + 6;
+    ctx.save();
+    ctx.fillStyle = W.PIECE_COLORS.ratchet; ctx.strokeStyle = 'rgba(18,12,7,.8)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+    for (const [from, to] of gapList(r, ang).map((g, k, l) => [g + GAP_HALF, (k + 1 < l.length ? l[k + 1] : l[0] + TAU) - GAP_HALF])) {
+      for (let th = from + pitch * 0.3; th + pitch <= to; th += pitch) {
+        const lo = dir > 0 ? th : th + pitch, hi = dir > 0 ? th + pitch : th;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(lo) * r0, cy + Math.sin(lo) * r0);
+        ctx.lineTo(cx + Math.cos(hi) * r1, cy + Math.sin(hi) * r1);
+        ctx.lineTo(cx + Math.cos(hi) * r0, cy + Math.sin(hi) * r0);
+        ctx.closePath(); ctx.stroke(); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  // Rozet: pirinç disk üstünde dönüş yönünü gösteren yay ok (ters cırcırda aynalı); takılınca kızarır ve titrer
+  function drawRatchets(now) {
+    S.L.rings.forEach((r, i) => {
+      if (!r.ratchet || !springLive(i)) return;
+      const th = springBadgeAt(i), d = S.ratchetDeny[i] ? Math.max(0, 1 - (now - S.ratchetDeny[i]) / 520) : 0;
+      const x = r.x + Math.cos(th) * r.r + (REDUCED ? 0 : d * 3 * Math.sin(now / 18)), y = r.y + Math.sin(th) * r.r;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(18,12,7,.9)'; ctx.beginPath(); ctx.arc(0, 2, 16, 0, TAU); ctx.fill();
+      const g = ctx.createRadialGradient(-5, -5, 1, 0, 0, 14);
+      g.addColorStop(0, '#fff1c4'); g.addColorStop(0.35, W.PIECE_COLORS.ratchet); g.addColorStop(1, '#9a6a1c');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 13.5, 0, TAU); ctx.fill();
+      if (d > 0) { ctx.fillStyle = `rgba(230,60,40,${0.85 * Math.min(1, 1.6 * d)})`; ctx.beginPath(); ctx.arc(0, 0, 13.5, 0, TAU); ctx.fill(); }
+      ctx.scale(r.ratchet, 1);
+      ctx.strokeStyle = '#3a2500'; ctx.fillStyle = '#3a2500'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+      const tip = 0.75, hx = Math.cos(tip) * 7, hy = Math.sin(tip) * 7, ta = tip + Math.PI / 2;
+      ctx.beginPath(); ctx.arc(0, 0, 7, -2.4, tip); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(ta) * 4.5, hy + Math.sin(ta) * 4.5);
+      ctx.lineTo(hx + Math.cos(ta + 2.4) * 4, hy + Math.sin(ta + 2.4) * 4);
+      ctx.lineTo(hx + Math.cos(ta - 2.4) * 4, hy + Math.sin(ta - 2.4) * 4);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+  }
+
   // ---- Buz halka çizimi (2.5) ----
   // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
   function iceShown(i, now) {
@@ -4096,6 +4153,9 @@
     if (S.L.rings[i].side >= 0) return SIDE_COLORS[S.L.rings[i].side];
     if (S.L.rings[i].paint >= 0) return W.PIECE_COLORS.paints[S.L.rings[i].paint];
     if (S.L.painted.some(p => p.length)) return W.PIECE_COLORS.plain[i % W.PIECE_COLORS.plain.length];
+    if (S.L.rings[i].ratchet) return W.PIECE_COLORS.ratchet;
+    // cırcırlı bölümde renksizler pirinçle karışmayan turkuaz, kiremit, lacivert taşı
+    if (S.L.rings.some(r => r.ratchet)) return S.def.rings[i].color || W.PIECE_COLORS.desert[i % W.PIECE_COLORS.desert.length];
     return S.def.rings[i].color || COLORS[i % COLORS.length];
   }
 
@@ -4224,6 +4284,7 @@
     }
     if (ring.step) drawStepDots(i, cx, cy, now);
     if (ring.motor) drawMotorTeeth(i, ang, cx, cy);
+    if (ring.ratchet) drawRatchetTeeth(i, ang, cx, cy);
     strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
     // Kazan: ısındıkça kalınlaşır ve kor gibi parlar, düdükte akkor
@@ -4263,6 +4324,16 @@
       for (let k = 0; k < n; k++) {
         const a = base + g + k * ring.step;
         const here = angDist(a, S.angles[i] + g) < ring.step / 2;
+        // Cırcırın sonraki tıkı: dönüş yönünü gösteren, hafifçe nabız atan ok başı
+        if (ring.ratchet && !S.drag && !S.auto && angDist(a, S.angles[i] + g + ring.ratchet * ring.step) < ring.step / 2) {
+          const beat = REDUCED ? 1 : 1 + 0.15 * Math.sin(now / 220);
+          ctx.save();
+          ctx.translate(cx + Math.cos(a) * (rr + 6), cy + Math.sin(a) * (rr + 6)); ctx.rotate(a + ring.ratchet * Math.PI / 2); ctx.scale(beat, beat);
+          ctx.fillStyle = '#ffe6a8'; ctx.strokeStyle = 'rgba(8, 10, 24, .75)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -8); ctx.lineTo(-2, 0); ctx.lineTo(-6, 8); ctx.closePath(); ctx.stroke(); ctx.fill();
+          ctx.restore();
+          continue;
+        }
         // Koyu kenar: nokta, zemindeki kadran dokusunda kaybolmasın
         ctx.fillStyle = here ? '#ffd36b' : 'rgba(255,255,255,.72)';
         ctx.strokeStyle = 'rgba(8, 10, 24, .7)';
@@ -4823,6 +4894,7 @@
         drawBombs(now);
         drawIceBadges(now);
         drawMotors(now);
+        drawRatchets(now);
         drawPortals(now);
         drawBoilers(now);
         drawTokens(now);

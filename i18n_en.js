@@ -576,6 +576,13 @@ var RING_LANG_EN = {
   'aynı renk de uçar': 'same color flies too',
   'Sarılı şekerli halka renk bombasıdır. Kurtulunca kendi rengindeki bütün halkalar da uçar': 'The ring with the wrapped candy is a color bomb. When it flies off, every ring of its color flies off too',
   'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.': 'When the ring with the wrapped candy flies off, every ring of its color flies off with it, wherever it is and whatever holds it. Colors also differ by pattern.',
+  // 2.6 Cırcır halka
+  'Cırcır': 'Ratchet',
+  'Cırcır halka': 'Ratchet ring',
+  'geri dönmez': "won't go back",
+  'Dişli pirinç halka cırcırdır: yalnız okun yönüne ve her hamlede bir tık döner': 'The toothed brass ring is a ratchet: it turns only the way its arrow points, one click per move',
+  'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.': 'The toothed brass ring turns only the way its badge arrow points, one click per move. Turn it too far and it cannot go back: complete the circle.',
+  'Cırcır yalnız okun yönüne döner. Geri dönmek için turu tamamla': 'A ratchet turns only the way its arrow points. To go back, complete the circle',
   'zırh bitti!': 'armour gone!',
   'Kazan patladı!': 'Boiler burst!',
   'Büyük patlama!': 'Big bang!',

@@ -17,6 +17,9 @@
     // lavanta, karamel, gök mavisi
     paints: ['#ff6fc0', '#4fdcb0', '#ffd34a'],
     plain: ['#a48be0', '#d39a62', '#7fa8e8'],
+    // 2.6 cırcır pirinç; cırcırlı bölümde renksizler sarısız: turkuaz, kiremit, lacivert taşı
+    ratchet: '#f0b44a',
+    desert: ['#3fc8c0', '#e07a52', '#6f8cf0'],
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)

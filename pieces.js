@@ -52,12 +52,14 @@
     // 2.6 parçaları (kapı 41-50)
     { id: 'cbomb', intro: 1016, name: 'Renk Bombası',
       text: 'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.' },
+    { id: 'ratchet', intro: 1017, name: 'Cırcır halka',
+      text: 'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar'];
+    'aynı renk de uçar', 'geri dönmez'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -697,6 +699,46 @@
       }
       dragFinger(g, B[0], B[1], r, bAng, t - 300, 1000);
       label(g, tx('aynı renk de uçar'), 130, 178, seg(t, 2000, 2300));
+    } },
+    // 2.6: cırcır saat yönünde bir tık ilerler, ters çevrilince mandal takılır, sonra bir tık daha
+    ratchet: { ms: 5000, draw(g, t) {
+      const x = 130, y = 94, r = 52, brass = '#f0b44a';
+      const c1 = seg(t, 500, 800), c2 = seg(t, 3200, 3500), deny = t > 1700 && t < 2500;
+      const ang = -90 * DEG + (c1 > 0 ? back(c1) : 0) * 90 * DEG + (c2 > 0 ? back(c2) : 0) * 90 * DEG + (deny ? 0.04 * Math.sin(t / 22) : 0);
+      const pos = (c1 > 0.5 ? 1 : 0) + (c2 > 0.5 ? 1 : 0);
+      for (let k = 0; k < 4; k++) {
+        const a = -Math.PI / 2 + k * Math.PI / 2, [px, py] = at(x, y, r + 22, a);
+        if (k === pos + 1 && !deny && (t < 300 || (t > 1000 && t < 3000) || t > 3700)) {
+          g.save(); g.translate(px, py); g.rotate(a + Math.PI / 2);
+          g.fillStyle = '#ffe6a8'; g.beginPath(); g.moveTo(8, 0); g.lineTo(-5, -7); g.lineTo(-2, 0); g.lineTo(-5, 7); g.closePath(); g.fill(); g.restore();
+          continue;
+        }
+        g.fillStyle = k === pos ? '#ffd36b' : 'rgba(255,255,255,.4)';
+        g.beginPath(); g.arc(px, py, k === pos ? 5 : 3, 0, TAU); g.fill();
+      }
+      // testere dişleri: dik yüz dönüş yönünde
+      g.save(); g.fillStyle = brass;
+      for (let th = ang + GAP + 0.1; th < ang + TAU - GAP - 0.3; th += 0.3) {
+        g.beginPath(); g.moveTo(...at(x, y, r + 4, th)); g.lineTo(...at(x, y, r + 10, th + 0.3)); g.lineTo(...at(x, y, r + 4, th + 0.3)); g.closePath(); g.fill();
+      }
+      g.restore();
+      ring(g, x, y, r, ang, brass);
+      // rozet: pirinç disk, saat yönü ok; takılınca kızarır
+      const [bx, by] = at(x, y, r, ang + Math.PI);
+      g.save(); g.translate(bx + (deny ? 2.5 * Math.sin(t / 18) : 0), by);
+      g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.arc(0, 2, 14, 0, TAU); g.fill();
+      g.fillStyle = deny ? '#e64a32' : brass; g.beginPath(); g.arc(0, 0, 12, 0, TAU); g.fill();
+      g.strokeStyle = '#3a2500'; g.fillStyle = '#3a2500'; g.lineWidth = 2.4; g.lineCap = 'round';
+      g.beginPath(); g.arc(0, 0, 6, -2.4, 0.75); g.stroke();
+      const [hx, hy] = at(0, 0, 6, 0.75), ta = 0.75 + Math.PI / 2;
+      g.beginPath(); g.moveTo(...at(hx, hy, 4, ta)); g.lineTo(...at(hx, hy, 3.6, ta + 2.4)); g.lineTo(...at(hx, hy, 3.6, ta - 2.4)); g.closePath(); g.fill();
+      g.restore();
+      dragFinger(g, x, y, r, ang, t - 300, 700);
+      // ters yöne çeken parmak
+      dragFinger(g, x, y, r, ang + (t > 1600 ? -0.25 * seg(t, 1600, 1900) : 0), t - 1500, 1100);
+      dragFinger(g, x, y, r, ang, t - 3000, 700);
+      label(g, tx('tık'), x, y, (c1 > 0 && t < 1300) || (c2 > 0 && t < 4100) ? 1 : 0);
+      label(g, tx('geri dönmez'), x, y, deny ? 1 : 0);
     } },
   };
 
