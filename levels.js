@@ -432,6 +432,9 @@
     2038: { name: 'Tek Boynuzlu At', gate: 39, role: 'final', target: 9.5, bars: 2, cage: false, boss: true },
     2039: { name: 'Sihirli Kitap', gate: 40, role: 'mid', target: 8.0, bars: 2 },
     2040: { name: 'Anka Kuşu', gate: 40, role: 'final', target: 10.0, bars: 3, boss: true },
+    // 2.6 (R5): kapı 41-50 (R2 şekilleri); kapı açıldıkça eklenir. Hedefler GEÇİCİ, üretimde ölçülür
+    2041: { name: 'Kurabiye Adam', gate: 41, role: 'mid', target: 8.0, bars: 2 },
+    2042: { name: 'Lolipop', gate: 41, role: 'final', target: 8.0, bars: 2, boss: true }, // 5 halkalı ağaç: 2 çubukla en çok ~8,2
   };
   const ANIMALS = [
     { name: 'Kedi',
@@ -1677,7 +1680,7 @@
   // normal bölümler, 5. sırada ara şekil, sonda final. Normal bölümler 90'dan başlayan kaynak
   // numaralarıyla kendi kapılarının dünyasına göre üretilir (NORMAL_PLAN: kapı ve hedef zorluk).
   const OLD_GATES = 6;
-  const LAST_GATE = 40; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane); 2.5: kapı 31-40
+  const LAST_GATE = 41; // 2.4: kapı 21-30 (Lunapark, Santral, Deniz Feneri, Rasathane); 2.5: kapı 31-40; 2.6: 41-50 kapı kapı açılır
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
@@ -1691,7 +1694,9 @@
     15: 14.25, 16: 14.5, 17: 14.8, 18: 15.1, 19: 15.4, 20: 15.7,
     21: 15.7, 22: 15.7, 23: 15.7, 24: 15.7, 25: 15.7, 26: 15.7, 27: 15.7, 28: 15.7, 29: 15.7, 30: 15.7,
     // 2.5 (kullanıcı kararı): zorluk hamleden değil yeni parçalardan gelir (puanda parçaların ağırlığı var), düzey aynı
-    31: 15.7, 32: 15.7, 33: 15.7, 34: 15.7, 35: 15.7, 36: 15.7, 37: 15.7, 38: 15.7, 39: 15.7, 40: 15.7 };
+    31: 15.7, 32: 15.7, 33: 15.7, 34: 15.7, 35: 15.7, 36: 15.7, 37: 15.7, 38: 15.7, 39: 15.7, 40: 15.7,
+    // 2.6: düzey aynı, zorluk yeni parçalardan
+    41: 15.7, 42: 15.7, 43: 15.7, 44: 15.7, 45: 15.7, 46: 15.7, 47: 15.7, 48: 15.7, 49: 15.7, 50: 15.7 };
   const PLATEAU = 21; // bu kapıdan sonra zirveler artmaz (check_levels de buna göre denetler)
   const OLD_PEAK = 12.5; // 6. kapının zirvesi
   const GATE_DROP = 2.5; // yeni kapının ilk normal bölümü önceki zirvenin bu kadar altından başlar
@@ -1834,12 +1839,15 @@
     29: ['table'], 30: ['table'],
     // 2.5: Havai Fişek bomba (33'te kazan), Buzul buz, Değirmen motor, Büyü Kulesi ikiz portal
     31: ['bomb'], 32: ['bomb'], 33: ['bomb', 'boiler'], 34: ['ice'], 35: ['ice'], 36: ['motor'], 37: ['motor'], 38: ['motor'],
-    39: ['portal'], 40: ['portal'] };
+    39: ['portal'], 40: ['portal'],
+    // 2.6: Şeker Diyarı renk bombası
+    41: ['cbomb'], 42: ['cbomb'], 43: ['cbomb'] };
   // Kapı 21-30'da dünyanın kendi parçasına yarı yarıya daha önce tanıtılmış bir parça eşlik eder
   const NEW_MECH_GATE = { kick: 21, token: 22, switch: 24, pulse: 26, table: 29 };
   // 2.5: kapı 31-40'ta yeni parçaya yarı yarıya eski ya da daha önce tanıtılmış yeni bir parça eşlik eder.
   // Şalter, nabız ve tabla katılmaz: yeni parçaların çoğuyla aynı halkada birleşemezler, arama boşa gider.
-  const NEW25_GATE = { bomb: 31, boiler: 33, ice: 34, motor: 36, portal: 39 };
+  // 2.6 parçaları da buraya eklenir (kapı 41'den sonra eşlik edebilirler)
+  const NEW25_GATE = { bomb: 31, boiler: 33, ice: 34, motor: 36, portal: 39, cbomb: 41 };
   function mechanicsFor(gate, rnd) {
     if (gate >= 31) {
       // Kapı 33: kazan her bölümde, bomba yarı yarıya. İkisi hep birlikteyken patlamalar zinciri bölümü 1-5 hamlede
@@ -2041,8 +2049,11 @@
   // (tools/build_bonus.js üretir). Hamle hakkı en iyi çözümden yalnız `slack` fazla.
   const BONUS = { first: 5001, every: 20, slack: 1 };
   // Büyütme üreticisinin yerleştirebildiği parçalar
-  const GROW_MECH = ['bomb', 'boiler', 'ice', 'motor', 'portal', 'click', 'reverse'];
+  const GROW_MECH = ['bomb', 'boiler', 'ice', 'motor', 'portal', 'cbomb', 'click', 'reverse'];
   const GROW_STATS = {};
+  // Üretim aracının ek sınavı (2.6: rastgele oyuncu ve benzerlik, tools/test_kit.js): bölüm geçemezse elenme nedeni döner
+  let growCheck = null;
+  const setGrowCheck = fn => { growCheck = fn; };
   const GROW_DIAG = [];
   let gsLast = '';
   const gs = k => { GROW_STATS[k] = (GROW_STATS[k] || 0) + 1; gsLast = k; };
@@ -2124,9 +2135,12 @@
       if (rings.length < 3) continue;
       // Göbeğin parçası; motor ve portal komşulara
       // Her halkada en çok bir parça: önce ikizler (göbeğin iki komşusu), göbeğe buz ya da kazan, kalanlar boş halkalara
-      const hasPiece = r => r.ice || r.boiler || r.bomb || r.motor || r.portal || r.step;
+      const hasPiece = r => r.ice || r.boiler || r.bomb || r.motor || r.portal || r.step || r.cbomb;
       const pick = () => rings.find(r => !hasPiece(r));
       if (mech.includes('portal')) { rings[1].portal = 1; rings[2].portal = 1; }
+      // Renk bombası göbeğin komşusuna; sonradan eklenen halkalar ara ara onun rengine (hedef), ara ara başka renge boyanır
+      const paint = mech.includes('cbomb') ? Math.floor(rnd() * 3) : -1;
+      if (paint >= 0) { const r = rings.slice(1).find(q => !hasPiece(q)) || pick(); if (!r) continue; r.cbomb = true; r.paint = paint; }
       if (mech.includes('ice')) hub.ice = 1;
       else if (mech.includes('boiler')) hub.boiler = 1;
       if (mech.includes('bomb')) { const r = pick(); if (!r) continue; r.bomb = true; }
@@ -2165,7 +2179,7 @@
         if (hub.ice === 1 && rings.filter((r, k) => k > 0 && Math.hypot(r.x - hub.x, r.y - hub.y) < r.r + hub.r).length >= 3) choices.push(() => { hub.ice = 2; undoFns.push(() => { hub.ice = 1; }); });
         if (!ownOnly || !choices.length) {
           if (known('click')) choices.push(() => { R.step = [45, 60, 90][Math.floor(rnd() * 3)]; undoFns.push(() => delete R.step); });
-          if (known('fixed')) choices.push(() => { R.fixed = true; undoFns.push(() => delete R.fixed); });
+          if (known('fixed') && R.paint == null) choices.push(() => { R.fixed = true; undoFns.push(() => delete R.fixed); });
           if (free.length >= 2 && known('reverse')) choices.push(() => { const j = free.find(k => k !== i); couples.push([i, j, -1]); undoFns.push(() => couples.pop()); });
         }
         if (!choices.length) return;
@@ -2184,6 +2198,8 @@
         const p = rnd() < 0.5 ? 0 : Math.floor(rnd() * rings.length);
         const c = attach(rnd, rings, p);
         if (!c) { fails++; continue; }
+        // (kural renk bombasının renginde başka halka ister: ilk hedef gelene dek yeni halka hep onun renginde)
+        if (paint >= 0) { const u = rnd(), aim = !rings.some(r => r.paint === paint && !r.cbomb); if (aim || u < 0.4) c.paint = paint; else if (u < 0.65) c.paint = (paint + 1 + Math.floor(rnd() * 2)) % 3; }
         rings.push(c);
         // Yeni halka bir eşle gelebilir (ters dişli): aynı adımda iki halka
         let paired = false;
@@ -2234,7 +2250,11 @@
         if (!connected(L)) { gs('kopuk'); undo(); continue; }
         if (!mattersAll(def, own.filter(m => features(def).includes(m)))) { gs('parca_onemsiz'); intensify(true); continue; }
         // Dopamin anı: en iyi çözümde tek hamlede en az 3 (zirvede 4) parçanın birden uçtuğu bir zincir olmalı
-        if (bigMoment(def, L) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); undo(); continue; }
+        const moment = {};
+        if (bigMoment(def, L, moment) < (plan.peak ? 4 : 3)) { gs('dopamin_yok'); undo(); continue; }
+        // Renk bombası: en iyi çözümde patlaması bombayla birlikte en az 3 halkayı uçurmalı
+        if (paint >= 0 && (moment.pop || 0) < 3) { gs('renk_az'); continue; }
+        if (growCheck) { const why = growCheck(def, levelNo); if (why) { gs(why); undo(); continue; } }
         const s2 = difficultyScore(def);
         if (s2 >= upper || s2 < t - (plan.peak ? slack : 0.4)) { gs('tam_puan_disi'); undo(); continue; }
         const err = plan.peak ? 0 : Math.abs(s2 - t);
@@ -2246,8 +2266,9 @@
     return best;
   }
 
-  // Çözüm boyunca tek hamlede uçan en çok parça (çözüm yolu ipucu aramasıyla izlenir)
-  function bigMoment(def, L) {
+  // Çözüm boyunca tek hamlede uçan en çok parça (çözüm yolu ipucu aramasıyla izlenir).
+  // out verilirse out.pop: en büyük renk patlamasında bombayla birlikte uçan halka sayısı
+  function bigMoment(def, L, out = {}) {
     let st = { angles: L.startAngles, mask: 0 }, most = 0;
     const pop = m => { let n = 0; while (m) { n += m & 1; m >>>= 1; } return n; };
     for (let k = 0; k < 12 && st.mask !== L.full; k++) {
@@ -2255,6 +2276,7 @@
       if (!q || !q.first || q.first.ring < 0) break;
       const c = Logic.afterMove(L, Logic.rotate(L, st.angles, q.first.ring, q.first.delta), st.mask);
       most = Math.max(most, pop(c.mask & ~st.mask));
+      for (const b of c.blasts.flat()) if (b.paint != null) out.pop = Math.max(out.pop || 0, 1 + b.hits.length);
       st = c;
     }
     return most;
@@ -2435,7 +2457,7 @@
     BOARD, HAND_LEVELS, MAIN_LEVELS, ANIMAL_LEVELS, ANIMALS, TUTORIAL, getLevel, getTutorial, generate, finishAnimal, SHAPE_PLAN,
     difficultyScore, parScore, closeness, GROW_STATS, GROW_DIAG, placeRings, nearOf, LAYOUT, KEEP_PAR, gateOrder, features, INTRO, MAX_PAR, MECH_LEVELS, plainVersion,
     connected, noRingFreeAtStart, difficulty, barVsRing, placeBars, mattersAll, bigMoment, WORLD_MECH,
-    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, growFor, GROW_MECH, BONUS, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
+    NORMAL_PLAN, NEW_FIRST, NEW_LAST, generateFor, growFor, setGrowCheck, GROW_MECH, BONUS, placeFrame, gateOfSource, maxParOf, WORLD_INTRO, PLATEAU,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingLevels = api;

@@ -15,6 +15,17 @@ const DATA = path.join(__dirname, '..', 'levels_data.js');
 if (process.argv[2] === '--worker') {
   // İşçi: verilen kaynakları sırayla üretir, her birini hemen dosyaya yazar
   const Levels = require('../levels.js');
+  // 2.6 (kapı 41+) ek sınavı: rastgele oyuncu hamle hakkı içinde EASY'den sık bitiremez (kapı ortalaması gate_report'un
+  // GATE_EASY %30'unun altında kalsın diye pay bırakıldı), oyundaki bir bölüme SIMILAR'dan çok benzemez
+  const Kit = require('./test_kit.js');
+  const EASY = 0.35, SIMILAR = 0.75;
+  const pool = Object.entries(Kit.pre).filter(([, d]) => !d.name).map(([s, d]) => [Number(s), d]);
+  Levels.setGrowCheck((def, n) => {
+    if (Levels.NORMAL_PLAN[n].gate < 41) return null;
+    if (Kit.randomPlay(def, Kit.moveLimit(def.par, n), 100).rate > EASY) return 'rastgele_kolay';
+    if (Kit.nearest(def, pool).sim > SIMILAR) return 'benzer';
+    return null;
+  });
   const [k, list] = [process.argv[3], process.argv[4].split(',').map(Number)];
   const partFile = path.join(OUT, `part${k}.json`), logFile = path.join(OUT, `log${k}.txt`);
   const part = fs.existsSync(partFile) ? JSON.parse(fs.readFileSync(partFile, 'utf8')) : {};
