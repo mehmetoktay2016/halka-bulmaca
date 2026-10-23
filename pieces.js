@@ -54,12 +54,14 @@
       text: 'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.' },
     { id: 'ratchet', intro: 1017, name: 'Cırcır halka',
       text: 'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.' },
+    { id: 'pearl', intro: 1018, name: 'İnci halka',
+      text: 'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar', 'geri dönmez'];
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -739,6 +741,33 @@
       dragFinger(g, x, y, r, ang, t - 3000, 700);
       label(g, tx('tık'), x, y, (c1 > 0 && t < 1300) || (c2 > 0 && t < 4100) ? 1 : 0);
       label(g, tx('geri dönmez'), x, y, deny ? 1 : 0);
+    } },
+    // 2.6: önce yandaki halka gider, sonra istiridye; kapaklar ayrılır, inci belirir ve hemen uçar
+    pearl: { ms: 4800, draw(g, t) {
+      const O = [120, 96], N = [196, 96], r = 50, shell = '#a99bc4', pearl = '#f4efe6';
+      const n1 = io(seg(t, 400, 1100)), nFly = seg(t, 1250, 1700), s1 = io(seg(t, 1900, 2600)), sFly = seg(t, 2750, 3150);
+      const born = seg(t, 2800, 3200), pFly = seg(t, 3450, 3900);
+      if (nFly === 0) ring(g, N[0], N[1], 40, 250 * DEG + n1 * 110 * DEG, C.teal); else flyRing(g, N[0], N[1], 40, 0, C.teal, nFly, 1, -0.2);
+      if (born === 0) {
+        g.save(); g.setLineDash([4, 6]); g.strokeStyle = 'rgba(244,239,230,.35)'; g.lineWidth = 2.5;
+        g.beginPath(); g.arc(O[0], O[1], 28, 0, TAU); g.stroke(); g.restore();
+        g.save(); g.shadowColor = '#fff'; g.shadowBlur = 12; g.fillStyle = pearl; g.beginPath(); g.arc(O[0], O[1], 9, 0, TAU); g.fill(); g.restore();
+      } else if (pFly === 0) ring(g, O[0], O[1], 28 * (0.3 + 0.7 * born), 90 * DEG, pearl, { glow: born < 1 });
+      else flyRing(g, O[0], O[1], 28, 90 * DEG, pearl, pFly, -1, -0.4);
+      if (sFly === 0) {
+        g.save(); g.fillStyle = shell;
+        const ang = 160 * DEG + s1 * 200 * DEG;
+        for (let a = ang + GAP + 0.1; a < ang + TAU - GAP - 0.2; a += 0.28) { g.beginPath(); g.arc(...at(O[0], O[1], r + 6, a + 0.14), 4.5, 0, TAU); g.fill(); }
+        g.restore();
+        ring(g, O[0], O[1], r, ang, shell);
+      } else if (sFly < 1) {
+        g.save(); g.globalAlpha *= 1 - sFly; g.fillStyle = shell;
+        for (const d of [-1, 1]) { g.beginPath(); g.ellipse(O[0] + d * 30 * sFly, O[1] + 40 * sFly * sFly, 26, 18, d * sFly, 0, TAU); g.fill(); }
+        g.restore();
+      }
+      dragFinger(g, N[0], N[1], 40, 250 * DEG + n1 * 110 * DEG, t - 300, 900);
+      dragFinger(g, O[0], O[1], r, 160 * DEG + s1 * 200 * DEG, t - 1800, 900);
+      label(g, tx('inci belirdi'), 130, 178, seg(t, 2900, 3150) * (t < 3700 ? 1 : 0));
     } },
   };
 

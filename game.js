@@ -3,7 +3,7 @@
   'use strict';
 
   const { TAU, DEG, GAP_HALF, angDist, signedDelta, buildLevel,
-          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft } = window.RingLogic;
+          pointOpen, afterMove, rotate, pressureLeft, armorLeft, solveFast, norm, canRotate, spend, turnTable, iceLeft, hidden } = window.RingLogic;
   const { BOARD, getLevel, getTutorial, TUTORIAL } = window.RingLevels;
   // Dil: tr('Türkçe metin', { değişken }) seçili dilde döner (i18n.js); sayfadaki sabit metinler data-t ile
   const I18N = window.RingI18n, tr = I18N.t;
@@ -48,6 +48,7 @@
   const RAIN_COINS = 3;    // Altın Yağmurunda tahta başına en çok altın
   const flyMs = f => (f.slow ? FLY_MS * SLOW_K : FLY_MS);
   const WAVE_MS = 170;
+  const PEARL_MS = 450; // istiridye açılınca inci belirip büyür; sonraki dalga onu bekler
   const COIN_MS = 650;
   const KEY_MS = 560;   // anahtarın kilide uçuşu
   const KICK_WAIT = 140; // yaylı halka uçmaya başladıktan sonra tekmenin gelişi
@@ -235,6 +236,12 @@
         }
       },
       // Motor: çark dönerken tahta tık + metal tak
+      // İstiridye açılır: kabarcıklar, kabuk çıtı, yükselen sedef tınısı
+      pearl: () => {
+        for (let k = 0; k < 4; k++) tone(300 + Math.random() * 300, 0.08, 'sine', 0.04, 900 + Math.random() * 600, k * 0.05);
+        tone(1200, 0.04, 'triangle', 0.04, null, 0.05);
+        for (const [d, f] of [[0.18, 1046.5], [0.26, 1318.5], [0.34, 1568], [0.42, 2093]]) { tone(f, 1.2, 'sine', 0.045, null, d); tone(f * 2.01, 0.6, 'sine', 0.012, null, d); }
+      },
       gear: () => {
         noise(0.05, 0.35, 3000, 1500); tone(900, 0.08, 'triangle', 0.1, 540);
         noise(0.05, 0.45, 1800, 900, 0.11); tone(520, 0.1, 'triangle', 0.13, 310, 0.11);
@@ -1197,7 +1204,7 @@
     Object.assign(S, {
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
-      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {},
+      keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [],
       flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
@@ -1344,6 +1351,7 @@
       // renk bombasında vurulanlar şeritlerin hepsi varınca uçar
       const beams = Math.max(0, ...blasts[w].map(b => (b.paint == null ? 0 : BEAM_MS + BEAM_GAP * (b.hits.length - 1))));
       return t + Math.max(kicks[w].length ? KICK_WAIT + KICK_MS : WAVE_MS, blasts[w].length ? BLAST_WAIT + BLAST_HOLD + beams : 0) +
+        (waves[w].some(isShell) ? PEARL_MS : 0) +
         (fuses[w].length ? FUSE_WAIT + (fuses[w].some(i => S.L.rings[i].boss) ? BOSS_MS : FUSE_MS) : 0);
     }, 0);
     // Son halka: sahne bir an donar (hit-stop), sonra parlama ve ağır çekimde uçuş
@@ -1463,6 +1471,19 @@
         setTimeout(() => { Sound.pop(w); burst(i, last); }, at[w]);
       }
     });
+    // İstiridye uçarken kapakları ayrılır, inci yerinde belirip büyür (çizim pearlAt anına dek saklı inciyi gösterir)
+    let pearled = -1, caught = -1;
+    waves.forEach((wave, w) => {
+      for (const s of wave.filter(isShell)) {
+        S.L.shellOf.forEach((k, p) => {
+          if (k !== s) return;
+          S.pearlAt[p] = now + at[w] + 80;
+          pearled = p;
+          if (waves.slice(w + 1).some(v => v.includes(p))) caught = p;
+        });
+        setTimeout(() => { S.shellHalves.push({ ring: s, t0: performance.now() }); Sound.pearl(); }, at[w] + 60);
+      }
+    });
     // Kurtulan anahtar halkadan kilitli halkaya anahtar uçar
     waves.forEach((wave, w) => {
       for (const k of wave) {
@@ -1486,9 +1507,9 @@
     // Son hamlede bölüm sonu övgüsü varsa zincir yalnızca sayılır, iki övgü üst üste binmez
     const endWord = finale ? endPraise() : null;
     const teled = Object.keys(teleOf).map(Number);
-    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
+    const word = bossDown >= 0 ? 'boss' : popped >= 0 ? 'paint' : caught >= 0 ? 'catch' : pearled >= 0 ? 'pearl' : melted >= 0 ? 'ice' : boiled >= 0 ? 'boil' : teled.length ? 'tele' : onTime.length ? 'time' : null;
     if (freed.length >= 2) setTimeout(() => showChain(freed, !!endWord, bangs, word), at[waves.length - 1]);
-    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
+    else if (word && !endWord) setTimeout(() => showWord(word === 'boss' ? bossDown : word === 'catch' ? caught : word === 'pearl' ? pearled : word === 'ice' ? melted : word === 'boil' ? boiled : word === 'tele' ? teled[0] : onTime[0], word), at[waves.length - 1]);
     if (endWord) setTimeout(() => showEndPraise(endWord), at[waves.length - 1] + 260);
     S.mask = mask;
     for (const c of S.coins) {
@@ -1536,7 +1557,8 @@
     for (const li of order) {
       if (out.length >= want) break;
       const k = L.links[li];
-      if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2) continue;
+      // saklı incinin kesişimine altın konmaz (görünmeyen halkada asılı kalırdı)
+      if (L.rings[k.a].kind !== 'ring' || L.rings[k.b].kind !== 'ring' || k.pts.length < 2 || L.shellOf[k.a] >= 0 || L.shellOf[k.b] >= 0) continue;
       if (L.table && (L.table.carried.includes(k.a) || L.table.carried.includes(k.b))) continue;
       const x = (k.pts[0].x + k.pts[1].x) / 2;
       const y = (k.pts[0].y + k.pts[1].y) / 2;
@@ -2122,6 +2144,8 @@
     boil: { text: 'Kazan patladı!', colors: ['#fff3b0', '#ff5a28'] },
     boss: { text: 'Dev Halka yenildi!', colors: ['#ffffff', '#ff6b6b'] },
     paint: { text: 'Renk patlaması!', colors: ['#fff0f7', '#ff6fc0'] },
+    pearl: { text: 'İnci belirdi!', colors: ['#ffffff', '#d8cfe6'] },
+    catch: { text: 'İnci avcısı!', colors: ['#ffffff', '#ffcf7a'] },
   };
   // Tek halkalık hamlede: halkanın üstünde parçanın övgüsü
   function showWord(i, word) {
@@ -2588,7 +2612,7 @@
   function hitRing(p) {
     let best = -1, bestD = 26;
     S.L.rings.forEach((r, i) => {
-      if (!present(i)) return;
+      if (!present(i) || veiled(i, performance.now())) return;
       const d = r.kind !== 'ring' ? pieceDist(p.x, p.y, r) + 4 : Math.abs(Math.hypot(p.x - r.x, p.y - r.y) - r.r);
       if (d < bestD) { bestD = d; best = i; }
     });
@@ -4054,6 +4078,84 @@
     });
   }
 
+  // ---- İnci halka çizimi (2.6) ----
+  const isShell = i => S.L.shellOf.includes(i);
+  // İnci saklı mı: istiridyesi tahtada ya da istiridye uçuyor ama inci henüz belirmedi
+  const veiled = (i, now) => S.L.shellOf[i] >= 0 && (hidden(S.L, i, S.mask) || now < (S.pearlAt[i] || 0));
+  // Saklı inci: istiridyenin ortasında parlayan sedef top ve incinin belireceği yer (kesik çizgi); istiridyeyle uçar
+  function drawHiddenPearl(i, now) {
+    const r = S.L.rings[i], sh = S.L.rings[S.L.shellOf[i]];
+    const P = ringPose(S.L.shellOf[i], now), ox = P.cx - sh.x, oy = P.cy - sh.y;
+    ctx.save();
+    ctx.globalAlpha = P.alpha;
+    ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(244,239,230,.35)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(r.x + ox, r.y + oy, r.r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    pearlBall(r.x + ox, r.y + oy, 11 + (REDUCED ? 0 : Math.sin(now / 400) * 1.2), now);
+    ctx.restore();
+  }
+  function pearlBall(x, y, s, now) {
+    const g = ctx.createRadialGradient(x - s * 0.35, y - s * 0.4, 1, x, y, s);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, W.PIECE_COLORS.pearl); g.addColorStop(0.8, '#d8cfe6'); g.addColorStop(1, '#b7a9cf');
+    ctx.shadowColor = 'rgba(255,255,255,.7)'; ctx.shadowBlur = 14;
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    // sedef yanardönerliği: dönen ince renkli hilal
+    ctx.strokeStyle = `hsla(${(now / 12) % 360},80%,80%,.55)`; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x, y, s * 0.7, now / 700, now / 700 + 1.6); ctx.stroke();
+  }
+  // Boşluklar dışındaki yaylar: each(baş, son)
+  const eachArc = (ring, ang, each) => gapList(ring, ang).forEach((g, k, l) => each(g + GAP_HALF, (k + 1 < l.length ? l[k + 1] : l[0] + TAU) - GAP_HALF));
+  // İstiridyenin dalgalı kabuk kenarı (halkanın altında, halkayla döner) ve üstündeki ışınsal oluklar
+  function drawShellRim(i, ang, cx, cy) {
+    const r = S.L.rings[i], step = 13 / r.r, r0 = r.r + STROKE / 2 - 1;
+    ctx.save();
+    ctx.fillStyle = W.PIECE_COLORS.shell; ctx.strokeStyle = 'rgba(4,15,22,.6)'; ctx.lineWidth = 1.4;
+    eachArc(r, ang, (from, to) => {
+      for (let th = from + step * 0.3; th + step <= to; th += step) {
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(th) * r0, cy + Math.sin(th) * r0);
+        ctx.quadraticCurveTo(cx + Math.cos(th + step / 2) * (r0 + 9), cy + Math.sin(th + step / 2) * (r0 + 9), cx + Math.cos(th + step) * r0, cy + Math.sin(th + step) * r0);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+  function drawShellGrooves(i, ang, cx, cy) {
+    const r = S.L.rings[i];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(70,55,100,.55)'; ctx.lineWidth = 1.6;
+    eachArc(r, ang, (from, to) => {
+      for (let th = from + 0.1; th < to; th += 9 / r.r) {
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(th) * (r.r - 5), cy + Math.sin(th) * (r.r - 5)); ctx.lineTo(cx + Math.cos(th) * (r.r + 5), cy + Math.sin(th) * (r.r + 5)); ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+  // İncinin sedef parıltısı: halka boyunca kayan yanardöner şerit; belirirken beyaz parlar
+  function drawNacre(i, ang, cx, cy, now, born) {
+    const r = S.L.rings[i], th = REDUCED ? ang + Math.PI : now / 650 + i;
+    ctx.save();
+    ctx.strokeStyle = `hsla(${(now / 10 + i * 60) % 360},85%,82%,.75)`; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    if (!r.gaps.some(g => angDist(ang + g, th) < GAP_HALF + 0.4)) { ctx.beginPath(); ctx.arc(cx, cy, r.r, th - 0.35, th + 0.35); ctx.stroke(); }
+    if (born < 1) { ctx.globalAlpha *= 1 - born; strokeRing(r, ang, '#fff', STROKE + 8, cx, cy); }
+    ctx.restore();
+  }
+  // Açılan istiridyenin iki kapağı ayrılıp düşer
+  function drawShellHalves(now) {
+    S.shellHalves = S.shellHalves.filter(h => now - h.t0 < 700);
+    for (const h of S.shellHalves) {
+      const t = (now - h.t0) / 700, r = S.L.rings[h.ring];
+      ctx.save(); ctx.globalAlpha = 1 - t;
+      for (const d of [-1, 1]) {
+        ctx.save(); ctx.translate(r.x + d * 40 * t, r.y + 60 * t * t); ctx.rotate(d * 0.8 * t);
+        ctx.fillStyle = W.PIECE_COLORS.shell; ctx.strokeStyle = 'rgba(4,15,22,.7)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(0, 0, r.r * 0.55, r.r * 0.38, 0, d > 0 ? -Math.PI / 2 : Math.PI / 2, d > 0 ? Math.PI / 2 : Math.PI * 1.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+
   // ---- Buz halka çizimi (2.5) ----
   // Gösterilen kat: hamlede çatlama anı gelene dek eski kat (mantıkta hemen düşer)
   function iceShown(i, now) {
@@ -4154,6 +4256,8 @@
     if (S.L.rings[i].paint >= 0) return W.PIECE_COLORS.paints[S.L.rings[i].paint];
     if (S.L.painted.some(p => p.length)) return W.PIECE_COLORS.plain[i % W.PIECE_COLORS.plain.length];
     if (S.L.rings[i].ratchet) return W.PIECE_COLORS.ratchet;
+    if (S.L.rings[i].pearl >= 0) return W.PIECE_COLORS.pearl;
+    if (isShell(i)) return W.PIECE_COLORS.shell;
     // cırcırlı bölümde renksizler pirinçle karışmayan turkuaz, kiremit, lacivert taşı
     if (S.L.rings.some(r => r.ratchet)) return S.def.rings[i].color || W.PIECE_COLORS.desert[i % W.PIECE_COLORS.desert.length];
     return S.def.rings[i].color || COLORS[i % COLORS.length];
@@ -4268,7 +4372,11 @@
     if (isBar(i)) { drawBar(i, now); return; }
     if (isFrame(i)) { drawFrame(i, now); return; }
     const ring = S.L.rings[i];
-    const { cx, cy, alpha, grow, spin } = ringPose(i, now);
+    if (veiled(i, now)) { drawHiddenPearl(i, now); return; }
+    const pose = ringPose(i, now), { cx, cy, alpha, spin } = pose;
+    // inci belirirken merkezinden büyür
+    const born = S.pearlAt[i] ? Math.min(1, (now - S.pearlAt[i]) / 420) : 1;
+    const grow = pose.grow * (born < 1 ? 0.25 + 0.75 * (1 - Math.pow(1 - born, 3)) : 1);
     const ang = S.angles[i] + spin;
     if (S.shake[i] != null && now - S.shake[i] >= 350) delete S.shake[i];
     ctx.save();
@@ -4285,6 +4393,7 @@
     if (ring.step) drawStepDots(i, cx, cy, now);
     if (ring.motor) drawMotorTeeth(i, ang, cx, cy);
     if (ring.ratchet) drawRatchetTeeth(i, ang, cx, cy);
+    if (isShell(i)) drawShellRim(i, ang, cx, cy);
     strokeRing(ring, ang, 'rgba(0,0,0,.4)', STROKE + 6, cx + 2, cy + 4);
     ctx.shadowBlur = 0;
     // Kazan: ısındıkça kalınlaşır ve kor gibi parlar, düdükte akkor
@@ -4297,6 +4406,8 @@
     if (ring.boss && (!S.fly[i] || now < S.fly[i].t0)) drawBossArmor(i, ang, cx, cy, armorShown(i, now), now);
     strokeRing(ring, ang, 'rgba(255,255,255,.3)', 3, cx - 2, cy - 2);
     if (ring.paint >= 0) drawCandy(i, ang, cx, cy, now);
+    if (isShell(i)) drawShellGrooves(i, ang, cx, cy);
+    if (ring.pearl >= 0) drawNacre(i, ang, cx, cy, now, born);
     const icy = ring.ice ? iceShown(i, now) : 0;
     if (icy) drawIceShell(i, ang, cx, cy, icy, now);
     const fl = S.flash[i] ? 1 - (now - S.flash[i]) / 260 : 0;
@@ -4508,7 +4619,7 @@
   function drawOpenPoints(now) {
     const pulse = 0.6 + 0.4 * Math.sin(now / 180);
     S.L.links.forEach(k => {
-      if (!present(k.a) || !present(k.b)) return;
+      if (!present(k.a) || !present(k.b) || veiled(k.a, now) || veiled(k.b, now)) return;
       for (const p of k.pts) {
         if (!pointOpen(S.L, k, p, S.angles, S.ph)) continue;
         ctx.save();
@@ -4895,6 +5006,7 @@
         drawIceBadges(now);
         drawMotors(now);
         drawRatchets(now);
+        if (S.shellHalves.length) drawShellHalves(now);
         drawPortals(now);
         drawBoilers(now);
         drawTokens(now);

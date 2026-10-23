@@ -20,6 +20,9 @@
     // 2.6 cırcır pirinç; cırcırlı bölümde renksizler sarısız: turkuaz, kiremit, lacivert taşı
     ratchet: '#f0b44a',
     desert: ['#3fc8c0', '#e07a52', '#6f8cf0'],
+    // 2.6 istiridye lila-gri, inci sedef
+    shell: '#a99bc4',
+    pearl: '#f4efe6',
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)

@@ -1493,7 +1493,9 @@
       // 2.6: renk bombası bomba gibi hamleyi kısaltır; düşündüren, uzaktaki aynı renklileri görüp onu önce kurtarmak
       1.0 * n(r => r.cbomb) +
       // cırcır: fazla çevirmek turu baştan ister; hangi kesişimin önce geleceğini saymak gerekir
-      0.8 * n(r => r.ratchet);
+      0.8 * n(r => r.ratchet) +
+      // inci: saklıyken kimseyi tutmaz (bölümü kısaltır); düşündüren istiridyeyi ne zaman açacağın
+      0.8 * n(r => r.pearl != null);
   }
 
   // Hayvan seviyesi: boşluk açılarını (ve varsa kafes çubuklarını) zorluk hedefine en yakın
@@ -1645,6 +1647,10 @@
     // döndüğü için öbür kesişime dolanır. Cırcırsız (tıklı) 3 hamle, cırcırla 5 (prototipin "İlk cırcır"ı).
     1017: { title: 'Cırcır', world: 'piramit', tip: 'Dişli pirinç halka cırcırdır: yalnız okun yönüne ve her hamlede bir tık döner',
       rings: [{ x: 200, y: 220, r: 64, a: 240, step: 90, ratchet: 1 }, { x: 140, y: 320, r: 60, a: 180, fixed: true }, { x: 260, y: 320, r: 60, a: 300 }, { x: 200, y: 420, r: 58, a: 315 }] },
+    // İnci tanıtımı (1018, 2.6): ortadaki istiridyenin içinde inci; üç komşu. İnci baştan görünse 4 hamle, saklıyken 3
+    // (prototipin "İlk inci"si)
+    1018: { title: 'İnci halka', world: 'mercan', tip: 'Dalgalı kenarlı halka istiridyedir. Kurtulunca içindeki inci halka belirir, onu da kurtar',
+      rings: [{ x: 200, y: 260, r: 70, a: 135 }, { x: 200, y: 260, r: 40, a: 105, pearl: 0 }, { x: 285, y: 260, r: 58, a: 270 }, { x: 140, y: 320, r: 58, a: 105 }, { x: 150, y: 165, r: 56, a: 300 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
@@ -1652,7 +1658,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1660,7 +1666,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1683,6 +1689,7 @@
     if (def.rings.some(r => r.boiler)) f.push('boiler');
     if (def.rings.some(r => r.cbomb)) f.push('cbomb');
     if (def.rings.some(r => r.ratchet)) f.push('ratchet');
+    if (def.rings.some(r => r.pearl != null)) f.push('pearl');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -1705,7 +1712,7 @@
   const NEW_FIRST = 90;
   const MOVED_GATE = 12;
   // Kapının başındaki tanıtım (dünyanın başı ya da dünyanın ikinci parçası: 22. kapıda jetonlu halka)
-  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 33: 1015, 34: 1012, 36: 1013, 39: 1014, 41: 1016, 44: 1017 };
+  const WORLD_INTRO = { 7: 1001, 9: 1003, 11: 1004, 13: 1005, 15: 1002, 21: 1006, 22: 1007, 24: 1008, 26: 1009, 29: 1010, 31: 1011, 33: 1015, 34: 1012, 36: 1013, 39: 1014, 41: 1016, 44: 1017, 46: 1018 };
   // Hedefler zorluk puanıyla (hamle + yakınlık). Kapının en zor normal bölümü (zirve) her kapıda bir
   // öncekinden yüksektir: zirve bölümü [kendi hedefi, sonraki kapının hedefi) aralığında seçilir.
   // 6. kapının zirvesi 12,5. En iyi çözüm sınırı kapı 7-11'de 8, 12-16'da 9, 17-20'de 10.
@@ -2419,6 +2426,8 @@
     if (f === 'cbomb') out.rings.forEach(r => { delete r.cbomb; delete r.paint; });
     // cırcırsız hali aynı tıklı halka
     if (f === 'ratchet') out.rings.forEach(r => delete r.ratchet);
+    // incisiz hâli: inci baştan görünür
+    if (f === 'pearl') out.rings.forEach(r => delete r.pearl);
     return out;
   }
   function mattersAll(def, feats) {

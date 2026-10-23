@@ -583,6 +583,13 @@ var RING_LANG_EN = {
   'Dişli pirinç halka cırcırdır: yalnız okun yönüne ve her hamlede bir tık döner': 'The toothed brass ring is a ratchet: it turns only the way its arrow points, one click per move',
   'Dişli pirinç halka yalnız rozetindeki okun yönüne ve her hamlede bir tık döner. Fazla çevirirsen geri dönemezsin: turu tamamla.': 'The toothed brass ring turns only the way its badge arrow points, one click per move. Turn it too far and it cannot go back: complete the circle.',
   'Cırcır yalnız okun yönüne döner. Geri dönmek için turu tamamla': 'A ratchet turns only the way its arrow points. To go back, complete the circle',
+  // 2.6 İnci halka
+  'İnci halka': 'Pearl ring',
+  'İnci belirdi!': 'Pearl revealed!',
+  'İnci avcısı!': 'Pearl hunter!',
+  'inci belirdi': 'pearl revealed',
+  'Dalgalı kenarlı halka istiridyedir. Kurtulunca içindeki inci halka belirir, onu da kurtar': 'The ring with the wavy rim is an oyster. When it flies off, the pearl ring inside appears: free it too',
+  'Dalgalı kenarlı istiridye kurtulunca içindeki inci belirir. İnci saklıyken hiçbir halkayı tutmaz; belirince değdiklerini tutar. İstiridyeyi en sona bırak.': 'When the wavy-rimmed oyster flies off, the pearl inside appears. While hidden the pearl holds no ring; once it appears it holds the rings it touches. Open the oyster last.',
   'zırh bitti!': 'armour gone!',
   'Kazan patladı!': 'Boiler burst!',
   'Büyük patlama!': 'Big bang!',
