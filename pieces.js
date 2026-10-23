@@ -49,11 +49,15 @@
     // Kapı 31-40 finalleri: tanıtım bölümü yok, ilk finalde kart açılır
     { id: 'boss', intro: null, name: 'Dev Halka',
       text: 'Zırhlı gövde dönmez. Değdiği her halka kurtuldukça bir plaka kırılır; zırh bitince parçalanır ve yanındakilere yol açar.' },
+    // 2.6 parçaları (kapı 41-50)
+    { id: 'cbomb', intro: 1016, name: 'Renk Bombası',
+      text: 'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
-    'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı'];
+    'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
+    'aynı renk de uçar'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -77,6 +81,8 @@
     g.shadowBlur = 0;
     g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 2.5;
     g.beginPath(); g.arc(x - 1.5, y - 1.5, r, from, to); g.stroke();
+    // çilek deseni (renk bombasının rengi)
+    if (o.dots) { g.fillStyle = 'rgba(255,255,255,.88)'; for (let a = from + 0.2; a < to; a += 26 / r) { g.beginPath(); g.arc(...at(x, y, r, a), 2.6, 0, TAU); g.fill(); } }
     g.restore();
   }
   function openPoint(g, x, y, a = 1) {
@@ -212,6 +218,20 @@
     g.fillStyle = sg; g.beginPath(); g.arc(x + 15, y - 17, 8 * f, 0, TAU); g.fill();
     g.restore();
   }
+  // Renk bombası rozeti: iki ucu bükülmüş sarılı çilek şekeri (noktalı), hafifçe nefes alır
+  function candyBadge(g, x, y, t) {
+    g.save();
+    g.translate(x, y); g.scale(1 + 0.07 * Math.sin(t / 260), 1 + 0.07 * Math.sin(t / 260)); g.rotate(-0.35);
+    for (const d of [-1, 1]) {
+      g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.moveTo(d * 8, 0); g.lineTo(d * 22, -9); g.lineTo(d * 22, 9); g.closePath(); g.fill();
+      g.fillStyle = '#ff6fc0'; g.beginPath(); g.moveTo(d * 9, 0); g.lineTo(d * 19.5, -6.5); g.quadraticCurveTo(d * 17, 0, d * 19.5, 6.5); g.closePath(); g.fill();
+    }
+    badgeBase(g, 0, 0, '#ff6fc0', 'rgba(255,255,255,.6)');
+    g.rotate(0.35);
+    g.fillStyle = 'rgba(10,8,20,.78)';
+    for (const [dx, dy] of [[-4, -3], [4, -3], [0, 4]]) { g.beginPath(); g.arc(dx, dy, 2.2, 0, TAU); g.fill(); }
+    g.restore();
+  }
   function star(g, x, y, t) {
     g.save();
     g.translate(x, y); g.rotate(t / 900);
@@ -240,12 +260,12 @@
     g.restore();
   }
   // Dönerek uçan halka (patlamayla vurulan)
-  function spinFly(g, x, y, r, ang, color, t, dx, dy) {
+  function spinFly(g, x, y, r, ang, color, t, dx, dy, o = {}) {
     if (t >= 1) return;
     const e = t * t;
     g.save();
     g.translate(x + dx * 170 * e, y + dy * 170 * e);
-    ring(g, 0, 0, r, ang + 2.5 * e, color, { alpha: 1 - t });
+    ring(g, 0, 0, r, ang + 2.5 * e, color, { ...o, alpha: 1 - t });
     g.restore();
   }
   function heatColor(base, h) {
@@ -653,6 +673,30 @@
       finger(g, A[0] - 24, A[1] + 30, t > 500 && t < 750, t > 300 && t < 900 ? 1 : 0);
       finger(g, Cn[0] + 24, Cn[1] + 30, t > 1500 && t < 1750, t > 1300 && t < 1900 ? 1 : 0);
       label(g, tx('zırh bitti!'), 130, 150, fuse ? 1 : 0);
+    } },
+    // 2.6: renk bombası kurtulur, uzaktaki kilitli çilek halkaya şerit uzanır ve o da uçar; ortağı serbest kalır
+    cbomb: { ms: 4600, draw(g, t) {
+      const B = [62, 96], Lv = [112, 136], P = [178, 74], S = [210, 126], r = 36, pink = '#ff6fc0';
+      const e = io(seg(t, 400, 1200)), bAng = 200 * DEG - e * 150 * DEG, fly = seg(t, 1350, 1800);
+      const beam = seg(t, 1500, 1740), hit = seg(t, 1800, 2450), sFly = seg(t, 2550, 3000);
+      if (fly === 0) ring(g, Lv[0], Lv[1], 30, 230 * DEG, C.violet); else flyRing(g, Lv[0], Lv[1], 30, 230 * DEG, C.violet, fly, 0.3, 1);
+      if (sFly === 0) ring(g, S[0], S[1], 32, 120 * DEG, C.sky); else flyRing(g, S[0], S[1], 32, 120 * DEG, C.sky, sFly, 1, 0.4);
+      if (hit === 0) ring(g, P[0], P[1], 34, 300 * DEG, pink, { dots: true, glow: beam === 1 });
+      else spinFly(g, P[0], P[1], 34, 300 * DEG, pink, hit, 0.6, -1, { dots: true });
+      if (fly === 0) {
+        ring(g, B[0], B[1], r, bAng, pink, { dots: true });
+        candyBadge(g, ...at(B[0], B[1], r, bAng + Math.PI), t);
+      } else flyRing(g, B[0], B[1], r, bAng, pink, fly, -1, -0.6);
+      if (t > 1100 && fly < 0.3) openPoint(g, 92, 115);
+      if (beam > 0 && t < 2100) {
+        // şerit: bombanın yerinden çilek halkaya, ucunda parıltı
+        const hx = B[0] + (P[0] - B[0]) * beam, hy = B[1] + (P[1] - B[1]) * beam;
+        g.save(); g.globalAlpha *= 1 - seg(t, 1850, 2100); g.lineCap = 'round';
+        for (const [w, c] of [[9, 'rgba(10,8,20,.55)'], [5.5, pink], [2, '#fff']]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(hx, hy); g.stroke(); }
+        g.restore();
+      }
+      dragFinger(g, B[0], B[1], r, bAng, t - 300, 1000);
+      label(g, tx('aynı renk de uçar'), 130, 178, seg(t, 2000, 2300));
     } },
   };
 

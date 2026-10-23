@@ -76,7 +76,8 @@ function nearest(def, pool) {
 }
 
 // Bölüm küçük resmi: halkalar boşluklarıyla (başlangıç açısında), çubuk ve çerçeveler, parça işaretleri.
-// Kilitli halka gri, buz kalın açık mavi, bomba turuncu B, motor M, portal Pn, jetonlu Tn.
+// Kilitli halka gri, buz kalın açık mavi, bomba turuncu B, motor M, portal Pn, jetonlu Tn, renk bombası R.
+// Şeker renkli halka kendi renginde; renkli bölümde renksizler oyundaki gibi şekerle karışmayan renkte.
 const PALETTE = ['#ff5a5f', '#ffb400', '#3ec1d3', '#7ed957', '#a06cd5', '#ff8c42', '#4d96ff', '#f15bb5', '#00c2a8', '#c9a227'];
 function thumb(def, w = 160) {
   const B = Levels.BOARD, L = Logic.buildLevel(def), D = Logic.DEG;
@@ -85,7 +86,9 @@ function thumb(def, w = 160) {
   def.rings.forEach((r, i) => {
     if (r.type === 'bar') { out.push(`<line x1="${r.x1}" y1="${r.y1}" x2="${r.x2}" y2="${r.y2}" stroke="#c8cbd6" stroke-width="10" stroke-linecap="round"/>`); return; }
     if (r.type === 'frame') { out.push(`<polygon points="${r.points.map(q => q.join(',')).join(' ')}" fill="none" stroke="#c8cbd6" stroke-width="8"/>`); return; }
-    const R = L.rings[i], col = r.fixed ? '#8a8fa3' : r.ice ? '#bfeaff' : r.color || PALETTE[i % PALETTE.length];
+    const PC = require('../worlds.js').PIECE_COLORS, painted = def.rings.some(q => q.paint != null);
+    const R = L.rings[i], col = r.fixed ? '#8a8fa3' : r.ice ? '#bfeaff' : r.paint != null ? PC.paints[r.paint]
+      : painted ? PC.plain[i % PC.plain.length] : r.color || PALETTE[i % PALETTE.length];
     const half = Logic.GAP_HALF;
     for (const g of R.gaps) {
       // halkayı boşluğun bitiminden öbür ucuna dek çiz (boşluk açısı: başlangıç açısı + boşluk)
@@ -93,7 +96,7 @@ function thumb(def, w = 160) {
       const p = a => `${(r.x + r.r * Math.cos(a)).toFixed(1)} ${(r.y + r.r * Math.sin(a)).toFixed(1)}`;
       out.push(`<path d="M ${p(a0)} A ${r.r} ${r.r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p(a1)}" fill="none" stroke="${col}" stroke-width="${r.ice ? 12 : 8}" stroke-linecap="round"/>`);
     }
-    const tag = [r.bomb && 'B', r.motor && 'M', r.portal != null && 'P' + r.portal, r.tokens != null && 'T' + r.tokens,
+    const tag = [r.bomb && 'B', r.cbomb && 'R', r.motor && 'M', r.portal != null && 'P' + r.portal, r.tokens != null && 'T' + r.tokens,
       r.boiler && 'K' + r.boiler, r.ice && '*' + r.ice, r.step && 'tık', r.lockedBy != null && 'k' + r.lockedBy].filter(Boolean).join(' ');
     if (tag) out.push(`<text x="${r.x}" y="${r.y + 8}" text-anchor="middle" font-size="24" font-weight="700" fill="${col}" font-family="sans-serif">${tag}</text>`);
   });

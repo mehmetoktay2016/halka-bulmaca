@@ -13,6 +13,10 @@
             '#ff9f1c', '#f72585', '#90be6d', '#4895ef', '#f4a261'],
     fixed: '#5d6488',
     bar: '#c3cada',
+    // 2.6 şeker renkleri (çilek, nane, limon) ve renkli halkalı bölümde renksiz halkalar: onlara karışmayan
+    // lavanta, karamel, gök mavisi
+    paints: ['#ff6fc0', '#4fdcb0', '#ffd34a'],
+    plain: ['#a48be0', '#d39a62', '#7fa8e8'],
   };
 
   // top/bottom: zeminin dikey geçişi; glows: köşelerden vuran renkli ışıklar (renk, opaklık)

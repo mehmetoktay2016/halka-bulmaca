@@ -570,6 +570,12 @@ var RING_LANG_EN = {
   'Dev Halka yenildi!': 'Giant Ring defeated!',
   'Dev Halka zırhlı: değdiği halkaları kurtar, zırhı kırılsın': 'The Giant Ring is armoured: free the rings it touches to break its armour',
   'Zırhlı gövde dönmez. Değdiği her halka kurtuldukça bir plaka kırılır; zırh bitince parçalanır ve yanındakilere yol açar.': 'The armoured body won’t turn. Each ring it touches that flies off breaks a plate; once the armour is gone it shatters and clears the way for its neighbours.',
+  // 2.6 Renk Bombası
+  'Renk Bombası': 'Color Bomb',
+  'Renk patlaması!': 'Color blast!',
+  'aynı renk de uçar': 'same color flies too',
+  'Sarılı şekerli halka renk bombasıdır. Kurtulunca kendi rengindeki bütün halkalar da uçar': 'The ring with the wrapped candy is a color bomb. When it flies off, every ring of its color flies off too',
+  'Sarılı şekerli halka kurtulunca kendi rengindeki bütün halkalar, nerede ve neye kilitli olurlarsa olsunlar, onunla uçar. Renkler desenle de ayrılır.': 'When the ring with the wrapped candy flies off, every ring of its color flies off with it, wherever it is and whatever holds it. Colors also differ by pattern.',
   'zırh bitti!': 'armour gone!',
   'Kazan patladı!': 'Boiler burst!',
   'Büyük patlama!': 'Big bang!',
