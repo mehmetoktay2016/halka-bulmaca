@@ -672,6 +672,13 @@ var RING_LANG_EN = {
   'rüzgâr taşı çevirdi': 'the wind turned the stone',
   'Girdaplı halka rüzgârdır: kurtulunca değdiği halkaları, taş halkaları bile, çeyrek tur çevirir': 'The swirl ring is wind: when it flies off it turns the rings it touches a quarter turn, even stone rings',
   'Girdap rozetli halka kurtulunca değdiği her halkayı, senin çeviremediğin taş halkaları bile, rüzgâr yönünde çeyrek tur çevirir. Taşın boşluğu nereye gelecek, önceden düşün.': 'When the ring with the swirl badge flies off, it turns every ring it touches a quarter turn with the wind, even the stone rings you cannot turn. Think ahead about where the stone\'s gap will land.',
+  // 2.8 Fitil halka
+  'Fitil halka': 'Fuse ring',
+  'fitil yandı': 'fuse lit',
+  'her hamle bir boğum': 'one knot per move',
+  'patladı!': 'boom!',
+  'Dinamitli halkanın fitili, değdiği bir halka uçunca yanar: sayı kadar hamle sonra patlar ve değdiklerini uçurur': 'The fuse of the dynamite ring lights when a ring it touches flies off: it explodes after that many moves and blasts away the rings it touches',
+  'Dinamitli halkaya değen bir halka uçunca fitili yanar. Rozetteki sayı kadar hamle sonra patlar ve o anda değdiği halkaları uçurur. Erken kurtulursa patlamaz: önce tahtayı hazırla.': 'When a ring touching the dynamite ring flies off, its fuse lights. After as many moves as the badge shows, it explodes and blasts away the rings it touches at that moment. If it gets free too early it does not explode: set up the board first.',
   // 2.6 Zincirli ikizler
   'Zincirli ikizler': 'Chained twins',
   'İkizler birlikte!': 'Twins together!',

@@ -1675,6 +1675,11 @@
     // çevirir ve taşın boşluğu sağdakiyle kesişime gelir. Rüzgârsız 4 hamle, rüzgârla 3
     1021: { title: 'Rüzgâr halka', world: 'bulut', tip: 'Girdaplı halka rüzgârdır: kurtulunca değdiği halkaları, taş halkaları bile, çeyrek tur çevirir',
       rings: [{ x: 200, y: 250, r: 64, a: 157, fixed: true }, { x: 112, y: 250, r: 58, a: 285, gust: 90 }, { x: 285, y: 273, r: 58, a: 180 }, { x: 184, y: 339, r: 56, a: 270 }, { x: 223, y: 163, r: 56, a: 15 }] },
+    // Fitil halka tanıtımı (1022, 2.8): ortadaki fitilli halkanın dört komşusu. Bir komşu uçunca fitil yanar, iki hamle
+    // sonra patlar ve kalan üç komşuyu birden uçurur. Fitilsiz 5 hamle, fitille 3
+    1022: { title: 'Fitil halka', world: 'maden', tip: 'Dinamitli halkanın fitili, değdiği bir halka uçunca yanar: sayı kadar hamle sonra patlar ve değdiklerini uçurur',
+      rings: [{ x: 200, y: 260, r: 64, a: 60, fuse: 2 }, { x: 153, y: 183, r: 62, a: 195 }, { x: 294, y: 231, r: 58, a: 345 },
+        { x: 229, y: 357, r: 59, a: 180 }, { x: 112, y: 275, r: 61, a: 240 }] },
   };
   // Bir bölümün mekaniksiz hali: eş oranları 1, tıklar yok (tanıtımın kuralı gerektirdiğini sınamak için)
   // (çerçeveler en sonda tanımlanır ki çıkarılınca halka numaraları değişmesin)
@@ -1682,7 +1687,7 @@
     ...def,
     switch: undefined,
     table: undefined,
-    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined, chain: undefined, gust: undefined })),
+    rings: def.rings.filter(r => r.type !== 'frame').map(r => ({ ...r, step: undefined, lockedBy: undefined, kick: undefined, tokens: undefined, token: undefined, side: undefined, pulse: undefined, bomb: undefined, ice: undefined, motor: undefined, portal: undefined, boiler: undefined, boss: undefined, paint: undefined, cbomb: undefined, ratchet: undefined, pearl: undefined, chain: undefined, gust: undefined, fuse: undefined })),
     couples: (def.couples || []).map(([a, b]) => [a, b]),
   });
 
@@ -1690,7 +1695,7 @@
   // tıklı halka 1003, kilit-anahtar 1004, çerçeve 1005, yaylı halka 1006, jetonlu halka 1007) tanıtılmadan
   // onu kullanan bölüm gelemez.
   const INTRO = { fixed: 5, couple: 7, double: 8, bar: 9, reverse: 1001, fast: 1002, click: 1003, key: 1004, frame: 1005, kick: 1006, token: 1007,
-    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018, chain: 1019, gust: 1021 };
+    switch: 1008, pulse: 1009, table: 1010, bomb: 1011, ice: 1012, motor: 1013, portal: 1014, boiler: 1015, cbomb: 1016, ratchet: 1017, pearl: 1018, chain: 1019, gust: 1021, fuse: 1022 };
   function features(def) {
     const f = [];
     const ratios = (def.couples || []).map(c => (c[2] == null ? 1 : c[2]));
@@ -1716,6 +1721,7 @@
     if (def.rings.some(r => r.pearl != null)) f.push('pearl');
     if (def.rings.some(r => r.chain != null)) f.push('chain');
     if (def.rings.some(r => r.gust)) f.push('gust');
+    if (def.rings.some(r => r.fuse)) f.push('fuse');
     if (def.rings.some(r => r.gaps && r.gaps.length > 1)) f.push('double');
     if (def.rings.some(r => r.type === 'bar')) f.push('bar');
     return f;
@@ -2505,6 +2511,7 @@
     if (f === 'pearl') out.rings.forEach(r => delete r.pearl);
     if (f === 'chain') out.rings.forEach(r => delete r.chain);
     if (f === 'gust') out.rings.forEach(r => delete r.gust);
+    if (f === 'fuse') out.rings.forEach(r => delete r.fuse);
     return out;
   }
   function mattersAll(def, feats) {

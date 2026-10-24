@@ -60,12 +60,15 @@
       text: 'Zincirle bağlı iki halka ancak aynı anda serbest kalınca birlikte uçar. Biri hazırsa eşini bekler; bomba birini uçurursa zincir kopar.' },
     { id: 'gust', intro: 1021, name: 'Rüzgâr halka',
       text: 'Girdap rozetli halka kurtulunca değdiği her halkayı, senin çeviremediğin taş halkaları bile, rüzgâr yönünde çeyrek tur çevirir. Taşın boşluğu nereye gelecek, önceden düşün.' },
+    { id: 'fuse', intro: 1022, name: 'Fitil halka',
+      text: 'Dinamitli halkaya değen bir halka uçunca fitili yanar. Rozetteki sayı kadar hamle sonra patlar ve o anda değdiği halkaları uçurur. Erken kurtulursa patlamaz: önce tahtayı hazırla.' },
   ];
 
   // Canlandırmalardaki kısa yazılar; drawDemo'ya verilen çeviri işleviyle (tr) çevrilir
   const LABELS = ['tık', 'çerçeve kalır', 'tekme: hamle sayılmaz', 'şalter = 1 hamle', '1. hamle: kapak kapandı', '2. hamle: kapak açıldı', 'tabla = 1 hamle',
     'değdikleri de uçar', 'basınç doldu!', 'zırh bitti!', 'donmuş: dönmez', 'buz eridi', 'hamle → motor 1 adım', 'ikizi ışınlandı',
-    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'rüzgâr taşı çevirdi'];
+    'aynı renk de uçar', 'geri dönmez', 'inci belirdi', 'eşini bekliyor', 'birlikte!', 'rüzgâr taşı çevirdi',
+    'fitil yandı', 'her hamle bir boğum', 'patladı!'];
   let tx = s => s;
 
   // ---- Zaman yardımcıları ----
@@ -224,6 +227,57 @@
     const sg = g.createRadialGradient(x + 15, y - 17, 0, x + 15, y - 17, 8 * f);
     sg.addColorStop(0, '#fff'); sg.addColorStop(0.35, '#ffd34a'); sg.addColorStop(1, 'rgba(255,90,61,0)');
     g.fillStyle = sg; g.beginPath(); g.arc(x + 15, y - 17, 8 * f, 0, TAU); g.fill();
+    g.restore();
+  }
+  // ---- 2.8 Fitil halka (oyun da bu çizimleri kullanır) ----
+  // Rozet: üç kırmızı dinamit çubuğu, bantta kalan hamle (sıfırsa "!"); yanınca ışır, son hamlede kızarıp titrer
+  function dynamite(g, x, y, n, lit, hot, t) {
+    g.save();
+    g.translate(x + (hot ? 1.5 * Math.sin(t / 25) : 0), y); g.scale(1.3, 1.3);
+    if (lit) {
+      const R = hot ? 30 : 22, gr = g.createRadialGradient(0, 0, 3, 0, 0, R);
+      gr.addColorStop(0, hot ? 'rgba(255,70,40,.75)' : 'rgba(255,140,60,.45)'); gr.addColorStop(1, 'rgba(255,80,40,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+    }
+    g.fillStyle = 'rgba(10,8,20,.9)'; g.beginPath(); g.roundRect(-17, -13, 34, 30, 7); g.fill();
+    for (const dx of [-10, 0, 10]) {
+      const gr = g.createLinearGradient(dx - 5, 0, dx + 5, 0);
+      gr.addColorStop(0, '#8e1d1d'); gr.addColorStop(0.45, hot ? '#ff5a3d' : '#e0413a'); gr.addColorStop(1, '#7a1717');
+      g.fillStyle = gr; g.beginPath(); g.roundRect(dx - 5, -12, 10, 26, 3); g.fill();
+      g.fillStyle = '#f1d6b0'; g.fillRect(dx - 5, -12, 10, 3);
+    }
+    g.fillStyle = '#1b1820'; g.beginPath(); g.roundRect(-16, -5, 32, 12, 3); g.fill();
+    g.fillStyle = lit ? '#fff' : '#9a93a8'; g.font = '900 11px Nunito, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(n > 0 ? String(n) : '!', 0, 1.5);
+    g.restore();
+  }
+  // Fitil ipi: halkanın dışında a0'dan saat yönüne, kalan her hamle bir boğum; yanmış kısım kömür izi, ucunda kıvılcım
+  function fuseCord(g, x, y, r, a0, n, total, lit, t) {
+    const R = r + 10, SEG = 26 / R, a1 = a0 + SEG * n;
+    g.save(); g.lineCap = 'round';
+    if (lit && n < total) {
+      g.strokeStyle = 'rgba(40,30,30,.8)'; g.lineWidth = 3; g.setLineDash([2, 4]);
+      g.beginPath(); g.arc(x, y, R, a1, a0 + SEG * total); g.stroke(); g.setLineDash([]);
+    }
+    for (const [w, c] of [[6, '#3b2a1c'], [4, '#d9b48a']]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.arc(x, y, R, a0, a1); g.stroke(); }
+    g.strokeStyle = '#8a6440'; g.lineWidth = 1.5;
+    for (let a = a0 + 0.06; a < a1; a += 9 / R) {
+      const [cx, cy] = at(x, y, R, a), q = a + Math.PI / 2 + 0.6;
+      g.beginPath(); g.moveTo(cx - Math.cos(q) * 2.5, cy - Math.sin(q) * 2.5); g.lineTo(cx + Math.cos(q) * 2.5, cy + Math.sin(q) * 2.5); g.stroke();
+    }
+    g.fillStyle = '#6b4a2c';
+    for (let k = 1; k < n; k++) { g.beginPath(); g.arc(...at(x, y, R, a0 + SEG * k), 4, 0, TAU); g.fill(); }
+    if (lit && n > 0) {
+      const [sx, sy] = at(x, y, R, a1), hot = n === 1, S = (hot ? 18 : 13) * (0.85 + 0.2 * Math.sin(t / 47) * Math.sin(t / 71));
+      const gr = g.createRadialGradient(sx, sy, 0, sx, sy, S);
+      gr.addColorStop(0, '#fff'); gr.addColorStop(0.3, '#ffe066'); gr.addColorStop(0.7, 'rgba(255,120,40,.6)'); gr.addColorStop(1, 'rgba(255,90,40,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(sx, sy, S, 0, TAU); g.fill();
+      g.strokeStyle = '#ffd34a'; g.lineWidth = 1.6;
+      for (let k = 0; k < 7; k++) {
+        const q = k * TAU / 7 + t / 300, l = S * 0.7 + (k % 2) * 4;
+        g.beginPath(); g.moveTo(...at(sx, sy, 4, q)); g.lineTo(...at(sx, sy, l, q)); g.stroke();
+      }
+    }
     g.restore();
   }
   // Renk bombası rozeti: iki ucu bükülmüş sarılı çilek şekeri (noktalı), hafifçe nefes alır
@@ -817,6 +871,31 @@
       dragFinger(g, G[0], G[1], 36, 160 * DEG - e * 140 * DEG, t - 300, 900);
       label(g, tx('rüzgâr taşı çevirdi'), 130, 178, seg(t, 1600, 1900) * (t < 3300 ? 1 : 0));
     } },
+    // 2.8: soldaki halka uçunca fitil yanar; sağdaki halka iki kez çevrilir, her hamlede ip bir boğum kısalır,
+    // sayaç bitince fitilli halka patlar ve değdiği iki halkayı uçurur
+    fuse: { ms: 5200, draw(g, t) {
+      const F = [128, 104], N = [56, 104], X = [196, 66], Y = [196, 142], r = 40, a0 = -2.3;
+      const nE = io(seg(t, 300, 1000)), nFly = seg(t, 1050, 1500), lit = t > 1250;
+      const x1 = io(seg(t, 1800, 2300)), x2 = io(seg(t, 2900, 3400)), boom = t > 3450;
+      const n = !lit ? 2 : t < 2300 ? 2 : t < 3400 ? 1 : 0;
+      const xAng = 40 * DEG + (x1 + x2) * 60 * DEG, hit = seg(t, 3600, 4400), boomU = seg(t, 3450, 4300);
+      if (nFly === 0) ring(g, N[0], N[1], 30, 200 * DEG - nE * 160 * DEG, C.sky); else flyRing(g, N[0], N[1], 30, 40 * DEG, C.sky, nFly, -1, -0.3);
+      if (hit === 0) { ring(g, X[0], X[1], 32, xAng, C.yellow); ring(g, Y[0], Y[1], 32, 150 * DEG, C.violet); }
+      else { spinFly(g, X[0], X[1], 32, xAng, C.yellow, hit, 0.8, -0.5); spinFly(g, Y[0], Y[1], 32, 150 * DEG, C.violet, hit, 0.8, 0.5); }
+      if (!boom) {
+        const hot = lit && n === 1;
+        ring(g, F[0], F[1], r, 70 * DEG, hot ? heatColor(C.teal, 0.8) : C.teal);
+        fuseCord(g, F[0], F[1], r, a0 + 0.3, n, 2, lit, t);
+        dynamite(g, ...at(F[0], F[1], r + 4, a0), n, lit, hot, t);
+      } else flyRing(g, F[0], F[1], r, 70 * DEG, C.teal, seg(t, 3450, 3800), 0, -1);
+      blast(g, F[0], F[1], boomU);
+      dragFinger(g, N[0], N[1], 30, 200 * DEG - nE * 160 * DEG, t - 200, 900);
+      dragFinger(g, X[0], X[1], 32, xAng, t - 1700, 700);
+      dragFinger(g, X[0], X[1], 32, xAng, t - 2800, 700);
+      label(g, tx('fitil yandı'), 130, 182, lit && t < 1800 ? 1 : 0);
+      label(g, tx('her hamle bir boğum'), 130, 182, t > 2300 && t < 3400 ? 1 : 0);
+      label(g, tx('patladı!'), 130, 182, seg(t, 3500, 3700) * (t < 4700 ? 1 : 0));
+    } },
   };
 
   // Kartın canlandırması: döngü başı/sonu hafif kararır
@@ -832,7 +911,7 @@
     g.restore();
   }
 
-  const api = { PIECES, LABELS, DEMO_W, DEMO_H, drawDemo, DEMOS };
+  const api = { PIECES, LABELS, DEMO_W, DEMO_H, drawDemo, DEMOS, dynamite, fuseCord };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RingPieces = api;
 })(this);

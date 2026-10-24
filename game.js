@@ -292,6 +292,9 @@
         tone(700, 0.55, 'sine', 0.08, 2200);
         noise(0.5, 0.35, 300, 500);
       },
+      // Fitil: tutuşunca cızırtı; yanarken her hamlede tik (son hamlede çift ve tiz)
+      fuse: () => { noise(0.4, 0.22, 2500, 6000); tone(1900, 0.06, 'square', 0.025); },
+      tick: hot => { tone(hot ? 1500 : 1100, 0.06, 'square', 0.05); if (hot) tone(1500, 0.06, 'square', 0.05, null, 0.15); },
       // Portal: yükselen hışırtı ("fşşt") ve üstünde parıldayan üçlü
       swoosh: () => {
         noise(0.45, 0.4, 500, 5000);
@@ -1272,7 +1275,7 @@
       levelNo, tut, def, L: buildLevel(def), mask: 0, moves: 0,
       fly: {}, shake: {}, drag: null, hint: null, won: false, failed: false, shownStars: 3,
       keyFly: [], keyPulse: null, loot: null, lootInAir: 0, coinMult: 1, kicks: [], kickEnd: null, springSpot: {}, ratchetDeny: {}, pearlAt: {}, shellHalves: [], chainCut: {}, chainSide: {}, chainTold: false,
-      flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
+      flash: {}, bombs: 0, beams: [], vortex: [], boilFuse: {}, fuseLit: {}, steam: [], bossFuse: {}, armorHold: {}, plateHit: {}, iceHold: {}, iceCrack: {}, tokenFly: [], swT0: 0, phT0: 0, turn: null,
       coinsTaken: 0, limit: tut == null ? moveLimit(def.par || 5, preview || (levelNo ? srcOf(levelNo) : 0)) : Infinity,
       auto: null, help: { lastAct: performance.now(), shown: false }, usedHint: false, extra: 0, preview,
     });
@@ -1408,7 +1411,7 @@
   // ---- Hamle sonrası: serbest kalan halkaları uçur ----
   function settle() {
     // Hamlenin kurtardıkları uçar, sonra motor halkalar birer adım döner (dönüşleri tekmeler arasında gelir)
-    const { mask, waves, kicks, tokens, blasts, portals, fuses, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
+    const { mask, waves, kicks, tokens, blasts, portals, fuses, lit, angles, left } = afterMove(S.L, S.angles, S.mask, S.left, S.ph);
     const now = performance.now();
     const finale = mask === S.L.full && !S.won;
     // Dalgaların başlama anı: yaylı halka tekme attıysa sonraki dalga tekmenin dönüşünü,
@@ -1520,6 +1523,9 @@
         setTimeout(() => Sound.token(), at[w] + 80 + TOKEN_FLY_MS);
       }
     });
+    // Fitil: yanan sayaçlar hamleyle tik atar; tutuşanlar kendi dalgaları gelince kıvılcımla yanar
+    for (const i of S.L.fuses) if (S.left[i] != null && left[i] > 0 && left[i] < S.left[i]) Sound.tick(left[i] === 1);
+    lit.forEach((ls, w) => ls.forEach(i => { S.fuseLit[i] = now + at[w]; setTimeout(() => Sound.fuse(), at[w]); }));
     S.left = left;
     waves.forEach((wave, w) => {
       const last = finale && w === waves.length - 1;
@@ -3649,7 +3655,7 @@
   // Jeton taşıyan halkada küçük bir jeton durur, kenarı gideceği halkanın renginde.
   function tokenSpot(i, kind) {
     const r = S.L.rings[i];
-    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.ratchet || r.gust || r.boiler || r.portal >= 0 ? springBadgeAt(i) : null;
+    const springAt = r.kick || r.bomb || r.cbomb || r.ice || r.motor || r.ratchet || r.gust || r.boiler || r.fuse || r.portal >= 0 ? springBadgeAt(i) : null;
     const key = 't' + kind + i + ':' + S.mask + ':' + Math.round(S.angles[i] / (10 * DEG));
     if (S.springSpot[key] != null) return S.springSpot[key];
     let best = 0, bestD = -1;
@@ -3991,6 +3997,25 @@
       ctx.fillStyle = '#fff1ec';
       ctx.beginPath(); ctx.arc(p.x + p.dx * t * 60 + Math.sin(t * 6) * 3, p.y - t * 46, p.s * (1 + t * 1.6), 0, TAU); ctx.fill();
       ctx.restore();
+    }
+  }
+
+  // ---- Fitil halka çizimi (2.8) ----
+  // Gösterilen sayaç: fitil kendi dalgası gelene dek sönük kalır (S.fuseLit: tutuşma anı)
+  function fuseShown(i, now) {
+    const left = S.left[i], lit = left != null && !(S.fuseLit[i] > now);
+    return { lit, n: lit ? left : S.L.rings[i].fuse };
+  }
+  // Isı: son hamleye yaklaştıkça halka kızarır
+  const fuseHeat = (i, now) => { const f = fuseShown(i, now); return f.lit ? 0.9 * (S.L.rings[i].fuse - f.n + 1) / S.L.rings[i].fuse : 0; };
+  // Rozet (dinamit) ve ip pieces.js'te; rozet yeri öbür rozetlerinki gibi boş kenara düşer, ip oradan saat yönüne uzanır
+  function drawFuses(now) {
+    for (const i of S.L.fuses) {
+      const f = S.fly[i];
+      if ((f ? now >= f.t0 : !present(i)) || (S.turn && S.L.table.carried.includes(i))) continue;
+      const r = S.L.rings[i], th = springBadgeAt(i), { lit, n } = fuseShown(i, now), t = REDUCED ? 0 : now;
+      PCS.fuseCord(ctx, r.x, r.y, r.r, th + 0.3, n, r.fuse, lit, t);
+      PCS.dynamite(ctx, r.x + Math.cos(th) * (r.r + 4), r.y + Math.sin(th) * (r.r + 4), n, lit, lit && n <= 1 && !REDUCED, t);
     }
   }
 
@@ -4512,6 +4537,9 @@
       const h = heatOf(i, now);
       if (h) { const a = S.boilFuse[i] ? 3 : h * 1.6; cx += Math.sin(now / 21) * a; cy += Math.cos(now / 27) * a * 0.6; }
     }
+    // Fitil son hamlesinde titrer
+    const fs = ring.fuse && (!f || now < f.t0) && !REDUCED ? fuseShown(i, now) : null;
+    if (fs && fs.lit && fs.n <= 1) { cx += Math.sin(now / 21) * 1.6; cy += Math.cos(now / 27) * 1; }
     const sh = S.shake[i];
     if (sh != null) {
       const t = (now - sh) / 350;
@@ -4576,7 +4604,8 @@
     ctx.save();
     ctx.globalAlpha = alpha * (ring.side >= 0 && ring.side !== S.sw ? 0.4 : 1);
     if (grow !== 1) { ctx.translate(cx, cy); ctx.scale(grow, grow); ctx.translate(-cx, -cy); }
-    const heat = ring.boiler && (!S.fly[i] || now < S.fly[i].t0) ? heatOf(i, now) : 0;
+    const live = !S.fly[i] || now < S.fly[i].t0;
+    const heat = ring.boiler && live ? heatOf(i, now) : ring.fuse && live ? fuseHeat(i, now) : 0;
     const color = heat ? heatColor(ringColor(i), heat) : ringColor(i);
     const mover = S.drag ? S.drag.ring : S.auto ? S.auto.ring : -1;
     const active = mover >= 0 && S.L.group[mover].includes(i);
@@ -5205,6 +5234,7 @@
         drawChains(visible, now);
         drawPortals(now);
         drawBoilers(now);
+        drawFuses(now);
         drawTokens(now);
         drawSwitch(now);
         drawHub(now);
