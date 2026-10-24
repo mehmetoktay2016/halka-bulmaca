@@ -5,7 +5,7 @@ mağaza metinleri ve görselleri (`store/`), Expo test uygulaması (`expo_app/`)
 Aşağıdakiler senin hesabınla ve senin elinle yapılması gereken adımlar.
 
 - **Uygulama kimliği:** `com.mehmetoktay.halkabulmaca` (Play'e yüklendikten sonra değiştirilemez)
-- **Sürüm:** `versionCode 10`, `versionName "2.6"` → `android/app/build.gradle` (her yüklemede versionCode 1 artmalı)
+- **Sürüm:** `versionCode 11`, `versionName "2.7"` → `android/app/build.gradle` (her yüklemede versionCode 1 artmalı)
 - **Hazır deneme paketi:** `dist/HalkaBulmaca-deneme-2.0.apk` (imzasız deneme; mağazaya imzalı .aab yüklenir, bkz. 3. adım)
 
 ---
@@ -86,8 +86,22 @@ Her yeni sürümde `android/app/build.gradle` içindeki `versionCode`'u 1 artır
 | İçerik derecelendirmesi | Kategori: Oyun → şiddet, kumar, kullanıcı etkileşimi vb. hepsine **Hayır** |
 | Hedef kitle | **13 yaş ve üzeri** (13 yaş altı seçilirse "Aileler" politikası ve ek inceleme devreye girer) |
 | Haber uygulaması | Hayır |
-| Veri güvenliği | **Veri toplanmıyor ve paylaşılmıyor** (ilerleme yalnızca cihazda) |
+| Veri güvenliği | 2.7'den beri **veri toplanıyor** (Firebase Analytics), ayrıntı aşağıda |
+| Reklam kimliği | **Hayır**, kullanmıyor (Firebase'de kapalı, AD_ID izni manifestten çıkarıldı) |
 | Devlet uygulaması / finans / sağlık | Hayır |
+
+### Veri güvenliği formu (2.7, Firebase Analytics)
+
+| Soru | Cevap |
+|---|---|
+| Uygulama kullanıcı verisi topluyor ya da paylaşıyor mu? | **Evet** |
+| Veriler aktarım sırasında şifreleniyor mu? | **Evet** |
+| Kullanıcı verilerin silinmesini isteyebiliyor mu? | Hayır (veri kişiye bağlanmıyor) |
+| Toplanan türler | **Uygulama etkinliği → Uygulama etkileşimleri**; **Cihaz veya diğer kimlikler**; **Konum → Yaklaşık konum** |
+| Her tür için: toplanıyor / paylaşılıyor | Toplanıyor · paylaşılmıyor (Google hizmet sağlayıcı sayılır) |
+| Geçici mi işleniyor? | Hayır |
+| Zorunlu mu, isteğe bağlı mı? | Zorunlu (otomatik) |
+| Amaç | **Analiz** |
 
 ## 7. Mağaza sayfası
 

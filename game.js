@@ -27,6 +27,7 @@
   // Oyuncunun gördüğü sıra: 10'ar bölümlük kapılar (levels.js gateOrder).
   // ORDER[n-1] = levels.js'teki kaynak seviye (1-50 normal, 51-60 şekiller).
   const W = window.RingWorlds;
+  const Track = window.RingAnalytics;
   const ORDER = window.RingLevels.gateOrder(getLevel);
   const TOTAL = ORDER.length;
   const GATE_COUNT = TOTAL / W.GATE_SIZE; // bölümleri hazır olan kapı sayısı
@@ -1329,6 +1330,7 @@
     if (n !== failedLevel) failedLevel = null;
     tries = n === triesOf ? tries + 1 : 1; triesOf = n;
     startDef(def, n, null);
+    Track.levelStart(n, W.gateOf(n), tries);
     maybeWorldCard(n);
     maybePieceCard(def);
     if (dailyGift()) return;
@@ -2326,6 +2328,7 @@
     // Kusursuz seri (2.5): üst üste en iyi hamleyle ve ipucusuz biten bölümlerde altın 3. bölümden ×2, 6.dan ×3;
     // seri bozulunca yalnız sıfırlanır
     const flawless = !S.extra && !S.usedHint && S.moves <= par;
+    Track.levelComplete(S.levelNo, W.gateOf(S.levelNo), { stars, moves: S.moves, par, tries, hint: S.usedHint ? 1 : 0, extra: S.extra, first: firstClear ? 1 : 0 });
     progress.streakPerfect = flawless ? (progress.streakPerfect || 0) + 1 : 0;
     const streakMult = progress.streakPerfect >= 6 ? 3 : progress.streakPerfect >= 3 ? 2 : 1;
     progress.stats.bestStreak = Math.max(progress.stats.bestStreak || 0, progress.streakPerfect);
@@ -2583,6 +2586,7 @@
   const TUT_PRAISE = [tr('Harika!'), tr('Süper!'), tr('Çok iyi!'), tr('Hazırsın!')];
   function showTutorialWin() {
     const last = S.tut === TUTORIAL.length - 1;
+    if (last) Track.tutorialDone();
     $('win').querySelector('.card').classList.add('tut');
     $('win').querySelector('.card').classList.remove('perfect');
     $('winLevel').textContent = tr('Deneme {n} / {all}', { n: S.tut + 1, all: TUTORIAL.length });
@@ -2604,6 +2608,7 @@
     const left = S.L.rings.filter((r, i) => present(i) && r.kind !== 'bar' && !r.fixed).length;
     const can = !challenge && progress.coins >= EXTRA_PRICE;
     $('extraMoves').hidden = !!challenge;
+    if (!challenge && !S.preview) Track.levelFail(S.levelNo, W.gateOf(S.levelNo), left);
     $('failNote').textContent = left === 1 ? tr('Tek halka kaldı!') : tr('{n} halka kaldı.', { n: left });
     $('extraPrice').textContent = EXTRA_PRICE;
     $('extraMoves').disabled = !can;
@@ -2621,6 +2626,7 @@
     if (!S.failed || progress.coins < EXTRA_PRICE) { Sound.deny(); return; }
     progress.coins -= EXTRA_PRICE;
     stat('extraMoves');
+    Track.extraMoves(S.levelNo, EXTRA_PRICE);
     saveProgress();
     S.limit += EXTRA_MOVES;
     S.extra++;
@@ -3243,6 +3249,7 @@
     // Önizleme (kapıya yerleşmemiş tanıtım) sayaçlara ve rozetlere dokunmaz
     if (!S.preview) {
       stat('hintsUsed');
+      Track.hint(S.levelNo, tier);
       saveProgress();
       awardBadges(false);
     }

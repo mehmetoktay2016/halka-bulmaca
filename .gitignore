@@ -5,3 +5,5 @@ dist/
 *.jks
 *.keystore
 tools/out/
+# Firebase ayar dosyası depoya girmez (yayın kopyasına elle konur)
+android/app/google-services.json
