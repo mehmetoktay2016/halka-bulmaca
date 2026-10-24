@@ -12,6 +12,7 @@
     "test": "node tools/test_save.js && node tools/test_badges.js && node tools/test_logic.js && node tools/test_loot.js && node tools/test_i18n.js"
   },
   "dependencies": {
+    "@capacitor-firebase/analytics": "^8.5.2",
     "@capacitor/android": "8.5.3",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.5.3"
