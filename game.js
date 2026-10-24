@@ -294,7 +294,7 @@
       },
       // Fitil: tutuşunca cızırtı; yanarken her hamlede tik (son hamlede çift ve tiz)
       fuse: () => { noise(0.4, 0.22, 2500, 6000); tone(1900, 0.06, 'square', 0.025); },
-      tick: hot => { tone(hot ? 1500 : 1100, 0.06, 'square', 0.05); if (hot) tone(1500, 0.06, 'square', 0.05, null, 0.15); },
+      fuseTick: hot => { tone(hot ? 1500 : 1100, 0.06, 'square', 0.05); if (hot) tone(1500, 0.06, 'square', 0.05, null, 0.15); },
       // Portal: yükselen hışırtı ("fşşt") ve üstünde parıldayan üçlü
       swoosh: () => {
         noise(0.45, 0.4, 500, 5000);
@@ -1524,7 +1524,7 @@
       }
     });
     // Fitil: yanan sayaçlar hamleyle tik atar; tutuşanlar kendi dalgaları gelince kıvılcımla yanar
-    for (const i of S.L.fuses) if (S.left[i] != null && left[i] > 0 && left[i] < S.left[i]) Sound.tick(left[i] === 1);
+    for (const i of S.L.fuses) if (S.left[i] != null && left[i] > 0 && left[i] < S.left[i]) Sound.fuseTick(left[i] === 1);
     lit.forEach((ls, w) => ls.forEach(i => { S.fuseLit[i] = now + at[w]; setTimeout(() => Sound.fuse(), at[w]); }));
     S.left = left;
     waves.forEach((wave, w) => {

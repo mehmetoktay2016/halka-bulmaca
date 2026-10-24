@@ -26,6 +26,9 @@
       { from: 401, to: 500, name: 'Dördüncü Perde: Gökyüzü Sarayı', text: 'Anka\'nın ışığıyla açılan yollar dört yeni diyara ' +
         'uzanır. Halka şekerlerin, kumların, mercanların ve bulutların arasındaki düğümleri çözer; sonunda bulutların ' +
         'üstündeki sarayda bütün dostlarıyla buluşur. Yolculuk sürüyor.' },
+      { from: 501, to: 600, name: 'Beşinci Perde: Dağın Kalbi', text: 'Saraydan aşağı bakan Anka, dağın içinde titreyen ' +
+        'bir ışık görür. Madenciler dinamitlerini halkalara bağlamış; fitiller tıslıyor. Halka sarayın teleferiğiyle ' +
+        'dağın eteğine iner.' },
     ],
   };
 
@@ -71,6 +74,8 @@
       scene: 'Mercan bahçeleri, istiridyeler, yunuslar, batık bir gemi ve hazine sandıkları; yol deniz kabuğu.' },
     bulut: { story: 'Batık gemideki harita bulutların üstünü gösterir. Rüzgâr taş halkaları bile çeviriyor; Halka gökyüzü sarayına yükselir.',
       scene: 'Bulut adaları, balonlar, rüzgâr gülleri, gökkuşağı köprüsü ve bulut sarayı; yol bulut taşları.' },
+    maden: { story: 'Dağın içindeki maden ocağı. Fitiller yanınca Halka\'nın birkaç hamlesi kalıyor; patlamalar yeni tünelleri açıyor.',
+      scene: 'Ahşap destekli tüneller, raylar ve vagonlar, asılı fenerler, sarkıtlar, kömür yığınları ve parlayan kristal damarları; yol ahşap travers ve ray.' },
   };
 
   // Kapının yapısı (haritada kapının kendisi) ve hikâyedeki anı
@@ -125,6 +130,8 @@
     48: { gate: 'Batık geminin pruvası', story: 'Gemideki harita bulutların üstünü gösterir.' },
     49: { gate: 'Gökkuşağı köprüsünün kemeri', story: 'Rüzgâr taş halkaları çeviriyor.' },
     50: { gate: 'Bulut sarayının kapısı', story: 'Yolculuğun beşinci yüzü: bütün dostlar sarayda buluşur.' },
+    51: { gate: 'Ahşap destekli maden ağzı', story: 'Tünelde fitiller tıslıyor.' },
+    52: { gate: 'Kristal mağaranın demir kapısı', story: 'Patlamalar bir kristal damarını açar; içeride yeni bir ışık var.' },
   };
 
   // Durak: [ad, çizim, yolculuk]; 5. ve 10. durak şekil bölümü: [null, 'sekil', yolculuk]
@@ -301,6 +308,13 @@
     50: [S('Kristal Bahçe', 'crystal', 'isinlanma'), S('Yıldız Çemberi', 'cember', 'ucurtma'), S('Güneş Saati', 'gunessaati', 'balon'),
       S('Bulut Merdiveni', 'merdiven', 'ziplama'), F('ucurtma'), S('Gök Küre', 'gokkure', 'balon'), S('Saray Bahçesi', 'cicek', 'kus'),
       S('Taht Salonu', 'taht', 'isinlanma'), S('Bulut Sarayı', 'palace', 'kus'), F('kus')],
+    // ---- Maden Ocağı ----
+    51: [S('Maden Ağzı', 'magara', 'vagon'), S('Fener Rafı', 'lamba', 'vagon'), S('Kömür Yığını', 'komur', 'vagon'),
+      S('Kuyu Asansörü', 'asansor', 'teleferik'), F('vagon'), S('Ray Makası', 'madenrayi', 'vagon'), S('Fitil Deposu', 'fitil', 'vagon'),
+      S('Kibrit Kutusu', 'kibrit', 'ziplama'), S('Meşale Geçidi', 'mesale', 'vagon'), F('vagon')],
+    52: [S('Sarkıt Galerisi', 'sarkit', 'kayma'), S('Yeraltı Gölü', 'gol', 'tekne'), S('Kristal Damarı', 'crystal', 'isinlanma'),
+      S('Makara Kulesi', 'makara', 'teleferik'), F('vagon'), S('Kıvılcım Çukuru', 'kivilcim', 'ziplama'), S('Taş Sütunlar', 'sutun', 'vagon'),
+      S('Gizli Tünel', 'gizli', 'vagon'), S('Kristal Mağara', 'kokmagara', 'isinlanma'), F('isinlanma')],
   };
 
   const api = { STORY, WORLDS, GATES, STOPS };

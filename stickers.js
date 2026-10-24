@@ -159,6 +159,15 @@
         <path d="M43 74L42 80M57 74L58 80" stroke="${c.ink}" stroke-width="3"/>
         <rect x="40" y="80" width="20" height="12" rx="2" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5"/>`,
     },
+    maden: {
+      name: 'Madenci Feneri',
+      art: c => `<path d="M38 22H62L58 30H42Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M44 22Q50 8 56 22" fill="none" stroke="${c.ink}" stroke-width="3.5"/>
+        <rect x="34" y="30" width="32" height="44" rx="6" fill="${c.hi}" stroke="${c.ink}" stroke-width="4"/>
+        <path d="M34 44H66M34 60H66M44 30V74M56 30V74" stroke="${c.ink}" stroke-width="3"/>
+        <path d="M50 46Q44 54 50 60Q56 54 50 46Z" fill="${c.ink}"/>
+        <path d="M30 74H70L66 84H34Z" fill="${c.hi}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>`,
+    },
   };
   const PIECES = 5;
 
