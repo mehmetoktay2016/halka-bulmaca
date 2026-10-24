@@ -46,6 +46,7 @@
     piramit: [61, 96, 'pluck', 'kalimba', 'flute'],
     mercan: [66, 98, 'kalimba', 'celesta', 'glock'],
     bulut: [67, 92, 'flute', 'musicBox', 'celesta'],
+    maden: [57, 94, 'kalimba', 'marimba', 'pluck'],
   };
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 

@@ -20,8 +20,16 @@ if (process.argv[2] === '--worker') {
   const Kit = require('./test_kit.js');
   const EASY = 0.35, SIMILAR = 0.75;
   const pool = Object.entries(Kit.pre).filter(([, d]) => !d.name).map(([s, d]) => [Number(s), d]);
+  // 2.8 (kapı 51+, kullanıcı kararı: zorluk hamleyle değil mekanikle): rastgele oyuncunun sınırı kapının ilk
+  // normal bölümünde %40, zirvesinde %8; arası doğrusal
+  const gateNormals = g => Object.keys(Levels.NORMAL_PLAN).map(Number).filter(s => Levels.NORMAL_PLAN[s].gate === g);
+  const randomCap = n => { const list = gateNormals(Levels.NORMAL_PLAN[n].gate); return 0.4 - 0.32 * list.indexOf(n) / Math.max(1, list.length - 1); };
   Levels.setGrowCheck((def, n) => {
     if (Levels.NORMAL_PLAN[n].gate < 41) return null;
+    if (Levels.NORMAL_PLAN[n].gate >= 51) {
+      if (Kit.randomPlay(def, Kit.moveLimit(def.par, n), 100).rate > randomCap(n)) return 'rastgele_kolay';
+      return Kit.nearest(def, pool).sim > SIMILAR ? 'benzer' : null;
+    }
     // Bulut Krallığı'nda (49-50) sınır bölüm sınırı %50 (raylı halka denemesinde kullanıcı kararı)
     if (Kit.randomPlay(def, Kit.moveLimit(def.par, n), 100).rate > (Levels.NORMAL_PLAN[n].gate >= 49 ? 0.5 : EASY)) return 'rastgele_kolay';
     if (Kit.nearest(def, pool).sim > SIMILAR) return 'benzer';

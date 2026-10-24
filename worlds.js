@@ -139,6 +139,11 @@
       theme: { top: '#121a35', bottom: '#080c1c', accent: '#9fd8ff',
                glows: [['#9fd8ff', 0.10], ['#ffc0e0', 0.07], ['#ffd36b', 0.06]],
                board: { kind: 'bulut', tint: '#b8cce4', alpha: 0.07 }, air: 'bulut' } },
+    { id: 'maden', name: 'Maden Ocağı', title: 'Madenci',
+      intro: 'Fitilli halkanın fitili, değdiği bir halka uçunca yanar. Sayı kadar hamle sonra patlar: önce tahtayı hazırla.',
+      theme: { top: '#1c1410', bottom: '#0a0705', accent: '#ffb347',
+               glows: [['#ffb347', 0.10], ['#5fe3ff', 0.06], ['#ffb347', 0.06]],
+               board: { kind: 'maden', tint: '#c8a070', alpha: 0.08 }, air: 'maden' } },
   ];
 
   // Kapı n (1'den başlar): adı ve dünyası
@@ -193,6 +198,8 @@
     { name: 'Batık Gemi', world: 'mercan' },
     { name: 'Gökkuşağı Köprüsü', world: 'bulut' },
     { name: 'Bulut Sarayı', world: 'bulut' },
+    { name: 'Maden Ağzı', world: 'maden' },
+    { name: 'Kristal Mağara', world: 'maden' },
   ];
 
   // Unvanlar: bitirilen kapı sayısına göre. Dünya bitince o dünyanın unvanı gelir;

@@ -374,6 +374,15 @@
         k.every(14, 28, t => { for (let i = 0; i < 3; i++) { const f = 2800 + rand() * 800; k.blip(t + i * 0.11, f, 0.07, 0.01, 'sine', f * 1.3); } });
         return 3.4;
       },
+      // Maden Ocağı (2.8): tünelin derin uğultusu, mağarada yankılanan su damlaları, uzaktan kazma tıkırtısı
+      maden(k) {
+        const hum = k.bed('lowpass', 160, 0.7, 0.04);
+        k.lfo(hum.gain.gain, 0.03, 0.015);
+        const cave = k.echo(0.45, 0.45, 2400);
+        k.every(2.5, 6, t => { const f = 900 + rand() * 700; k.blip(t, f, 0.12, 0.02, 'sine', f * 0.5, cave); });
+        k.every(9, 20, t => { for (let i = 0; i < 3; i++) k.puff(t + i * 0.45, 'bandpass', 1800, 4, 0.03, 0.05); });
+        return 3;
+      },
     };
 
     function stopScene(scene, fade) {

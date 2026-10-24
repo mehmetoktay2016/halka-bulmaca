@@ -427,6 +427,60 @@
         });
         return null;
       }
+      if (id === 'maden') {
+        // Maden Ocağı (2.8): eğik kaya katmanları ve kömür parçaları, iki yanda ahşap tünel dikmeleri ve asılı fenerler,
+        // camgöbeği kristal damarları (Kristal Mağara'ya, yani yukarı doğru sıklaşır), yükselen korlar
+        const gr = g.createLinearGradient(0, r.top, 0, r.bottom);
+        gr.addColorStop(0, '#22170f'); gr.addColorStop(1, '#2e2016');
+        g.fillStyle = gr; g.fillRect(0, top, W, bot - top);
+        const deep = y => Math.max(0, Math.min(1, (r.bottom - y) / (r.bottom - r.top)));
+        for (let y0 = Math.floor(top / 300) * 300; y0 < bot + 60; y0 += 300) {
+          const R = rng(y0 * 11 + 3);
+          g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 2;
+          for (let k = 0; k < 4; k++) { const y = y0 + R() * 300; g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= W; x += 24) g.lineTo(x, y - x * 0.18 + Math.sin(x / 40 + k) * 5); g.stroke(); }
+          for (let k = 0; k < 7; k++) {
+            const x = R() * W, y = y0 + R() * 300, sz = 5 + R() * 9;
+            if (nearPathFast(x, y, 34)) continue;
+            g.fillStyle = R() < 0.4 ? 'rgba(20,16,18,.8)' : 'rgba(90,66,48,.55)';
+            g.beginPath(); g.moveTo(x, y - sz); g.lineTo(x + sz, y - sz * 0.2); g.lineTo(x + sz * 0.5, y + sz * 0.8); g.lineTo(x - sz * 0.7, y + sz * 0.5); g.closePath(); g.fill();
+          }
+          const veins = 1 + Math.round(deep(y0 + 150) * 4);
+          g.strokeStyle = 'rgba(95,227,255,.4)'; g.lineWidth = 2; g.lineJoin = 'round';
+          for (let k = 0; k < veins; k++) {
+            let x = R() * W, y = y0 + R() * 300;
+            if (nearPathFast(x, y, 40)) continue;
+            g.beginPath(); g.moveTo(x, y);
+            for (let i = 0; i < 4; i++) { x += (R() - 0.5) * 50; y += (R() - 0.5) * 36; g.lineTo(x, y); }
+            g.stroke();
+            const cx = x, cy = y; add(() => glow(cx, cy, 16, 'rgba(95,227,255,.45)'));
+          }
+        }
+        // Tünel dikmeleri: iki yanda ahşap direk, köşede payanda, payandada fener
+        for (let y = Math.floor(top / 360) * 360 + 120; y < bot + 200; y += 360) {
+          for (const sx of [0, 1]) {
+            const px = sx ? W - 14 : 14, dir = sx ? -1 : 1;
+            g.fillStyle = '#4a2e18'; g.fillRect(px - 7, y - 200, 14, 200);
+            g.fillStyle = '#7a4e2c'; g.fillRect(px - 5, y - 200, 5, 200);
+            g.strokeStyle = '#5a3a20'; g.lineWidth = 7; g.beginPath(); g.moveTo(px, y - 150); g.lineTo(px + dir * 34, y - 196); g.stroke();
+            g.strokeStyle = '#2a2a30'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(px + dir * 22, y - 180); g.lineTo(px + dir * 22, y - 166); g.stroke();
+            g.fillStyle = '#ffd27a'; g.beginPath(); g.ellipse(px + dir * 22, y - 160, 3.5, 5, 0, 0, TAU); g.fill();
+            const lx = px + dir * 22, ly = y - 160, ph = y + sx;
+            add(() => glow(lx, ly, 70 * (reduced() ? 1 : 0.9 + 0.1 * Math.sin(now / 230 + ph)), 'rgba(255,180,90,.35)'));
+          }
+        }
+        add(() => {
+          if (reduced()) return;
+          for (let y0 = Math.floor(top / 400) * 400; y0 < bot + 100; y0 += 400) {
+            const R = rng(y0 * 5 + 17);
+            for (let i = 0; i < 6; i++) {
+              const bx = R() * W, by = y0 + R() * 400, sp = 20 + R() * 25, ph = (now / 1000 * sp / 400 + R()) % 1;
+              const x = bx + Math.sin(ph * 6 + i) * 6, y = by - ph * 120;
+              g.fillStyle = `rgba(255,180,80,${0.8 * (1 - ph)})`; g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill();
+            }
+          }
+        });
+        return null;
+      }
       // Henüz kendi sahnesi çizilmemiş dünyalar: temanın renkleri, köşelerden vuran ışıklar ve ince bir doku
       const gr = g.createLinearGradient(0, r.top, 0, r.bottom);
       gr.addColorStop(0, th.top); gr.addColorStop(1, th.bottom);
@@ -629,6 +683,8 @@
       smallMill(d, now) { windmill(d.x, d.y, 0.9 * d.s, now + d.ph * 999); },
       hay: asDecor('saman', 0.8),
       crystalD: asDecor('crystal', 0.9),
+      coal: asDecor('komur', 0.8),
+      mineCart: asDecor('madenrayi', 0.8),
       books: asDecor('kitaplar', 0.8),
       rune: asDecor('run', 0.8),
       smallPortal(d, now) { portalRing(d.x, d.y - 14, 12 * d.s, '#c08aff', now + d.ph * 999); },
@@ -682,6 +738,17 @@
           if (gateHiddenStone(s, gt)) continue;
           const w = worldOfGate(gt), on = s.t <= lit, ice = isIce(w);
           g.save(); g.translate(s.x, s.y); g.rotate(s.a);
+          if (w.id === 'maden') {
+            // ahşap travers, üstünde iki ray; yanınca raylar fener ışığında parlar
+            g.fillStyle = 'rgba(0,0,0,.35)'; rr(-15 * s.s, -3, 30 * s.s, 10, 2); g.fill();
+            g.fillStyle = on ? '#9a6a40' : '#5a3e28'; rr(-15 * s.s, -5, 30 * s.s, 10, 2); g.fill();
+            g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-15 * s.s, 2, 30 * s.s, 3);
+            g.fillStyle = on ? '#e8d8c0' : '#8a8a96';
+            for (const rx of [-9, 7]) g.fillRect(rx * s.s, -16, 2.5, 32);
+            g.restore();
+            if (on) add(() => glow(s.x, s.y, 18, w.theme.accent + '30'));
+            continue;
+          }
           g.fillStyle = 'rgba(0,0,0,.35)'; rr(-8 * s.s, -10, 16 * s.s, 24, 5); g.fill();
           g.fillStyle = on ? w.theme.accent : ice ? '#e9f6fd' : 'rgba(150,130,170,.45)';
           rr(-8 * s.s, -12, 16 * s.s, 24, 5); g.fill();
@@ -2006,6 +2073,7 @@
       piramit: ['rock', 'column', 'statue', 'rock', 'torchPost', 'column'],
       mercan: ['buoy', 'rock', 'gull', 'buoy', 'smallLight', 'rock'],
       bulut: ['balloons', 'mote', 'smallMill', 'balloons', 'glowLamp', 'mote'],
+      maden: ['hangLamp', 'coal', 'crystalD', 'mineCart', 'torchPost', 'barrels'],
     };
     const DECOR = [];
     REGIONS.forEach((r, ri) => {
@@ -2347,7 +2415,8 @@
       15: 'factoryGate', 16: 'boilerHatch', 17: 'launchTower', 18: 'airlock',
       19: 'mastersHall', 20: 'machineGate', 21: 'funArch', 22: 'funArch', 23: 'coasterTunnel',
       24: 'substation', 25: 'damGate', 26: 'harborLights', 27: 'seaCave', 28: 'lighthouseDoor', 29: 'domeGate', 30: 'starGate',
-      34: 'iceArch', 35: 'iceCave', 36: 'sluiceGate', 37: 'millGate', 38: 'barnGate', 39: 'mirrorGate', 40: 'phoenixPortal' };
+      34: 'iceArch', 35: 'iceCave', 36: 'sluiceGate', 37: 'millGate', 38: 'barnGate', 39: 'mirrorGate', 40: 'phoenixPortal',
+      51: 'mineMouth', 52: 'crystalGate' };
     function themedGate(gt, y, open, now) {
       const kind = THEMED_GATES[gt], cx = W / 2, acc = worldOfGate(gt).theme.accent;
       g.fillStyle = 'rgba(6,14,12,.5)'; g.beginPath(); g.ellipse(cx + 8, y + 12, 170, 16, 0, 0, TAU); g.fill();
@@ -2549,6 +2618,32 @@
         add(() => { for (let k = 0; k < 16; k++) { const a = k * TAU / 16 + TAU / 32; glow(cx + Math.cos(a) * 100, y - 90 + Math.sin(a) * 100, 6, 'rgba(255,140,60,.9)', reduced() ? 1 : 0.6 + 0.4 * Math.sin(now / 400 + k)); } });
         portalRing(cx, y - 90, 80, '#ff8a4c', now);
         add(() => { for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) { const a = -0.35 - i * 0.2 + (reduced() ? 0 : Math.sin(now / 500 + i) * 0.05), len = 120 - i * 14; g.strokeStyle = `rgba(255,${140 + i * 18},70,${0.7 - i * 0.1})`; g.lineWidth = 7 - i; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx + sx * 80, y - 160); g.quadraticCurveTo(cx + sx * (80 + len * 0.6), y - 160 + Math.sin(a) * len, cx + sx * (80 + len * Math.cos(a)), y - 160 + Math.sin(a) * len * 0.9); g.stroke(); } });
+      } else if (kind === 'mineMouth' || kind === 'crystalGate') {
+        // Maden Ocağı (2.8): kaya yamacı, iki yandan gelip ağza giren ray; Maden Ağzı'nda ahşap dikmeler, çapraz
+        // payandalar ve kirişte asılı fener; Kristal Mağara'da iki yanda kristal kümeleri ve damarlar
+        g.fillStyle = '#3a2c22'; g.beginPath(); g.moveTo(cx - 220, y + 4); g.lineTo(cx - 200, y - 120); g.lineTo(cx - 120, y - 190); g.lineTo(cx - 20, y - 214); g.lineTo(cx + 90, y - 200); g.lineTo(cx + 190, y - 140); g.lineTo(cx + 220, y + 4); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,200,140,.06)'; g.beginPath(); g.moveTo(cx - 200, y - 120); g.lineTo(cx - 120, y - 190); g.lineTo(cx - 100, y - 100); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; for (const [x0, y0, x1, y1] of [[-180, -60, -110, -80], [120, -120, 180, -90], [-150, -140, -90, -150], [90, -40, 170, -60]]) { g.beginPath(); g.moveTo(cx + x0, y + y0); g.lineTo(cx + x1, y + y1); g.stroke(); }
+        g.strokeStyle = '#9aa0b0'; g.lineWidth = 2.5; for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(cx + sx * 24, y + 4); g.lineTo(cx + sx * 150, y + 4); g.stroke(); }
+        g.strokeStyle = '#5a3a20'; g.lineWidth = 4; for (let x = cx - 146; x < cx + 150; x += 14) if (Math.abs(x - cx) > 28) { g.beginPath(); g.moveTo(x, y - 1); g.lineTo(x, y + 9); g.stroke(); }
+        if (kind === 'mineMouth') {
+          const wood = (x0, y0, x1, y1, w) => { g.strokeStyle = '#4a2e18'; g.lineWidth = w + 3; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.strokeStyle = '#8a5a34'; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+          for (const sx of [-1, 1]) { wood(cx + sx * 74, y + 4, cx + sx * 70, y - 146, 14); wood(cx + sx * 70, y - 104, cx + sx * 40, y - 140, 7); }
+          wood(cx - 96, y - 150, cx + 96, y - 150, 16);
+          g.strokeStyle = '#2a2a30'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, y - 142); g.lineTo(cx, y - 128); g.stroke();
+          g.fillStyle = '#2a2a30'; g.fillRect(cx - 6, y - 128, 12, 3); g.fillRect(cx - 5, y - 112, 10, 3);
+          g.fillStyle = '#ffd27a'; g.beginPath(); g.ellipse(cx, y - 119, 4.5, 6, 0, 0, TAU); g.fill();
+          const fl = reduced() ? 1 : 0.85 + 0.15 * Math.sin(now / 180);
+          add(() => glow(cx, y - 119, 60 * fl, 'rgba(255,190,90,.6)'));
+          g.save(); g.translate(cx + 150, y); g.scale(1.5, 1.5); STATION_ART.madenrayi(!reduced(), now); g.restore();
+        } else {
+          for (const sx of [-1, 1]) { g.save(); g.translate(cx + sx * 120, y); g.scale(1.9, 1.9); STATION_ART.crystal(true); g.restore(); }
+          g.strokeStyle = 'rgba(95,227,255,.55)'; g.lineWidth = 3; g.lineJoin = 'round';
+          for (const pts of [[[-170, -60], [-130, -100], [-100, -96], [-70, -150]], [[160, -110], [120, -150], [80, -160], [50, -196]]]) { g.beginPath(); pts.forEach(([x, yy], k) => (k ? g.lineTo(cx + x, y + yy) : g.moveTo(cx + x, y + yy))); g.stroke(); }
+          add(() => { glow(cx - 100, y - 96, 30, 'rgba(95,227,255,.45)'); glow(cx + 80, y - 160, 30, 'rgba(95,227,255,.45)'); });
+          // sarkıtlar
+          g.fillStyle = '#4a3a2e'; for (let k = 0; k < 7; k++) { const x = cx - 60 + k * 20; g.beginPath(); g.moveTo(x - 6, y - 150); g.lineTo(x + 6, y - 150); g.lineTo(x, y - 128 - (k % 3) * 7); g.closePath(); g.fill(); }
+        }
       } else if (kind === 'factoryGate') {
         // fabrika cephesi: testere dişli çatı, bacalar, sarı-siyah bariyer
         masonry(cx - 170, y - 140, cx + 170, y + 4, '#7a4436');
@@ -2572,8 +2667,8 @@
         g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.arc(cx, y - 80, 100, Math.PI * 1.5, 0); g.lineTo(cx + 100, y + 4); g.lineTo(cx, y + 4); g.closePath(); g.fill();
         for (const sx of [-1, 1]) light(cx + sx * 80, y - 150, 10, 'rgba(255,100,100,.9)');
       }
-      door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : '#8a929c');
-      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 190, domeGate: 236, starGate: 240, iceArch: 208, iceCave: 222, sluiceGate: 196, millGate: 262, barnGate: 236, mirrorGate: 186, phoenixPortal: 236 }[kind] || 158), acc);
+      door(gt, y, open, now, kind === 'valleyArch' ? '#7a7280' : kind === 'rootTree' || kind === 'workDoor' ? '#6b4a2a' : kind === 'gearGate' || kind === 'springCage' ? '#8a6a3a' : kind === 'pendulumGate' ? '#4a4f70' : kind === 'mineMouth' || kind === 'crystalGate' ? '#5a4636' : '#8a929c');
+      gateSign(gt, y - ({ rootTree: 132, valleyArch: 186, workDoor: 236, gearGate: 206, pendulumGate: 306, springCage: 236, cellGate: 186, cryptGate: 206, streetArch: 214, townTower: 326, factoryGate: 196, boilerHatch: 220, launchTower: 250, airlock: 196, mastersHall: 252, machineGate: 206, funArch: 284, coasterTunnel: 284, substation: 214, damGate: 222, harborLights: 176, seaCave: 212, lighthouseDoor: 190, domeGate: 236, starGate: 240, iceArch: 208, iceCave: 222, sluiceGate: 196, millGate: 262, barnGate: 236, mirrorGate: 186, phoenixPortal: 236, mineMouth: 176, crystalGate: 176 }[kind] || 158), acc);
     }
 
     // ---- sis: ulaşılmamış kapıların ötesi ----

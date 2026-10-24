@@ -475,6 +475,28 @@
         g.beginPath(); g.moveTo(x - s * 2, y); g.lineTo(x, y + s * 0.5); g.lineTo(x + s * 2, y); g.lineTo(x, y - s * 0.5); g.closePath(); g.fill();
       }
     },
+    // Maden Ocağı (2.8): eğik kaya katmanları, aralarında kömür parçaları ve camgöbeği kristal damarları
+    maden(g, w, h, c, a, R) {
+      g.strokeStyle = rgba(c, a); g.lineWidth = 1.2;
+      for (let k = 0; k < 9; k++) {
+        const y0 = (k + R() * 0.6) * h / 8;
+        g.beginPath(); g.moveTo(0, y0);
+        for (let x = 0; x <= w; x += 30) g.lineTo(x, y0 + x * 0.12 + Math.sin(x / 47 + k) * 6);
+        g.stroke();
+      }
+      g.fillStyle = rgba(c, a * 1.3);
+      for (let k = 0; k < (w * h) / 9000; k++) {
+        const x = R() * w, y = R() * h, s = 2 + R() * 4;
+        g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + s, y); g.lineTo(x + s * 0.3, y + s); g.lineTo(x - s, y + s * 0.4); g.closePath(); g.fill();
+      }
+      g.strokeStyle = rgba('#5fe3ff', a * 2.2); g.lineWidth = 1.6; g.lineJoin = 'round';
+      for (let k = 0; k < 4; k++) {
+        let x = R() * w, y = R() * h;
+        g.beginPath(); g.moveTo(x, y);
+        for (let i = 0; i < 4; i++) { x += (R() - 0.3) * 40; y += (R() - 0.5) * 30; g.lineTo(x, y); }
+        g.stroke();
+      }
+    },
   };
 
   // Tahtanın arkasındaki panel: koyu taban, üstüne dünyanın dokusu.
@@ -921,6 +943,23 @@
         }
         g.globalAlpha = 0.1 + 0.04 * Math.sin(now / 1500 + p.ph); g.fillStyle = '#eef4ff';
         for (const [dx, dy, f] of [[0, 0, 1], [-0.9, 0.2, 0.7], [0.9, 0.2, 0.7]]) { g.beginPath(); g.arc(p.x + dx * p.s, p.y + dy * p.s, p.s * f, 0, TAU); g.fill(); }
+      },
+    },
+    // Maden Ocağı (2.8): fenerin ışığında yavaşça süzülen toz; arada yükselip sönen kor
+    maden: {
+      count: 22,
+      make: (w, h, fresh) => (rand() < 0.15
+        ? { ember: true, x: rand() * w, y: fresh ? rand() * h : h + 6, vx: (rand() - 0.5) * 8, vy: -(14 + rand() * 18), life: 0 }
+        : { x: rand() * w, y: fresh ? rand() * h : -6, vx: (rand() - 0.5) * 5, vy: 3 + rand() * 6, r: 0.6 + rand() * 1.4, ph: rand() * TAU }),
+      step: (p, dt, w, h) => {
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        if (p.ember) { p.life += dt; return p.life < 5 && p.y > -10; }
+        return p.y < h + 10;
+      },
+      draw: (g, p, now) => {
+        if (p.ember) { g.globalAlpha = Math.max(0, 0.8 - p.life * 0.16); g.fillStyle = '#ffb347'; g.beginPath(); g.arc(p.x, p.y, 1.6, 0, TAU); g.fill(); return; }
+        g.globalAlpha = 0.18 + 0.1 * Math.sin(now / 900 + p.ph); g.fillStyle = '#f0d8b0';
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill();
       },
     },
   };
