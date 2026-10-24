@@ -418,6 +418,44 @@ test('basınç kazanı: geçersiz tanımlar hata verir', () => {
   assert.throws(() => two({ boiler: 4 }, {}), /kazan 1-3/);
 });
 
+// Fitil halka (2.8): 0 baştan serbest, ortadaki 1 fitilli; 2 ve 3 fitile değer
+const FUSE = f => [{ x: 100, y: 100, r: 50, a: 45 }, { x: 170, y: 100, r: 50, a: 90, fuse: f }, { x: 240, y: 100, r: 50, a: 180 }, { x: 170, y: 170, r: 50, a: 90 }];
+
+test('fitil halka: komşusu çıkınca tutuşur, her hamlede kısalır, sıfırda patlayıp değdiklerini uçurur', () => {
+  const L = Logic.buildLevel({ rings: FUSE(2) });
+  const c = Logic.cascade(L, L.startAngles, 0);
+  assert.deepStrictEqual(c.lit, [[1]]);
+  assert.strictEqual(c.left[1], 2);
+  const m1 = Logic.afterMove(L, c.angles, c.mask, c.left);
+  assert.strictEqual(m1.left[1], 1);
+  assert.strictEqual(m1.mask, 1);
+  const m2 = Logic.afterMove(L, m1.angles, m1.mask, m1.left);
+  assert.deepStrictEqual(m2.waves, [[1], [2, 3]]);
+  assert.deepStrictEqual(m2.blasts[0], [{ from: 1, hits: [2, 3] }]);
+  assert.strictEqual(m2.mask, L.full);
+  // Fitilli halkayı çevirmek sayacı harcamaz (jeton değil)
+  assert.strictEqual(Logic.spend(L, c.left, 1), c.left);
+  // Yanan sayaç durumu ayırır: aynı açılarda başka sayaç başka durumdur
+  assert.notStrictEqual(Logic.stateKey(L, c.angles, c.mask, c.left), Logic.stateKey(L, m1.angles, m1.mask, m1.left));
+  assert.ok(Logic.solve(L, L.startAngles, 0));
+});
+
+test('fitil halka: sayaç bitmeden kendiliğinden kurtulursa patlamaz', () => {
+  const L = Logic.buildLevel({ rings: FUSE(2) });
+  const s = Logic.startState(L, L.startAngles, 0);
+  const c = Logic.afterMove(L, Logic.rotate(L, s.angles, 1, -60 * DEG), s.mask, s.left);
+  assert.deepStrictEqual(c.waves, [[1]]);
+  assert.deepStrictEqual(c.blasts, [[]]);
+});
+
+test('fitil halka: geçersiz tanımlar hata verir', () => {
+  const two = (a, b) => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, ...a }, { x: 170, y: 100, r: 50, ...b }] });
+  assert.throws(() => two({ fuse: 5 }, {}), /fitil 1-4/);
+  assert.throws(() => two({ fuse: 2, bomb: true }, {}), /fitil halka başka/);
+  assert.throws(() => two({ fuse: 2, tokens: 1 }, {}), /fitil halka başka/);
+  assert.throws(() => Logic.buildLevel({ rings: [{ x: 100, y: 100, r: 50, fuse: 2 }] }), /tutuşturacak komşu/);
+});
+
 // Dev halka (Z9): Davul şeklinin gövdesi 2 zırhlı dev halka (3 komşusu var); iki komşusu gidince parçalanır
 const BOSS = [{ x: 200, y: 260, r: 84, a: 45, boss: 2 }, { x: 140.6, y: 200.6, r: 26, a: 75 }, { x: 259.4, y: 200.6, r: 26, a: 255 }, { x: 200, y: 348, r: 30, a: 300 }];
 
