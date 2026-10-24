@@ -36,17 +36,7 @@
 
   <div id="app">
     <!-- Açılış ekranı -->
-    <div id="splash" class="splash" hidden aria-hidden="true">
-      <div class="app-icon">
-        <svg viewBox="0 0 200 200">
-          <circle cx="76" cy="84" r="40" class="lr lr1"/>
-          <circle cx="124" cy="84" r="40" class="lr lr2"/>
-          <circle cx="100" cy="122" r="34" class="lr lr3"/>
-        </svg>
-      </div>
-      <div class="splash-name">Halka Bulmaca</div>
-      <div class="splash-bar"><span></span></div>
-    </div>
+    <div id="splash" class="splash" hidden aria-hidden="true"><canvas id="splashFx"></canvas></div>
 
     <!-- Dünyanın arka planda süzülen parçacıkları (kıvılcım, buhar, yıldız...) -->
     <canvas id="bgFx" aria-hidden="true"></canvas>

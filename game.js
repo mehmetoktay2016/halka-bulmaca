@@ -5255,20 +5255,106 @@
     }
   }
 
-  // Uygulama açılış ekranı: simge büyüyerek gelir, sonra ana menü açılır
+  // Açılış: logonun üç halkası ortada ışıyarak belirir, hızla döner ve boşlukları merkeze hizalanır; "tık"la
+  // serbest kalır (parlama, şok dalgası, kıvılcım, titreşim), arka plan solarken halkalar giriş ekranındaki
+  // logonun yerine uçar ve logo o açıyla devralır. Giriş ekranı açılmıyorsa (ilk açılışta eğitim) halkalar dışa
+  // dağılıp söner. Daha önce oynamış olana kısa sürüm: belirip doğrudan uçar. Dokununca atlanır; hareket
+  // azaltılmışsa yalnız solar.
   function runSplash() {
-    const sp = $('splash');
-    if (!sp) return;
+    const sp = $('splash'), cv = $('splashFx'), mark = document.querySelector('.logo-mark');
+    const box = mark && mark.querySelector('svg').getBoundingClientRect();
+    if (!sp || !cv) return;
+    sp.hidden = false;
+    // Günlük sandık kartı giriş ekranıyla hemen açılıyor: açılış bitene dek bekler
+    const streak = !$('streakCard').classList.contains('hidden');
+    if (streak) $('streakCard').classList.add('hidden');
     let done = false;
-    const close = () => {
+    const finish = () => {
       if (done) return;
       done = true;
-      sp.classList.add('out');
-      setTimeout(() => { sp.hidden = true; }, 450);
+      if (toHome) { mark.style.visibility = ''; mark.classList.add('landed'); }
+      sp.classList.add('clear', 'out');
+      setTimeout(() => { sp.hidden = true; if (mark) mark.classList.remove('landed'); if (streak) maybeStreak(); }, 320);
     };
-    sp.hidden = false;
-    sp.addEventListener('pointerdown', close);
-    setTimeout(close, REDUCED ? 600 : 1700);
+    const toHome = !!(box && box.width);
+    sp.addEventListener('pointerdown', finish);
+    if (REDUCED) { setTimeout(finish, 500); return; }
+    if (toHome) mark.style.visibility = 'hidden';
+    const ar = $('app').getBoundingClientRect(), W = ar.width, H = ar.height;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = W * dpr; cv.height = H * dpr;
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Logonun halkaları (viewBox 200x140, boşluk dasharray'den); ortadaki küme logonun S katı
+    const k = toHome ? box.width / 200 : 1, S = Math.min(W * 0.62 / 200, 2.1), CX = 100, CY = 74;
+    const rings = [[70, 62, 40, '#ff6b6b', 200, 52], [130, 62, 40, '#ffc94a', 200, 52], [100, 98, 34, '#2dd4bf', 168, 46]].map(([x, y, r, c, dash, gap], i) => ({
+      x, y, r, c, el: mark && mark.querySelectorAll('circle')[i],
+      gap: gap / (dash + gap) * TAU, dashEnd: dash / (dash + gap) * TAU,
+      aim: Math.atan2(CY - y, CX - x), spin: (i % 2 ? -1 : 1) * (2.5 + i * 0.4) * TAU,
+    }));
+    const short = !!progress.tutorialDone;
+    const T_IN = short ? 160 : 260, T_CLICK = short ? 160 : 780, T_FLY = short ? 440 : 560;
+    const at = (p, s) => [W / 2 + (p.x - CX) * s, H * 0.44 + (p.y - CY) * s];
+    const home = p => [box.left - ar.left + p.x * k, box.top - ar.top + p.y * k];
+    // Logo sürekli döner: uçuşun sonunda boşluk logodaki yerine gelsin diye o anki dönüş okunur
+    const logoGap = p => { const m = getComputedStyle(p.el).transform, rot = m && m !== 'none' ? Math.atan2(+m.split(',')[1], +m.split('(')[1].split(',')[0]) : 0; return rot + p.dashEnd + p.gap / 2; };
+    const ease = t => 1 - Math.pow(1 - t, 3), inOut = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const sparks = Array.from({ length: 26 }, (_, i) => ({ a: i * TAU / 26 + Math.random() * 0.2, v: 140 + Math.random() * 220, c: ['#fff6d6', '#ffc94a', '#ff6b6b', '#2dd4bf'][i % 4] }));
+    let t0 = 0, clicked = false;
+    const ring = (x, y, r, w, ang, gap, color, glow, alpha) => {
+      g.save(); g.globalAlpha = alpha; g.lineCap = 'round'; g.lineWidth = w; g.strokeStyle = color;
+      if (glow) { g.shadowColor = color; g.shadowBlur = glow; }
+      g.beginPath(); g.arc(x, y, r, ang + gap / 2, ang + TAU - gap / 2); g.stroke(); g.restore();
+    };
+    const frame = now => {
+      if (done) return;
+      if (!t0) t0 = now;
+      const t = now - t0, [cx, cy] = [W / 2, H * 0.44];
+      g.clearRect(0, 0, W, H);
+      if (!clicked && t >= T_CLICK) {
+        clicked = true;
+        sp.classList.add('clear');
+        if (!short) { Sound.clack(); if (navigator.vibrate) navigator.vibrate(18); }
+        if (toHome) rings.forEach(p => { p.end = logoGap(p); });
+      }
+      if (!short && t >= T_CLICK) {
+        // parlama ve şok dalgası, kıvılcımlar
+        const u = (t - T_CLICK) / 520;
+        if (u < 1) {
+          const fl = g.createRadialGradient(cx, cy, 0, cx, cy, 90 * S);
+          fl.addColorStop(0, `rgba(255,248,220,${0.9 * (1 - u)})`); fl.addColorStop(1, 'rgba(255,200,120,0)');
+          g.fillStyle = fl; g.beginPath(); g.arc(cx, cy, 90 * S, 0, TAU); g.fill();
+          g.strokeStyle = `rgba(255,236,190,${0.8 * (1 - u)})`; g.lineWidth = 6 * (1 - u) + 1;
+          g.beginPath(); g.arc(cx, cy, 20 + 160 * S * ease(u), 0, TAU); g.stroke();
+          for (const s of sparks) { const d = s.v * ease(u); g.globalAlpha = 1 - u; g.fillStyle = s.c; g.beginPath(); g.arc(cx + Math.cos(s.a) * d, cy + Math.sin(s.a) * d + 30 * u * u, 2.6, 0, TAU); g.fill(); }
+          g.globalAlpha = 1;
+        }
+      }
+      for (const p of rings) {
+        const grow = ease(Math.min(1, t / T_IN));
+        const [sx, sy] = at(p, S);
+        if (t < T_CLICK) {
+          // döner, yavaşlar, boşluk merkeze bakar
+          const u = Math.min(1, t / T_CLICK), ang = p.aim - p.spin * Math.pow(1 - u, 3);
+          ring(sx, sy, p.r * S * (0.4 + 0.6 * grow), 11 * S, ang, p.gap, p.c, 18 * grow, grow);
+        } else if (!toHome) {
+          // logo yok: dışa dağılıp büyüyerek söner
+          const e = ease(Math.min(1, (t - T_CLICK) / T_FLY)), ox = p.x - CX, oy = p.y - CY, ol = Math.hypot(ox, oy) || 1;
+          ring(sx + ox / ol * 90 * S * e, sy + oy / ol * 90 * S * e, p.r * S * (1 + 0.5 * e), 11 * S * (1 - 0.5 * e), p.aim + e * 1.2, p.gap, p.c, 18, 1 - e);
+        } else {
+          const u = Math.min(1, (t - T_CLICK) / T_FLY), e = inOut(u), [hx, hy] = home(p);
+          const from = p.aim, to = p.end, d = ((to - from) % TAU + TAU * 1.5) % TAU - TAU / 2;
+          // serbest kalınca önce hafifçe dışa sekip sonra logoya uçar
+          const kick = short ? 0 : Math.sin(Math.PI * Math.min(1, u * 2)) * 14 * S * (1 - u);
+          const ox = (p.x - CX), oy = (p.y - CY), ol = Math.hypot(ox, oy) || 1;
+          ring(sx + (hx - sx) * e + ox / ol * kick, sy + (hy - sy) * e + oy / ol * kick, p.r * (S + (k - S) * e), 11 * (S + (k - S) * e),
+            from + d * e, p.gap, p.c, 18 * (1 - e), 1);
+        }
+      }
+      if (t >= T_CLICK + T_FLY) { finish(); return; }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
   }
 
   // Telefon çerçevesindeki saat
