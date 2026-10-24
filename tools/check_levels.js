@@ -106,7 +106,8 @@ for (let g = 0; g < order.length / G; g++) {
   if (g + 1 === PLATEAU - 1) plateauPeak = peak;
   if (!flat && peak <= prevPeak && !RISE_EXCEPT.has(g + 1)) problems.push(`zirve öncekinden düşük (${peak.toFixed(1)} < ${prevPeak.toFixed(1)})`);
   // Kapı 44-48'in zirvesi sabit düzeyden sapabilir: 44-45 bilerek 2 yüksek, 46-48 zirvesi geniş aralıkta (kullanıcı kararı)
-  if (flat && plateauPeak != null && !Levels.LONG_GATES.includes(g + 1) && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
+  // 2.8: kapı 51+ zorluğu mekanikle (rastgele oyuncu sınavı), puan zirvesi bilerek düşük
+  if (flat && plateauPeak != null && g + 1 < 51 && !Levels.LONG_GATES.includes(g + 1) && Math.abs(peak - plateauPeak) > 0.5) problems.push(`zirve sabit düzeyden uzak (${peak.toFixed(1)}, kapı ${PLATEAU - 1}: ${plateauPeak.toFixed(1)})`);
   const avgD = avg(mains);
   if (!flat && avgD <= prevAvg && !RISE_EXCEPT.has(g + 1)) problems.push(`ortalama öncekinden düşük (${avgD.toFixed(2)} <= ${prevAvg.toFixed(2)})`);
   const near = row.filter(generated).map(s => Levels.closeness(get(s)));

@@ -692,6 +692,10 @@ var RING_LANG_EN = {
   'Taş Sütunlar': 'Stone Pillars',
   'Gizli Tünel': 'Hidden Tunnel',
   'Madenci Feneri': 'Miner\'s Lantern',
+  'Köstebek': 'Mole',
+  'Kanarya': 'Canary',
+  'Kertenkele': 'Lizard',
+  'Cüce Madenci': 'Dwarf Miner',
   // 2.8 Fitil halka
   'Fitil halka': 'Fuse ring',
   'fitil yandı': 'fuse lit',

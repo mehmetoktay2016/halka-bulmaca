@@ -459,7 +459,7 @@
     // 2.8 Maden Ocağı: fuse = en çok komşulu halkaya (gövde dev halkaysa ona değil) 2 hamlelik fitil
     2061: { name: 'Köstebek', gate: 51, role: 'mid', target: 6.0, bars: 1 },
     2062: { name: 'Kanarya', gate: 51, role: 'final', target: 8.0, bars: 2, fuse: true },
-    2063: { name: 'Yarasa', gate: 52, role: 'mid', target: 6.5, bars: 1, fuse: true },
+    2063: { name: 'Kertenkele', gate: 52, role: 'mid', target: 6.5, bars: 1, fuse: true },
     2064: { name: 'Cüce Madenci', gate: 52, role: 'final', target: 9.0, bars: 2, boss: true, fuse: true },
   };
   const ANIMALS = [
@@ -1460,9 +1460,9 @@
     { name: 'Köstebek',
       rings: [
         {x: 0, y: 0, r: 70, color: '#8a6a5a'},
-        {x: -80, y: 60, r: 34, color: '#f4a6a0'},
-        {x: 80, y: 60, r: 34, color: '#f4a6a0'},
-        {x: 0, y: 110, r: 74, color: '#7a5a4c'},
+        {x: -62, y: 50, r: 34, color: '#f4a6a0'},
+        {x: 62, y: 50, r: 34, color: '#f4a6a0'},
+        {x: 0, y: 100, r: 74, color: '#7a5a4c'},
       ],
       couples: [[1, 2]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'happy', nose: 'snout', mouth: 'w'}}] },
@@ -1472,30 +1472,30 @@
         {x: 0, y: 95, r: 70, color: '#fcc419'},
         {x: -85, y: 90, r: 54, color: '#fab005'},
         {x: 85, y: 90, r: 54, color: '#fab005'},
-        {x: 0, y: 180, r: 30, color: '#f59f00'},
+        {x: 0, y: 170, r: 30, color: '#f59f00'},
       ],
       couples: [[2, 3, -1]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'round', nose: 'beak', mouth: 'none'}}, {ring: 2, type: 'wing', side: -1}, {ring: 3, type: 'wing', side: 1}] },
-    { name: 'Yarasa',
+    { name: 'Kertenkele',
       rings: [
-        {x: 0, y: 0, r: 52, color: '#8a7aa8'},
-        {x: -95, y: -10, r: 60, color: '#4b3b5c'},
-        {x: 95, y: -10, r: 60, color: '#4b3b5c'},
-        {x: -30, y: -55, r: 24, color: '#6c5b7b'},
-        {x: 30, y: -55, r: 24, color: '#6c5b7b'},
-        {x: -170, y: 20, r: 40, color: '#3b2e4a'},
-        {x: 170, y: 20, r: 40, color: '#3b2e4a'},
+        {x: 0, y: 0, r: 48, color: '#69db7c'},
+        {x: 0, y: 86, r: 72, color: '#51cf66'},
+        {x: -64, y: 62, r: 26, color: '#40c057'},
+        {x: 64, y: 62, r: 26, color: '#40c057'},
+        {x: -60, y: 126, r: 26, color: '#40c057'},
+        {x: 60, y: 126, r: 26, color: '#40c057'},
+        {x: 0, y: 168, r: 34, color: '#2f9e44'},
       ],
-      couples: [[1, 2, -1]],
-      deco: [{ring: 0, type: 'face', look: {eyes: 'big', nose: 'snout', mouth: 'fangs'}}, {ring: 1, type: 'wing', side: -1}, {ring: 2, type: 'wing', side: 1}] },
+      couples: [[2, 3], [4, 5, -1]],
+      deco: [{ring: 0, type: 'face', look: {eyes: 'big', nose: 'oval', mouth: 'smile', extras: ['spots']}}] },
     { name: 'Cüce Madenci',
       rings: [
         {x: 0, y: 0, r: 60, color: '#f1c27d'},
         {x: 0, y: -72, r: 44, color: '#ffd43b'},
         {x: 0, y: 62, r: 46, color: '#f8f9fa'},
         {x: 0, y: 140, r: 72, color: '#c0392b'},
-        {x: -85, y: 130, r: 30, color: '#f1c27d'},
-        {x: 85, y: 130, r: 30, color: '#f1c27d'},
+        {x: -72, y: 118, r: 30, color: '#f1c27d'},
+        {x: 72, y: 118, r: 30, color: '#f1c27d'},
       ],
       couples: [[4, 5]],
       deco: [{ring: 0, type: 'face', look: {eyes: 'happy', nose: 'oval', mouth: 'smile'}}, {ring: 1, type: 'lamp'}, {ring: 2, type: 'wool'}, {ring: 3, type: 'buttons'}] },
@@ -2208,7 +2208,7 @@
     const longer = typeof process !== 'undefined' && process.env && Number(process.env.GROW_MS);
     const deadline = Date.now() + (longer || (plan.peak ? 300000 : 150000));
     // Zirvenin alt payı GROW_PEAK_SLACK ile genişletilebilir (check_levels zirveden 0,5 sapmaya izin verir)
-    const slack = (typeof process !== 'undefined' && process.env && Number(process.env.GROW_PEAK_SLACK)) || (LONG_GATES.includes(plan.gate) ? 1.2 : 0.45); // kapı 44-48 zirvesi de geniş (kullanıcı kararı)
+    const slack = (typeof process !== 'undefined' && process.env && Number(process.env.GROW_PEAK_SLACK)) || (plan.gate >= 51 ? 1.5 : LONG_GATES.includes(plan.gate) ? 1.2 : 0.45); // kapı 44-48 zirvesi de geniş (kullanıcı kararı)
     const W = BOARD.w, H = BOARD.h;
     const fits = (A, rings) => {
       if (A.x - A.r < 16 || A.x + A.r > W - 16 || A.y - A.r < 16 || A.y + A.r > H - 16) return false;
@@ -2261,9 +2261,10 @@
     // Normal bölüm hedefin ±0,4'ünde kabul edilir (0,25'e inince aramayı bırakır); zirve [hedef-0,45, sonraki kapı)
     // Kabul aralığı ±0,4; cırcır kapılarında ±1,2: bir halka eklemek cırcırı tur attırıp çözümü birden 2 hamle
     // uzatabiliyor, dar aralık hep atlanıyordu (kullanıcı kararı: sınırlar esnetilebilir)
-    const band = LONG_GATES.includes(plan.gate) ? 1.2 : 0.4;
+    // 2.8 (kapı 51+): puan aralığı ±1,5; zorluğu rastgele oyuncu sınavı belirler (kullanıcı: üretimde esnek ol)
+    const band = plan.gate >= 51 ? 1.5 : LONG_GATES.includes(plan.gate) ? 1.2 : 0.4;
     // kapı 44-50 zirvesinin üst sınırı 0,8 geniş (kapı 49'da sonraki kapının zirvesi aynı olduğu için aralık 13,3-14,9'a sıkışıyordu)
-    const upper = plan.peak ? plan.top + (LONG_GATES.includes(plan.gate) ? 0.8 : 0) : t + band;
+    const upper = plan.peak ? plan.top + (plan.gate >= 51 ? 1.5 : LONG_GATES.includes(plan.gate) ? 0.8 : 0) : t + band;
     const maxRings = plan.maxRings || (plan.peak || LONG_GATES.includes(plan.gate) ? 12 : 10); // kapı 44-48: puan 10 halkada hedefe zor çıkıyordu
     // Kapıda tanıtılmış parça: zorlaştırma ancak onları ekler (yoksa bölüm sonda gec_parca ile atılıyordu)
     const known = m => gateOfLayout(INTRO[m]) <= plan.gate;
