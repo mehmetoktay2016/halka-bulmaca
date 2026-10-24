@@ -2933,10 +2933,10 @@
     const shapes = shapeLevels().filter(n => n <= last);
     const earned = Object.keys(progress.badges).length;
     const perfect = nums.filter(n => starsOf(n) === 3).length;
-    $('endingEyebrow').textContent = kind === 'finale' ? tr('Dördüncü perde tamam') : tr('İlk 8 dünya tamam');
-    $('endingTitle').textContent = kind === 'finale' ? tr('Gökyüzü Sarayı\'na ulaştın!') : tr('Büyük Makine çalıştı!');
+    $('endingEyebrow').textContent = kind === 'finale' ? tr('Şimdilik son bölüm') : tr('İlk 8 dünya tamam');
+    $('endingTitle').textContent = kind === 'finale' ? tr('Kristal Mağara\'ya ulaştın!') : tr('Büyük Makine çalıştı!');
     $('endingLead').textContent = kind === 'finale'
-      ? tr('{n} bölümün hepsini bitirdin. Anka seni bulutların üstüne taşıdı; bütün dostların sarayda buluştu.', { n: TOTAL })
+      ? tr('{n} bölümün hepsini bitirdin. Patlamalar kristal damarını açtı; içeride yeni bir ışık var. Yolculuk sürüyor.', { n: TOTAL })
       : tr('200 bölümün hepsini bitirdin. Artık bir Halka Ustasısın.');
     $('endingStats').innerHTML = [
       [`${nums.reduce((s, n) => s + starsOf(n), 0)}`, tr('/ {n} yıldız', { n: last * 3 })],

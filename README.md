@@ -44,6 +44,11 @@ Tarayıcıda çalışır; telefonda uygulama gibi açılır. Kurulum gerekmez.
   istiridye kurtulunca içindeki inci halka belirir; zincirli ikizler ancak birlikte kurtulur; rüzgâr halka
   kurtulunca komşularını, taş (sabit) halkaları bile, çeyrek tur çevirir. Kapı 44-50'de hamle tavanı 12
   (hak en çok 17). 53 rozet, 99 şekil; 500. bölümde Gökyüzü Sarayı finali.
+- 2.7: Firebase Analytics ile ölçüm (bölüm başı, bitiş, kayıp, ipucu, ek hamle).
+- 2.8: kapı 51-52 (Maden Ocağı, 20 bölüm) ve fitil halka: değdiği bir halka uçunca fitili yanar, sayaç kadar
+  hamle sonra patlar ve o anda değdiklerini uçurur; erken kurtulursa patlamaz. Kapı 51'den sonra her bölümde
+  sırayla dönen bir eski parça da işe yarar; çözümler kısa (4-6 hamle), zorluk rastgele oyuncu sınavıyla
+  ölçülür. Dört dost: Köstebek, Kanarya, Kertenkele, Cüce Madenci.
   Kapı 21-30'un zorluğu artmaz, kapı 20 düzeyinde kalır (`PLATEAU`).
 
 500 bölüm 50 kapıya, kapılar 20 dünyaya ayrılır (Başlangıç Vadisi, Atölye, Saat Kulesi, Zindan, Şehir,

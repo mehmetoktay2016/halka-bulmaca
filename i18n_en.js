@@ -696,6 +696,9 @@ var RING_LANG_EN = {
   'Kanarya': 'Canary',
   'Kertenkele': 'Lizard',
   'Cüce Madenci': 'Dwarf Miner',
+  'Şimdilik son bölüm': 'The last level, for now',
+  'Kristal Mağara\'ya ulaştın!': 'You reached the Crystal Cave!',
+  '{n} bölümün hepsini bitirdin. Patlamalar kristal damarını açtı; içeride yeni bir ışık var. Yolculuk sürüyor.': 'You finished all {n} levels. The blasts opened a crystal vein; there is a new light inside. The journey goes on.',
   // 2.8 Fitil halka
   'Fitil halka': 'Fuse ring',
   'fitil yandı': 'fuse lit',
